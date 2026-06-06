@@ -36,3 +36,15 @@
 :target {
   scroll-margin-block: 1rem;
 }
+
+.mermaid-diagram {
+  overflow-x: auto;
+  margin-block: 1.5rem;
+}
+
+.mermaid-diagram svg {
+  display: block;
+  margin-inline: auto;
+  max-width: 100%;
+  height: auto;
+}

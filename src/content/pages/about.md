@@ -32,8 +32,8 @@ I engineered a framework called the **Minimal Path to Freedom (MPF)**—a techni
 ```mermaid
 graph TD
     %% Styling Configuration
-    classDef oldArch fill:#1a1a1a,stroke:#ff4a4a,stroke-width:2px,color:#fff;
-    classDef newArch fill:#1a1a1a,stroke:#00ffcc,stroke-width:2px,color:#fff;
+    classDef oldArch fill:#8b2222,stroke:#ff4a4a,stroke-width:3px,color:#ffffff;
+    classDef newArch fill:#0d5c42,stroke:#00ffcc,stroke-width:3px,color:#ffffff;
     
     %% Force columns side-by-side by horizontally linking the heads invisibly
     A ~~~ D
