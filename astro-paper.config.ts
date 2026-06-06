@@ -2,14 +2,14 @@ import { defineAstroPaperConfig } from "./src/types/config";
 
 export default defineAstroPaperConfig({
   site: {
-    url: "https://astro-paper.pages.dev/",
-    title: "AstroPaper",
-    description: "A minimal, responsive and SEO-friendly Astro blog theme.",
-    author: "Sat Naing",
-    profile: "https://satna.ing",
-    ogImage: "default-og.jpg",
+    url: "https://www.kheai.com",
+    title: "KheAi",
+    description: "An engineering blueprint to reclaim your time, attention, and biology in a high-entropy world. Learn the system architecture of the Minimal Path to Freedom (MPF).",
+    author: "Kai",
+    profile: "https://www.linkedin.com/in/kheai/",
+    ogImage: "kheai-mpf.png",
     lang: "en",
-    timezone: "Asia/Bangkok",
+    timezone: "Asia/Kuala_Lumpur",
     dir: "ltr",
   },
   posts: {
@@ -24,15 +24,15 @@ export default defineAstroPaperConfig({
     showBackButton: true,
     editPost: {
       enabled: true,
-      url: "https://github.com/satnaing/astro-paper/edit/main/",
+      url: "https://github.com/kafechew/ilearn/edit/main/",
     },
     search: "pagefind",
   },
   socials: [
-    { name: "github",   url: "https://github.com/satnaing/astro-paper" },
-    { name: "x",        url: "https://x.com/username" },
-    { name: "linkedin", url: "https://www.linkedin.com/in/username/" },
-    { name: "mail",     url: "mailto:yourmail@gmail.com" },
+    { name: "github",   url: "https://github.com/kafechew/ilearn" },
+    { name: "x",        url: "https://x.com/kafechew" },
+    { name: "linkedin", url: "https://www.linkedin.com/in/kheai/" },
+    { name: "mail",     url: "mailto:kheaichew@gmail.com" },
   ],
   shareLinks: [
     { name: "whatsapp", url: "https://wa.me/?text=" },
