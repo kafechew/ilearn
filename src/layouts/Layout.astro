@@ -80,6 +80,12 @@ const rssHref = getRelativeLocaleUrl(
       href={new URL(rssHref, Astro.site)}
     />
 
+    <!-- Katex -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css"
+    />
+
     <!-- Filled at runtime by theme.ts to match the current background colour -->
     <meta name="theme-color" content="" />
 

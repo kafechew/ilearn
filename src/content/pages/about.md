@@ -55,6 +55,8 @@ graph TD
     class D,E,F newArch;
 ```
 
+$$E_{\text{load}} = C_{\text{fixed}} + B_{\text{financial}} + T_{\text{titty}} + S_{\text{ego}}$$
+
 By implementing this framework, I transformed my entire daily experience:
 
 * **The Job as an API:** I stripped away all personal ego and corporate office politics from my day job. I turned it into a neutral, transactional cash engine. By automating tasks and using smart templates, I deliver exactly what is required in a fraction of the time, and I keep the leftover mental energy entirely for myself.
