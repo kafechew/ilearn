@@ -1,0 +1,1 @@
+Playwright/Cypress selectors, async patterns, data-testid conventions

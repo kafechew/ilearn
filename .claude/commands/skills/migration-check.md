@@ -1,0 +1,1 @@
+Validate DB migrations before running them

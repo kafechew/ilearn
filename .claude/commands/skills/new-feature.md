@@ -1,0 +1,1 @@
+Scaffold a complete new feature — all files, wired up correctly

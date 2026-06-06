@@ -1,0 +1,1 @@
+DB safety rules, schema changes, rollback plans

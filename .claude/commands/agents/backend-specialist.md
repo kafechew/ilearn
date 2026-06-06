@@ -1,0 +1,1 @@
+Models, services, business logic, DB queries, framework conventions

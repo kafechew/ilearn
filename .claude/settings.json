@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [{
+          "type": "command",
+          "description": "Auto-format PHP after every write",
+          "command": "vendor/bin/pint --quiet || true"
+        }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [{
+          "type": "command",
+          "description": "Block bad patterns",
+          "command": "python3 -c \"import sys,json; args=json.load(sys.stdin); exit(1) if 'bad/path' in args.get('file_path','') else exit(0)\""
+        }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{
+          "type": "command",
+          "command": "echo 'Run your tests and linter before committing'"
+        }]
+      }
+    ]
+  }
+}
