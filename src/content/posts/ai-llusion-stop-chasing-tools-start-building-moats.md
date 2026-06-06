@@ -2,7 +2,7 @@
 author: Kai
 pubDatetime: 2026-04-06T09:00:00+08:00
 title: The AI Illusion - Stop Chasing Tools and Start Building Moats
-featured: true
+featured: false
 draft: false
 slug: ai-llusion-stop-chasing-tools-start-building-moats
 tags:
