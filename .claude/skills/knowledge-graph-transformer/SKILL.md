@@ -1,5 +1,5 @@
 ---
-name: llm-wiki
+name: knowledge-graph-transformer
 description: Transforms a legacy document into a structured knowledge graph (Entities, Concepts, Clusters) within the context_brain/ directory for Obsidian visualization.
 ---
 
