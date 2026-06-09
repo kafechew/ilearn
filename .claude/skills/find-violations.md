@@ -1,1 +1,0 @@
-Scan codebase for architecture rule violations
