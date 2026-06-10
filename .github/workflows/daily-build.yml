@@ -1,0 +1,19 @@
+name: Daily Vercel Build
+
+on:
+  schedule:
+    # This runs at 00:00 UTC (Midnight) every day.
+    # For Malaysia time (UTC+8), this triggers at 8:00 AM.
+    - cron: '0 0 * * *'
+    
+  # This line allows you to trigger the build manually by clicking a button in GitHub
+  workflow_dispatch: 
+
+jobs:
+  build:
+    name: Trigger Vercel Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Vercel Deploy Hook
+        # This sends a signal to your secret Vercel URL
+        run: curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
