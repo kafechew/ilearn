@@ -9,6 +9,8 @@ tags:
   - startup
   - ai
   - agentic
+  - knowledgebase
+  - claude
   - english
 ogImage: "https://ik.imagekit.io/kheai/blog/260609-one-person-company-ai-stack.png"
 description: The ultra-lean flat stack is designed to take you successfully through early development all the way into stable, profitable revenue tiers. Avoid the temptation to install complex agent orchestration systems until you cross explicit complexity thresholds.  

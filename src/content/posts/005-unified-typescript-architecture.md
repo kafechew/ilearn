@@ -9,6 +9,10 @@ tags:
   - deeptech
   - architecture
   - infrastructure
+  - typescript
+  - meteorjs
+  - nestjs
+  - backend
   - english
 ogImage: "https://ik.imagekit.io/kheai/blog/260609-unified-typescript-architecture.png"
 description: By unifying your architecture under a single language and letting tools handle the structural plumbing, you can spend less time fighting your codebase and more time shipping features that matter.  
