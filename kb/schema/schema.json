@@ -1,0 +1,24 @@
+{
+  "vault_name": "Knowledge Base",
+  "naming_convention": "lowercase_with_underscores (e.g., cloud_architecture.md)",
+  "categories": {
+    "01_entities": {
+      "definition": "Concrete, distinct elements like specific people, specific organizations, products, or physical assets.",
+      "allowed_frontmatter": ["type", "tags", "owner", "created_date"]
+    },
+    "02_concepts": {
+      "definition": "Abstract theories, methodologies, engineering design patterns, software algorithms, or compliance policies.",
+      "allowed_frontmatter": ["type", "tags", "domain", "difficulty"]
+    },
+    "03_clusters": {
+      "definition": "High-level industry themes, domain categories, or macro-groupings that link multiple concepts together.",
+      "allowed_frontmatter": ["type", "tags", "scope"]
+    }
+  },
+  "graph_rules": [
+    "Every document name must be unique.",
+    "Search existing directories before creating a file to prevent structural duplication.",
+    "Every file must contain a 'links' array in the frontmatter containing valid [[WikiLinks]].",
+    "Every text file body must contain a minimum of two inline semantic [[WikiLinks]]."
+  ]
+}
