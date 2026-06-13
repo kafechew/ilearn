@@ -230,6 +230,94 @@ For specialized animations (token streaming, failover diagrams), describe the de
 
 For complex visualizations (diagrams, timelines, animated demos), see [references/advanced-patterns.md](references/advanced-patterns.md).
 
-## Output
+## PDF Export & macOS Preview Compatibility
 
-Single self-contained HTML file. All styles inline. Opens in any browser. Print to PDF if needed.
+**Always include the full print block below.** The minimal `@media print { display:flex !important }` is not enough — macOS Preview's PDF renderer mis-paints gradient text as opaque color blocks that hide the text underneath.
+
+### Root causes to neutralise
+
+| CSS pattern | What Preview does | Fix |
+|---|---|---|
+| `background-clip: text` + `-webkit-text-fill-color: transparent` | Renders the gradient rect on top of the text, hiding it | Override to solid color + `unset` clip |
+| `background-image: linear-gradient(...)` on cards/slides | Paints an opaque colored block over subsequent content | `background-image: none !important` globally |
+| `rgba()` semi-transparent backgrounds stacked in z-order | Composited incorrectly, produces unexpected dark blobs | Force solid `#f4f6f8` on all card/box elements |
+| `box-shadow` | Can obscure content in some Preview builds | `box-shadow: none !important` globally |
+
+### Canonical @media print block
+
+Copy this into every generated deck and customise the accent color (`#007a63` = darkened primary):
+
+```css
+@media print {
+    /* layout */
+    body { background: #fff !important; overflow: visible !important; color: #111 !important; }
+    .nav-controls, .slide-counter, .progress-bar { display: none !important; }
+    .slide {
+        display: flex !important;
+        page-break-after: always;
+        break-after: page;
+        background: #fff !important;
+        overflow: visible !important;
+        height: 100vh;
+    }
+
+    /* kill ALL gradient backgrounds and shadows globally */
+    * {
+        background-image: none !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    /* fix gradient text — THE main culprit in Preview */
+    .slide-title, .main-title, [class*="arr"], [class*="cta-title"] {
+        background: none !important;
+        -webkit-background-clip: unset !important;
+        background-clip: unset !important;
+        -webkit-text-fill-color: #007a63 !important;
+        color: #007a63 !important;
+    }
+
+    /* dark slides → white */
+    .title-slide, .contact-slide, .section-slide { background: #fff !important; }
+
+    /* category labels, card titles, badges → accent */
+    .slide-category, .card-title, strong { color: #007a63 !important; }
+
+    /* body text → dark */
+    ul li, p, .card-content, .slide-subtitle { color: #111 !important; }
+
+    /* muted text */
+    .text-muted, .slide-footer, .metric-label { color: #555 !important; }
+
+    /* cards / boxes → solid light fill */
+    .card, [class*="box"], [class*="item"], [class*="step"] {
+        background: #f4f6f8 !important;
+        border-color: #ccc !important;
+    }
+
+    /* metric values */
+    .metric-value { color: #007a63 !important; -webkit-text-fill-color: #007a63 !important; }
+
+    /* table */
+    th { background: #e8f8f4 !important; color: #007a63 !important; }
+    td { border-bottom-color: #ddd !important; }
+
+    /* status colours */
+    .text-green, .check { color: #007a63 !important; }
+    .text-red,   .cross { color: #cc2222 !important; }
+    .text-yellow         { color: #996600 !important; }
+
+    /* inline style overrides */
+    [style*="color:var(--primary"]   { color: #007a63 !important; -webkit-text-fill-color: #007a63 !important; }
+    [style*="color:#ff5252"]         { color: #cc2222 !important; }
+}
+```
+
+### How to derive the print accent color
+
+Take the slide's `--primary-color` hex and darken it ~30% so it stays readable on white:
+- `#00d4aa` → `#007a63`
+- `#667eea` → `#3a46a0`
+- `#f093fb` → `#8a1fa0`
+
+### Output
