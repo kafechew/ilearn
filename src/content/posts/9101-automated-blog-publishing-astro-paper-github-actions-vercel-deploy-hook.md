@@ -4,7 +4,7 @@ pubDatetime: 2026-06-13T07:00:00+08:00
 title: How I Built a Completely Automated, Set-It-and-Forget-It Scheduling System for My Astro Blog
 featured: false
 draft: false
-slug: 008-automated-blog-publishing-astro-paper-github-actions-vercel-deploy-hook
+slug: 9101-automated-blog-publishing-astro-paper-github-actions-vercel-deploy-hook
 tags:
   - deeptech
   - astro

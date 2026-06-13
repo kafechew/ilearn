@@ -4,7 +4,7 @@ pubDatetime: 2026-06-06T09:00:00+08:00
 title: Freedom Architect’s Guide to Recompiling the Heart Sutra
 featured: true
 draft: false
-slug: 001-freedom-architect-guide-recompiling-heart-sutra
+slug: 0002-freedom-architect-guide-recompiling-heart-sutra
 tags:
   - philosophy
   - enlightenment

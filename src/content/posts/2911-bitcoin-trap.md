@@ -4,7 +4,7 @@ pubDatetime: 2025-07-14T01:00:00+08:00
 title: The 1 Bitcoin Trap. How the Obsession to Stack Can Steal Your Soul
 featured: false
 draft: false
-slug: 1-bitcoin-trap
+slug: 2911-bitcoin-trap
 tags:
   - philosophy
   - bitcoin

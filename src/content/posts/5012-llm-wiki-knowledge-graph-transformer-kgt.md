@@ -4,7 +4,7 @@ pubDatetime: 2026-06-17T07:00:00+08:00
 title: LLM Wiki Pattern with Knowledge Graph Transformer (KGT)
 featured: false
 draft: false
-slug: 012-llm-wiki-knowledge-graph-transformer-kgt
+slug: 5012-llm-wiki-knowledge-graph-transformer-kgt
 tags:
   - deeptech
   - rag

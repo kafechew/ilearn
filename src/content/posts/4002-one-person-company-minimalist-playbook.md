@@ -4,7 +4,7 @@ pubDatetime: 2026-06-09T09:00:00+08:00
 title: The One-Person Company Minimalist Playbook
 featured: false
 draft: false
-slug: 004-one-person-company-minimalist-playbook
+slug: 4002-one-person-company-minimalist-playbook
 tags:
   - startup
   - ai

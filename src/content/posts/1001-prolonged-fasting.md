@@ -4,7 +4,7 @@ pubDatetime: 2026-06-07T09:00:00+08:00
 title: Why Prolonged Fasting is a High-Level System Architecture Overhaul
 featured: false
 draft: false
-slug: 002-prolonged-fasting
+slug: 1001-prolonged-fasting
 tags:
   - hormesis
   - body

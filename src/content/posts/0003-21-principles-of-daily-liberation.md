@@ -4,7 +4,7 @@ pubDatetime: 2025-07-13T20:00:00+08:00
 title: 21 Principles of Daily Liberation
 featured: false
 draft: false
-slug: 21-principles-of-daily-liberation
+slug: 0003-21-principles-of-daily-liberation
 tags:
   - philosophy
   - english

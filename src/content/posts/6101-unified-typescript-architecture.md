@@ -4,7 +4,7 @@ pubDatetime: 2026-06-10T09:00:00+08:00
 title: Building a Unified TypeScript Architecture
 featured: false
 draft: false
-slug: 005-unified-typescript-architecture
+slug: 6101-unified-typescript-architecture
 tags:
   - deeptech
   - architecture

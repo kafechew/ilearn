@@ -4,7 +4,7 @@ pubDatetime: 2026-03-03T13:00:00+08:00
 title: 5 Levels of AI Complexity
 featured: false
 draft: false
-slug: 5-levels-of-ai-complexity
+slug: 6911-5-levels-of-ai-complexity
 tags:
   - ai
   - agentic

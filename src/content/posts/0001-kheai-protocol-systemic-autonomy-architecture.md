@@ -4,7 +4,7 @@ pubDatetime: 2026-04-03T09:00:00+08:00
 title: The KheAi Protocol - The Complete Architecture for Systemic Autonomy
 featured: true
 draft: false
-slug: kheai-protocol-systemic-autonomy-architecture
+slug: 0001-kheai-protocol-systemic-autonomy-architecture
 tags:
   - philosophy
   - enlightenment

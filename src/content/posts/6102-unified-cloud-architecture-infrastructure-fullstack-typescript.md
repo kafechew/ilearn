@@ -4,7 +4,7 @@ pubDatetime: 2026-06-11T07:00:00+08:00
 title: Unified Cloud Architecture - Infrastructure for Fullstack TypeScript
 featured: false
 draft: false
-slug: 006-unified-cloud-architecture-infrastructure-fullstack-typescript
+slug: 6102-unified-cloud-architecture-infrastructure-fullstack-typescript
 tags:
   - deeptech
   - architecture

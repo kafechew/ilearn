@@ -4,7 +4,7 @@ pubDatetime: 2026-06-16T07:00:00+08:00
 title: How I Finally Solved the Mac Screen Recording Audio Myth (No Third-Party Apps Required!)
 featured: false
 draft: false
-slug: 011-quicktime-screen-recording-system-sound-fixed
+slug: 5011-quicktime-screen-recording-system-sound-fixed
 tags:
   - quicktime
   - video

@@ -4,7 +4,7 @@ pubDatetime: 2026-06-08T09:00:00+08:00
 title: I’m Engineering a One-Person Startup Stack
 featured: false
 draft: false
-slug: 003-one-person-startup-stack
+slug: 4001-one-person-startup-stack
 tags:
   - startup
   - ai

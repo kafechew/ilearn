@@ -4,7 +4,7 @@ pubDatetime: 2026-06-15T07:00:00+08:00
 title: Demystifying the AI Memory Layer -  GitNexus, Graphify & LLM Wiki Pattern
 featured: false
 draft: false
-slug: 010-gitnexus-graphify-llm-wiki
+slug: 5010-gitnexus-graphify-llm-wiki
 tags:
   - deeptech
   - rag
