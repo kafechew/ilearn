@@ -11,6 +11,7 @@ tags:
   - productivity
   - mind
   - english
+ogImage: "https://ik.imagekit.io/moopt/kheai/protocol/kheai-protocol-260409-landscape_Om8q5iOtK.png"
 description: Are you truly an autonomous individual, or are you merely a biological puppet executing the scripts of your evolutionary programming, environmental sensory inputs, emotional impulses, and societal algorithms?  
 ---
 
