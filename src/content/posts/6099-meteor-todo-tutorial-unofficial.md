@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-03T09:00:00+08:00
+pubDatetime: 2026-04-30T09:00:00+08:00
 title: Blaze 3 Unofficial Simple Todos Tutorial with Meteor 3.4.1 + Rspack + PicoCSS
 featured: false
 draft: false
-slug: 6001-meteor-todo-tutorial-unofficial
+slug: 6099-meteor-todo-tutorial-unofficial
 tags:
   - deeptech
   - meteorjs

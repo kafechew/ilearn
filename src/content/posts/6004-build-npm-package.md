@@ -4,7 +4,7 @@ pubDatetime: 2026-06-12T07:00:00+08:00
 title: Built My First NPM Package From Zero to Published
 featured: false
 draft: false
-slug: 6103-build-npm-package
+slug: 6004-build-npm-package
 tags:
   - deeptech
   - package

@@ -1,14 +1,15 @@
 ---
 author: Kai
-pubDatetime: 2026-05-04T09:00:00+08:00
+pubDatetime: 2026-05-01T09:00:00+08:00
 title: From Meteor Magic to NestJS Enterprise Clarity
 featured: false
 draft: false
-slug: 6105-meteor-to-nestjs-enterprise
+slug: 6101-meteor-to-nestjs-enterprise
 tags:
   - deeptech
   - meteorjs
   - nestjs
+  - typescript
   - backend
   - frontend
   - fullstack

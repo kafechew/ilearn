@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-05-01T09:00:00+08:00
+pubDatetime: 2026-04-16T09:00:00+08:00
 title: The Complexity Tax - Choosing the Right Web Framework as a Solo Founder in 2026
 featured: false
 draft: false

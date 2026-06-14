@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-05-02T09:00:00+08:00
+pubDatetime: 2026-04-17T09:00:00+08:00
 title: Architecting a Life Operating System - The 10 Essential Categories for Systems-Driven Flourishing
 featured: true
 draft: false

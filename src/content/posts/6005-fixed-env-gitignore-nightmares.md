@@ -4,7 +4,7 @@ pubDatetime: 2026-06-14T07:00:00+08:00
 title: From Leaked Secrets to Git Mastery - How to fix env and gitignore Nightmares
 featured: false
 draft: false
-slug: 6104-fixed-env-gitignore-nightmares
+slug: 6005-fixed-env-gitignore-nightmares
 tags:
   - deeptech
   - git
