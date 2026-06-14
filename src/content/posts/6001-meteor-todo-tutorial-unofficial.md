@@ -11,6 +11,8 @@ tags:
   - backend
   - frontend
   - fullstack
+  - prototype
+  - poc
   - english
 ogImage: "https://ik.imagekit.io/moopt/kheai/tutorial/260508-meteor-blaze-todos-picocss_TVHhkNguw.png)](https://ik.imagekit.io/moopt/kheai/tutorial/260508-meteor-blaze-todos-picocss_TVHhkNguw.png"
 description: You have just built a reactive, full-stack application with a real database, user authentication, and secure remote procedure calls. What you've learned here applies to applications of massive scale. Welcome to the Meteor ecosystem!  
