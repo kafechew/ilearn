@@ -149,9 +149,9 @@ Communicate efficiently. Omit pleasantries, filler words, and narrative summarie
 @.claude/rules/compliance.md
 
 ## Project Overview
-**What it is:** E-Invoicing & Statutory Ledger Engine.
-**Stack:** Laravel (PHP 8.3), PostgreSQL, Redis, brick/math.
-**Systems:** Invoicing, Payroll Threshold Auditing, Regional Compliance Sync.
+**What it is:** [one sentence]
+**Stack:** [language, framework, database, libraries]
+**Systems:** [main modules]
 
 ## Commands
 # Start: php artisan serve
