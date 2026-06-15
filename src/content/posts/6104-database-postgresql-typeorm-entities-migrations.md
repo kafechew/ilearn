@@ -538,20 +538,42 @@ export const AppDataSource = new DataSource({
 });
 ```
 
-### Migration Scripts in package.json
+### TypeORM tsconfig
+
+The TypeORM CLI runs `ts-node` from the workspace root. There is no `tsconfig.json` at the root (Nx uses `tsconfig.base.json`), so `ts-node` falls back to TypeScript defaults — which have `experimentalDecorators: false`. Every decorator in every entity will fail.
+
+Fix: create `tsconfig.typeorm.json` at the workspace root:
 
 ```json
 {
-  "scripts": {
-    "api:migration:generate": "typeorm-ts-node-commonjs migration:generate -d apps/api/ormconfig.ts",
-    "api:migration:run": "typeorm-ts-node-commonjs migration:run -d apps/api/ormconfig.ts",
-    "api:migration:revert": "typeorm-ts-node-commonjs migration:revert -d apps/api/ormconfig.ts",
-    "api:migration:create": "typeorm-ts-node-commonjs migration:create"
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2021",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false
   }
 }
 ```
 
-> **TypeORM v1 CLI change:** `migration:generate` no longer accepts `--name`. Pass the **output path** (directory + class name) as a positional argument after the script name:
+### Migration Scripts in package.json
+
+Point every migration script to this tsconfig via `TS_NODE_PROJECT`:
+
+```json
+{
+  "scripts": {
+    "api:migration:generate": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:generate -d apps/api/ormconfig.ts",
+    "api:migration:run": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:run -d apps/api/ormconfig.ts",
+    "api:migration:revert": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:revert -d apps/api/ormconfig.ts",
+    "api:migration:create": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:create"
+  }
+}
+```
+
+> **TypeORM v1 CLI change:** `migration:generate` no longer accepts `--name`. Pass the **output path** (directory + class name) as a positional argument:
 >
 > ```bash
 > # ✅ correct
