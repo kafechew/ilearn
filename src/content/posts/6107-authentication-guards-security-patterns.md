@@ -865,7 +865,7 @@ export class TodoResolver {
         filter: query.filter ? { and: [query.filter, userFilter] } : userFilter,
       },
       async (filter) => {
-        const count = await this.queryBus.execute(new CountTodoQuery({ query: filter }));
+        const { data: count } = await this.queryBus.execute(new CountTodoQuery({ query: filter }));
         return count as number;
       },
     );

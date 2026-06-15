@@ -292,7 +292,7 @@ export class TodoResolver {
       },
       query,
       async (filter) => {
-        const count = await this.queryBus.execute(
+        const { data: count } = await this.queryBus.execute(
           new CountTodoQuery({ query: filter }),
         );
         return count as number;
@@ -829,10 +829,11 @@ Open:
 
 ### GraphQL Playground Smoke Test
 
-No auth header needed for Part 06 — all endpoints are public. Open `http://localhost:3333/graphql` and run:
+No auth header needed for Part 06 — all endpoints are public. Open `http://localhost:3333/graphql` and run each step in order. Note the `id` returned in step 1 and use it in steps 3–4.
+
+**Step 1 — Create** (verifies mutation + input validation + service business rule)
 
 ```graphql
-# Create a todo (userId is explicit for now — Part 07 injects it from JWT)
 mutation {
   createTodo(input: { text: "Buy milk", userId: 1 }) {
     id
@@ -844,10 +845,15 @@ mutation {
 }
 ```
 
+Expected: `{ id: 1, text: "Buy milk", isChecked: false, status: "ACTIVE", createdAt: "..." }`
+
+---
+
+**Step 2 — Query list** (verifies cursor pagination, `ConnectionType`, `totalCount`)
+
 ```graphql
 query {
   getTodos(
-    filter: { status: { eq: ACTIVE } }
     sorting: [{ field: createdAt, direction: DESC }]
     paging: { first: 10 }
   ) {
@@ -861,6 +867,12 @@ query {
 }
 ```
 
+Expected: `totalCount: 1`, one edge with the todo from step 1, `hasNextPage: false`.
+
+---
+
+**Step 3 — Update** (verifies mutation + `FilterQueryBuilder` ownership filter)
+
 ```graphql
 mutation {
   updateTodo(id: 1, input: { isChecked: true }) {
@@ -871,11 +883,60 @@ mutation {
 }
 ```
 
+Expected: `{ id: 1, isChecked: true, updatedAt: "..." }` (timestamp newer than `createdAt`).
+
+---
+
+**Step 4 — Delete** (verifies Boolean scalar mutation)
+
 ```graphql
-mutation {
+mutation DeleteTodo {
   deleteTodo(id: 1)
 }
 ```
+
+Expected: `{ "data": { "deleteTodo": true } }`
+
+> **Apollo Sandbox quirk:** `deleteTodo` returns `Boolean` (a scalar, not an object). Apollo Studio Sandbox sometimes rejects anonymous scalar-return mutations with a spurious "syntax error: invalid number" error. Naming the operation (`mutation DeleteTodo { ... }`) fixes it. If the Sandbox still misbehaves, verify directly with curl:
+> ```bash
+> curl -s -X POST http://localhost:3333/graphql \
+>   -H "Content-Type: application/json" \
+>   -d '{"query":"mutation { deleteTodo(id: 1) }"}'
+> # → {"data":{"deleteTodo":true}}
+> ```
+
+---
+
+**Step 5 — Filter** (verifies `@FilterableField` wiring and `FilterQueryBuilder` SQL translation)
+
+Re-create a todo first (the one from step 1 was deleted), then:
+
+```graphql
+mutation {
+  createTodo(input: { text: "Filter test todo", userId: 1 }) {
+    id status
+  }
+}
+```
+
+```graphql
+query {
+  getTodos(
+    filter: { status: { eq: ACTIVE } }
+    sorting: [{ field: createdAt, direction: DESC }]
+    paging: { first: 10 }
+  ) {
+    totalCount
+    edges { node { id text status } }
+  }
+}
+```
+
+Expected: only todos with `status: ACTIVE` are returned. If you also create one with `status: ARCHIVED`, it should be excluded.
+
+---
+
+All five steps passing means the resolver, DTOs, `FilterQueryBuilder`, cursor pagination, and `ConnectionType` are all correctly wired. The backend is ready for the Next.js frontend.
 
 > **What Part 07 changes here:** `createTodo` will drop `userId` from the input (injected from JWT), and `getTodos` will only return the authenticated user's todos. The Playground will require an `Authorization: Bearer <token>` header.
 
