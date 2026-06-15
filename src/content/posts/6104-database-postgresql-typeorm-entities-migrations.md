@@ -780,25 +780,68 @@ yarn api:migration:generate apps/api/src/migrations/AddTagTable
 
 Seeds insert initial data (default roles, permissions, sample records) after migrations.
 
-```bash
-yarn add @jorgebodega/typeorm-seeding
+`@jorgebodega/typeorm-seeding` was already installed in Part 02. No extra `yarn add` needed.
+
+### Step 1 — Add the seed script to `package.json`
+
+The seeding CLI does **not** register ts-node itself, so you must pass `-r ts-node/register` explicitly. You also need the same patch hook used by the migration CLI to resolve the `@nestjs/graphql` deep-import issue:
+
+```json
+{
+  "scripts": {
+    "api:seed:run": "TS_NODE_PROJECT=tsconfig.typeorm.json node -r ts-node/register -r ./scripts/fix-typeorm-deps.cjs ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js -d apps/api/ormconfig.ts \"apps/api/src/seeders/*.ts\""
+  }
+}
 ```
 
-Create `apps/api/src/seeders/0-reset.seeder.ts`:
+### Step 2 — Create the seeders
+
+**`apps/api/src/seeders/0-reset.seeder.ts`**
+
+Truncates all tables in FK-safe order (child first, then parent) so re-seeding is always idempotent:
 
 ```typescript
 import { DataSource } from "typeorm";
 import { Seeder } from "@jorgebodega/typeorm-seeding";
 
-// Always run this first — clears tables to avoid duplicate key errors on re-seed
 export default class ResetSeeder extends Seeder {
   async run(dataSource: DataSource): Promise<void> {
     await dataSource.query("TRUNCATE TABLE todo RESTART IDENTITY CASCADE");
+    await dataSource.query('TRUNCATE TABLE "user" RESTART IDENTITY CASCADE');
   }
 }
 ```
 
-Create `apps/api/src/seeders/1-todo.seeder.ts`:
+**`apps/api/src/seeders/1-user.seeder.ts`**
+
+Creates the seed user. This must run **before** `2-todo.seeder.ts` because the `todo` table has a FK on `user_id`:
+
+```typescript
+import { DataSource } from "typeorm";
+import { Seeder } from "@jorgebodega/typeorm-seeding";
+import * as bcrypt from "bcrypt";
+import { UserEntity } from "../modules/user/user.entity";
+import { UserStatus } from "../modules/user/user.constant";
+
+export default class UserSeeder extends Seeder {
+  async run(dataSource: DataSource): Promise<void> {
+    const repo = dataSource.getRepository(UserEntity);
+    const password = await bcrypt.hash("Password123!", 10);
+    await repo.save([
+      {
+        fullname: "Kai Chew",
+        username: "kai",
+        email: "kai@example.com",
+        password,
+        status: UserStatus.ACTIVE,
+        twoFactorSecret: null,
+      },
+    ]);
+  }
+}
+```
+
+**`apps/api/src/seeders/2-todo.seeder.ts`**
 
 ```typescript
 import { DataSource } from "typeorm";
@@ -833,13 +876,22 @@ export default class TodoSeeder extends Seeder {
 }
 ```
 
-Run seeds:
+### Step 3 — Run the seeders
 
 ```bash
 yarn api:seed:run
 ```
 
-> **Seeder order matters.** Run `0-reset.seeder.ts` first (clears tables), then data seeders in order. If you run them out of order, FK constraints will fail (`todo` references `user` — you must create the user first).
+Expected output:
+
+```
+✔ Seeder ResetSeeder executed
+✔ Seeder UserSeeder executed
+✔ Seeder TodoSeeder executed
+✔ Finished seeding
+```
+
+> **Seeder order is enforced by filename prefix.** The glob `apps/api/src/seeders/*.ts` is sorted alphabetically, so `0-reset` runs before `1-user`, which runs before `2-todo`. This order is mandatory — `todo` has a FK on `user_id`, so the user row must exist before any todos can be inserted.
 
 ---
 
