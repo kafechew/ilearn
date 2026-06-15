@@ -15,7 +15,7 @@ tags:
   - enterprise
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/02-environment-setup-nx-workspace.png"
-description: By the end of this part, you will have a running (empty) enterprise-todo backend accessible at loclhost.  
+description: By the end of this part, you will have a running (empty) enterprise-todo backend accessible at loclhost.
 ---
 
 ## What This Part Covers
@@ -118,17 +118,16 @@ Download from [code.visualstudio.com](https://code.visualstudio.com/).
 
 > `zsh: command not found: code`
 > GitHub Copilot: Optimized tool selectionThe `code` command isn't available in your PATH. Install it from VS Code:
-> 
+>
 > 1. Open VS Code
 > 2. Press **Cmd+Shift+P** and run: `Shell Command: Install 'code' command in PATH`
 > 3. Restart your terminal
-> 
+>
 > Then retry:
-> 
+>
 > `code --install-extension nrwl.angular-console`
 >
 > Alternatively, install the extension directly in VS Code via **Extensions** (Cmd+Shift+X) → search "Angular Console" → Install.
-> 
 
 Run these commands one by one (or paste all at once):
 
@@ -161,6 +160,7 @@ Open `Cmd+Shift+P` → "Open User Settings (JSON)" and add:
 ```
 
 **What each setting does:**
+
 - `formatOnSave` — runs Prettier every time you save. Eliminates all whitespace/format debates.
 - `defaultFormatter` — ensures VS Code uses Prettier, not its own formatter.
 - `source.fixAll.eslint` — auto-fixes ESLint errors on save (unused imports, sorting).
@@ -173,10 +173,12 @@ Open `Cmd+Shift+P` → "Open User Settings (JSON)" and add:
 This is the enterprise equivalent of `meteor create`. One command creates the monorepo scaffold:
 
 ```bash
+cd dev # any folder you prefer to host your app
 npx create-nx-workspace@latest enterprise-todo --preset=apps
 ```
 
 When prompted:
+
 - **CI/CD pipeline?** → Skip (we configure this in Part 12)
 - **Enable Nx Cloud?** → No (free tier but not needed for learning)
 
@@ -214,6 +216,7 @@ npx nx g @nx/nest:app apps/api
 ```
 
 When prompted:
+
 - **Port?** → `3333`
 - **E2E test runner?** → `jest`
 
@@ -239,6 +242,7 @@ npx nx g @nx/next:app apps/web --src=true --appDir=true --style=tailwind
 ```
 
 When prompted:
+
 - **E2E test runner?** → `playwright` or `none` (we use Jest for unit tests)
 
 This creates `apps/web/` with a Next.js 14 App Router app pre-configured with Tailwind CSS.
@@ -261,7 +265,7 @@ libs/contracts/
         └── contracts.ts ← your shared types
 ```
 
-> **Meteor analogy:** In Meteor you put isomorphic code in `imports/` and both client and server could import it. In the enterprise monorepo, `libs/contracts` is that shared space — but it exports *only what you explicitly export*, and only TypeScript types (no server code on the client, no client code on the server).
+> **Meteor analogy:** In Meteor you put isomorphic code in `imports/` and both client and server could import it. In the enterprise monorepo, `libs/contracts` is that shared space — but it exports _only what you explicitly export_, and only TypeScript types (no server code on the client, no client code on the server).
 
 ---
 
@@ -284,22 +288,22 @@ yarn add --dev @types/pg @types/passport-jwt @types/bcrypt
 
 **What each package does:**
 
-| Package | Purpose | Meteor equivalent |
-|---------|---------|-------------------|
-| `@nestjs/graphql` + `@nestjs/apollo` | GraphQL schema + Apollo server integration | DDP transport layer |
-| `graphql` | Core GraphQL library | (no equivalent — Meteor used DDP not GraphQL) |
-| `@nestjs/typeorm` + `typeorm` | ORM for database operations | `mongo` driver integration |
-| `pg` | PostgreSQL driver | (no equivalent — Meteor used MongoDB) |
-| `@nestjs/cqrs` | Command/Query bus infrastructure | Meteor Methods mechanism |
-| `nestjs-typed-cqrs` | Type-safe return types on CQRS bus | (no equivalent — Meteor was untyped) |
-| `nestjs-dev-utilities` | `AbstractEntity`, `AbstractDto` base classes | (convention enforcer) |
-| `@ptc-org/nestjs-query-*` | Auto-generated GraphQL filtering, sorting, pagination | Minimongo's query capabilities |
-| `@nestjs/config` | Environment variable management | `Meteor.settings` |
-| `@nestjs/passport` + `passport-jwt` | JWT authentication strategy | `accounts-base` |
-| `@nestjs/jwt` | JWT sign/verify | (handled by accounts package in Meteor) |
-| `class-validator` | Decorator-based validation | `check()` from `meteor/check` |
-| `class-transformer` | Transform plain objects to class instances | (no direct equivalent) |
-| `bcrypt` | Password hashing | `accounts-password`'s internal hashing |
+| Package                              | Purpose                                               | Meteor equivalent                             |
+| ------------------------------------ | ----------------------------------------------------- | --------------------------------------------- |
+| `@nestjs/graphql` + `@nestjs/apollo` | GraphQL schema + Apollo server integration            | DDP transport layer                           |
+| `graphql`                            | Core GraphQL library                                  | (no equivalent — Meteor used DDP not GraphQL) |
+| `@nestjs/typeorm` + `typeorm`        | ORM for database operations                           | `mongo` driver integration                    |
+| `pg`                                 | PostgreSQL driver                                     | (no equivalent — Meteor used MongoDB)         |
+| `@nestjs/cqrs`                       | Command/Query bus infrastructure                      | Meteor Methods mechanism                      |
+| `nestjs-typed-cqrs`                  | Type-safe return types on CQRS bus                    | (no equivalent — Meteor was untyped)          |
+| `nestjs-dev-utilities`               | `AbstractEntity`, `AbstractDto` base classes          | (convention enforcer)                         |
+| `@ptc-org/nestjs-query-*`            | Auto-generated GraphQL filtering, sorting, pagination | Minimongo's query capabilities                |
+| `@nestjs/config`                     | Environment variable management                       | `Meteor.settings`                             |
+| `@nestjs/passport` + `passport-jwt`  | JWT authentication strategy                           | `accounts-base`                               |
+| `@nestjs/jwt`                        | JWT sign/verify                                       | (handled by accounts package in Meteor)       |
+| `class-validator`                    | Decorator-based validation                            | `check()` from `meteor/check`                 |
+| `class-transformer`                  | Transform plain objects to class instances            | (no direct equivalent)                        |
+| `bcrypt`                             | Password hashing                                      | `accounts-password`'s internal hashing        |
 
 ---
 
@@ -321,7 +325,7 @@ Volumes are persistent storage on your machine. Without them, restarting a conta
 Create `docker-compose.dev.yml` in the workspace root:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -333,7 +337,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: enterprise_todo
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - db_volume:/var/lib/postgresql/data
     networks:
@@ -344,7 +348,7 @@ services:
     container_name: enterprise_todo_redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_volume:/data
     networks:
@@ -355,7 +359,7 @@ services:
     container_name: enterprise_todo_adminer
     restart: unless-stopped
     ports:
-      - '8080:8080'
+      - "8080:8080"
     networks:
       - app-network
 
@@ -372,11 +376,11 @@ networks:
 
 **What each container does:**
 
-| Container | What it runs | Port | Meteor equivalent |
-|-----------|-------------|------|-------------------|
-| `postgres` | PostgreSQL database | 5432 | Meteor's embedded MongoDB |
-| `redis` | Redis cache + queue broker | 6379 | (no equivalent in basic Meteor) |
-| `adminer` | Web UI to inspect the database | 8080 | Mongo Compass equivalent |
+| Container  | What it runs                   | Port | Meteor equivalent               |
+| ---------- | ------------------------------ | ---- | ------------------------------- |
+| `postgres` | PostgreSQL database            | 5432 | Meteor's embedded MongoDB       |
+| `redis`    | Redis cache + queue broker     | 6379 | (no equivalent in basic Meteor) |
+| `adminer`  | Web UI to inspect the database | 8080 | Mongo Compass equivalent        |
 
 ### 5.3 Add a Convenience Script
 
@@ -408,13 +412,13 @@ docker ps
 
 Open `http://localhost:8080` in your browser and log in:
 
-| Field | Value |
-|-------|-------|
-| System | PostgreSQL |
-| Server | `postgres` (the container name — Docker's internal DNS) |
-| Username | `postgres` |
-| Password | `postgres` |
-| Database | `enterprise_todo` |
+| Field    | Value                                                   |
+| -------- | ------------------------------------------------------- |
+| System   | PostgreSQL                                              |
+| Server   | `postgres` (the container name — Docker's internal DNS) |
+| Username | `postgres`                                              |
+| Password | `postgres`                                              |
+| Database | `enterprise_todo`                                       |
 
 You should see an empty database. This is where your tables will appear after running migrations (Part 04).
 
@@ -479,34 +483,34 @@ echo ".env.local" >> .gitignore
 Replace the default `apps/api/src/app/app.module.ts`:
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { CqrsModule } from '@nestjs/cqrs';
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { GraphQLModule } from "@nestjs/graphql";
+import { ApolloDriver, ApolloDriverConfig } from "@nestjs/apollo";
+import { CqrsModule } from "@nestjs/cqrs";
 
 @Module({
   imports: [
     // Load .env into process.env — available everywhere via ConfigService
     ConfigModule.forRoot({
-      isGlobal: true,       // no need to import ConfigModule in every feature module
-      envFilePath: '.env',
+      isGlobal: true, // no need to import ConfigModule in every feature module
+      envFilePath: ".env",
     }),
 
     // TypeORM: connect to PostgreSQL
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('PROJECT_DB_HOST'),
-        port: config.get<number>('PROJECT_DB_PORT'),
-        username: config.get('PROJECT_DB_USERNAME'),
-        password: config.get('PROJECT_DB_PASSWORD'),
-        database: config.get('PROJECT_DB_DATABASE'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: false,  // NEVER true in production — use migrations
-        logging: config.get('PROJECT_DB_DEBUG') === 'true',
+        type: "postgres",
+        host: config.get("PROJECT_DB_HOST"),
+        port: config.get<number>("PROJECT_DB_PORT"),
+        username: config.get("PROJECT_DB_USERNAME"),
+        password: config.get("PROJECT_DB_PASSWORD"),
+        database: config.get("PROJECT_DB_DATABASE"),
+        entities: [__dirname + "/**/*.entity{.ts,.js}"],
+        synchronize: false, // NEVER true in production — use migrations
+        logging: config.get("PROJECT_DB_DEBUG") === "true",
       }),
     }),
 
@@ -515,9 +519,9 @@ import { CqrsModule } from '@nestjs/cqrs';
       driver: ApolloDriver,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        autoSchemaFile: true,   // generate schema.gql automatically from decorators
-        playground: config.get('PROJECT_GRAPHQL_PLAYGROUND') === 'true',
-        context: ({ req }) => ({ req }),  // pass request context (needed for guards)
+        autoSchemaFile: true, // generate schema.gql automatically from decorators
+        playground: config.get("PROJECT_GRAPHQL_PLAYGROUND") === "true",
+        context: ({ req }) => ({ req }), // pass request context (needed for guards)
       }),
     }),
 
@@ -530,22 +534,22 @@ export class AppModule {}
 
 **What each module does:**
 
-| Module | Purpose |
-|--------|---------|
-| `ConfigModule` | Reads `.env` into `process.env`, provides `ConfigService` for typed access |
-| `TypeOrmModule.forRootAsync` | Connects to PostgreSQL, registers all entities, manages connection pool |
-| `GraphQLModule` | Starts Apollo Server, auto-generates GraphQL schema from your decorators |
-| `CqrsModule.forRoot()` | Makes `CommandBus`, `QueryBus`, and `EventBus` available for injection everywhere |
+| Module                       | Purpose                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| `ConfigModule`               | Reads `.env` into `process.env`, provides `ConfigService` for typed access        |
+| `TypeOrmModule.forRootAsync` | Connects to PostgreSQL, registers all entities, manages connection pool           |
+| `GraphQLModule`              | Starts Apollo Server, auto-generates GraphQL schema from your decorators          |
+| `CqrsModule.forRoot()`       | Makes `CommandBus`, `QueryBus`, and `EventBus` available for injection everywhere |
 
 ### 7.1 Update main.ts
 
 Replace `apps/api/src/main.ts`:
 
 ```typescript
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { AppModule } from './app/app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { AppModule } from "./app/app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -560,15 +564,18 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
   // CORS — allow all origins in dev, restrict in production
   app.enableCors({
-    origin: config.get('NODE_ENV') === 'development' ? '*' : process.env.ALLOWED_ORIGINS,
+    origin:
+      config.get("NODE_ENV") === "development"
+        ? "*"
+        : process.env.ALLOWED_ORIGINS,
   });
 
-  const port = config.get<number>('PROJECT_PORT') ?? 3333;
+  const port = config.get<number>("PROJECT_PORT") ?? 3333;
   await app.listen(port);
 
   console.log(`🚀 API running at http://localhost:${port}`);
@@ -663,6 +670,7 @@ npx nx reset
 ## Summary
 
 You have set up:
+
 - Node 20 (via nvm), Yarn 1.x, Docker Desktop, VS Code with all extensions
 - An Nx monorepo with `apps/api` (NestJS), `apps/web` (Next.js), and `libs/contracts` (shared types)
 - PostgreSQL + Redis + Adminer running in Docker
@@ -671,10 +679,9 @@ You have set up:
 - `main.ts` with global `ValidationPipe` configured
 - The API running at `http://localhost:3333/graphql`
 
-| Meteor | What you just built |
-|--------|---------------------|
-| `meteor create` | Nx workspace with three separate projects |
-| Embedded MongoDB | PostgreSQL in Docker |
+| Meteor                    | What you just built                         |
+| ------------------------- | ------------------------------------------- |
+| `meteor create`           | Nx workspace with three separate projects   |
+| Embedded MongoDB          | PostgreSQL in Docker                        |
 | `meteor` (single process) | NestJS at :3333 (will add Next.js at :4200) |
-| No configuration | `.env` + `ConfigModule` + `ValidationPipe` |
-
+| No configuration          | `.env` + `ConfigModule` + `ValidationPipe`  |
