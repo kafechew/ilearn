@@ -99,8 +99,16 @@ Input DTOs define what clients send in mutations. `class-validator` decorators e
 
 ```typescript
 // apps/api/src/modules/todo/dto/todo.input.ts
-import { Field, InputType, PartialType } from '@nestjs/graphql';
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Field, InputType, Int } from '@nestjs/graphql';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { TodoStatus } from '../todo.constant';
 
 @InputType()
@@ -111,39 +119,36 @@ export class CreateTodoInput {
   @MaxLength(500, { message: 'Todo text cannot exceed 500 characters' })
   text: string;
 
-  @Field({ nullable: true, defaultValue: false })
-  @IsBoolean()
-  @IsOptional()
-  isChecked?: boolean;
-
-  // userId is NOT a @Field — it is injected server-side from the JWT
-  // Without @Field, clients physically cannot send userId — Apollo rejects unknown fields
-  userId?: number;
+  // Part 07: userId removed from @Field and injected from JWT instead
+  @Field(() => Int)
+  @IsInt()
+  userId: number;
 }
 
 @InputType()
 export class UpdateTodoInput {
-  // PartialType makes all fields optional AND inherits class-validator decorators
-  // But only validates the field if it is present in the request
   @Field({ nullable: true })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(500)
   text?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
   @IsBoolean()
   isChecked?: boolean;
 
-  @Field({ nullable: true })
+  @Field(() => TodoStatus, { nullable: true })
+  @IsOptional()
   @IsEnum(TodoStatus)
   status?: TodoStatus;
 }
 ```
 
-> **Security pattern: never expose `userId` as a `@Field()` on an input DTO.**
-> 
-> If `userId` were a `@Field()`, a malicious client could send `userId: 999` and create todos that appear to belong to another user. Without `@Field()`, Apollo's schema does not expose `userId` — clients cannot send it. The `userId` is added server-side from the verified JWT in the resolver.
+> **Note: `userId` is a `@Field()` for now — Part 07 fixes this.**
+>
+> In production, exposing `userId` as a client-supplied field is a security risk: a malicious client could send `userId: 999` and create todos that appear to belong to another user. Part 07 adds JWT authentication — at that point `userId` is removed from `@Field()` and injected server-side from the verified token instead. For this part, the endpoints are public and `userId` is passed explicitly so you can test without auth.
 
 ### 1.3 Query Args DTO (`@ArgsType`)
 
@@ -238,18 +243,16 @@ To get the next page, pass `endCursor` as `after`:
 
 The resolver is the GraphQL entry point — the Meteor Method and Publication combined into one class, but separated into `@Query` (reads) and `@Mutation` (writes).
 
+> **Part 06 vs Part 07:** This resolver has no auth guards. All endpoints are publicly accessible. Part 07 adds JWT authentication: `@UseGuards(AuthJwtGuard)` is added to protected queries/mutations, `@CurrentUser()` replaces the explicit `userId` input field, and per-user data isolation is enforced via userId filters.
+
 ```typescript
 // apps/api/src/modules/todo/todo.resolver.ts
 import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 import { TodoDto } from './dto/todo.dto';
 import { CreateTodoInput, UpdateTodoInput } from './dto/todo.input';
 import { TodosQuery, TodoQueryConnection } from './dto/todo.query';
-import { AuthJwtGuard } from '../auth/guards/auth-jwt.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { AccessTokenUser } from '../auth/auth.interface';
 import {
   CountTodoQuery,
   CreateOneTodoCommand,
@@ -268,7 +271,6 @@ export class TodoResolver {
 
   // ── Queries (reads) ─────────────────────────────────────────────
 
-  // Get one todo by ID — no auth required (public read)
   @Query(() => TodoDto, { nullable: true })
   async todo(
     @Args('id', { type: () => Int }) id: number,
@@ -279,30 +281,16 @@ export class TodoResolver {
     return data as TodoDto;
   }
 
-  // Get todos — auth required, returns cursor-paginated connection
-  @UseGuards(AuthJwtGuard)
   @Query(() => TodoQueryConnection)
-  async getTodos(
-    @CurrentUser() currentUser: AccessTokenUser,
-    @Args() query: TodosQuery,
-  ) {
-    // Force filter by current user — clients cannot see other users' todos
-    const userFilter = { userId: { eq: currentUser.user.id } };
-
+  async getTodos(@Args() query: TodosQuery) {
     return TodoQueryConnection.createFromPromise(
-      // Data fetcher: returns the records for this page
       async (q) => {
         const { data } = await this.queryBus.execute(
           new FindManyTodoQuery({ query: q }),
         );
         return data as TodoDto[];
       },
-      // Merge the user filter into the client's filter (client filter is AND-ed with userId)
-      {
-        ...query,
-        filter: query.filter ? { and: [query.filter, userFilter] } : userFilter,
-      },
-      // Count fetcher: returns the total count for totalCount field
+      query,
       async (filter) => {
         const count = await this.queryBus.execute(
           new CountTodoQuery({ query: filter }),
@@ -314,42 +302,32 @@ export class TodoResolver {
 
   // ── Mutations (writes) ──────────────────────────────────────────
 
-  // Create — auth required
-  @UseGuards(AuthJwtGuard)
   @Mutation(() => TodoDto)
   async createTodo(
-    @CurrentUser() currentUser: AccessTokenUser,
     @Args('input') input: CreateTodoInput,
   ): Promise<TodoDto> {
     const { data } = await this.commandBus.execute(
-      // userId injected from JWT — never from client input
-      new CreateOneTodoCommand({ input: { ...input, userId: currentUser.user.id } }),
+      new CreateOneTodoCommand({ input }),
     );
     return data as TodoDto;
   }
 
-  // Update — auth required, ownership verified in service
-  @UseGuards(AuthJwtGuard)
   @Mutation(() => TodoDto)
   async updateTodo(
-    @CurrentUser() currentUser: AccessTokenUser,
     @Args('id', { type: () => Int }) id: number,
     @Args('input') input: UpdateTodoInput,
   ): Promise<TodoDto> {
     const { data } = await this.commandBus.execute(
       new UpdateOneTodoCommand({
-        query: { filter: { id: { eq: id }, userId: { eq: currentUser.user.id } } },
+        query: { filter: { id: { eq: id } } },
         input,
       }),
     );
     return data.updated as TodoDto;
   }
 
-  // Delete — auth required, ownership enforced by userId filter
-  @UseGuards(AuthJwtGuard)
   @Mutation(() => Boolean)
   async deleteTodo(
-    @CurrentUser() currentUser: AccessTokenUser,
     @Args('id', { type: () => Int }) id: number,
   ): Promise<boolean> {
     await this.commandBus.execute(
@@ -360,13 +338,14 @@ export class TodoResolver {
 }
 ```
 
-**Notice the ownership pattern in `updateTodo`:**
+**What Part 07 changes in `updateTodo`:**
 
+After auth is added, the filter will be:
 ```typescript
 query: { filter: { id: { eq: id }, userId: { eq: currentUser.user.id } } }
 ```
 
-The `userId` filter is included in the query alongside `id`. If a malicious user sends `id: 999` (another user's todo), the database query is `WHERE id = 999 AND user_id = <their user id>` — which returns nothing. The update finds no record and the operation silently fails (or returns a 404 if you add `nullable: false` handling).
+The `userId` filter is included alongside `id`. If a malicious user sends `id: 999` (another user's todo), the database query is `WHERE id = 999 AND user_id = <their user id>` — which returns nothing. The update silently finds no record and fails safe.
 
 ---
 
@@ -453,22 +432,10 @@ Shadcn UI generates component files in `apps/web/src/components/ui/`. These are 
 ```typescript
 // apps/web/src/lib/apollo-client.ts
 import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/client';
-import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 
 const httpLink = createHttpLink({
   uri: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/graphql',
-});
-
-// Add Authorization header from stored token
-const authLink = setContext((_, { headers }) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-  return {
-    headers: {
-      ...headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  };
 });
 
 // Log errors in development
@@ -481,8 +448,11 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
   }
 });
 
+// Part 07: adds an authLink that reads localStorage.getItem('accessToken')
+// and injects Authorization: Bearer <token> into every request
+
 export const apolloClient = new ApolloClient({
-  link: from([errorLink, authLink, httpLink]),
+  link: from([errorLink, httpLink]),
   cache: new InMemoryCache({
     typePolicies: {
       Query: {
@@ -567,6 +537,7 @@ export const GET_TODOS = gql`
   }
 `;
 
+// Part 07: userId removed from CreateTodoInput (injected from JWT instead)
 export const CREATE_TODO = gql`
   mutation CreateTodo($input: CreateTodoInput!) {
     createTodo(input: $input) {
@@ -656,7 +627,8 @@ export function TodoList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodoText.trim()) return;
-    await createTodo({ variables: { input: { text: newTodoText.trim() } } });
+    // Part 07: userId comes from JWT — hardcoded to 1 for Part 06 demo
+    await createTodo({ variables: { input: { text: newTodoText.trim(), userId: 1 } } });
     setNewTodoText('');
   };
 
@@ -857,37 +829,16 @@ Open:
 
 ### GraphQL Playground Smoke Test
 
-Without auth (for now — we add JWT in Part 07), test your todo queries directly in the Playground:
+No auth header needed for Part 06 — all endpoints are public. Open `http://localhost:3333/graphql` and run:
 
 ```graphql
-# First register a user (Part 07 adds auth)
+# Create a todo (userId is explicit for now — Part 07 injects it from JWT)
 mutation {
-  register(input: {
-    fullname: "Test User"
-    username: "testuser"
-    email: "test@example.com"
-    password: "Secret123!"
-  }) {
-    accessToken
-    refreshToken
-  }
-}
-```
-
-Set the Authorization header in Playground:
-
-```json
-{ "Authorization": "Bearer <paste_access_token>" }
-```
-
-Then:
-
-```graphql
-mutation {
-  createTodo(input: { text: "Buy milk" }) {
+  createTodo(input: { text: "Buy milk", userId: 1 }) {
     id
     text
     isChecked
+    status
     createdAt
   }
 }
@@ -902,13 +853,31 @@ query {
   ) {
     totalCount
     edges {
-      node { id text isChecked createdAt }
+      node { id text isChecked status createdAt }
       cursor
     }
     pageInfo { hasNextPage endCursor }
   }
 }
 ```
+
+```graphql
+mutation {
+  updateTodo(id: 1, input: { isChecked: true }) {
+    id
+    isChecked
+    updatedAt
+  }
+}
+```
+
+```graphql
+mutation {
+  deleteTodo(id: 1)
+}
+```
+
+> **What Part 07 changes here:** `createTodo` will drop `userId` from the input (injected from JWT), and `getTodos` will only return the authenticated user's todos. The Playground will require an `Authorization: Bearer <token>` header.
 
 ---
 
@@ -953,6 +922,7 @@ This is less magical than Meteor's reactive subscriptions — and far more predi
 | List query with pagination | `QueryArgsType` + `ConnectionType` | `find()` cursor |
 | Cursor pagination | `PagingStrategies.CURSOR` | No equivalent |
 | SQL filter translation | `FilterQueryBuilder` | Minimongo's query operators |
+| Auth guard (Part 07) | `@UseGuards(AuthJwtGuard)` | `Meteor.userId()` check |
 
 **Frontend:**
 

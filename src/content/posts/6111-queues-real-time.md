@@ -250,6 +250,42 @@ export class NotificationProcessor {
 
 ### 4.5 Trigger the Queue from TodoService
 
+The service receives `userEmail` as part of the command input — enriched at the resolver layer from the verified JWT, not from the client. Two files need updating first.
+
+**Update the CQRS input type to include `userEmail`:**
+
+```typescript
+// apps/api/src/modules/todo/cqrs/todo.cqrs.input.ts
+export class CreateOneTodoCommand extends AbstractCqrsCommandInput<
+  TodoEntity,
+  CreateTodoInput & { userId: number; userEmail: string }  // ← add userEmail
+> {}
+```
+
+**Update the resolver to enrich the input before dispatching:**
+
+```typescript
+@UseGuards(AuthJwtGuard)
+@Mutation(() => TodoDto)
+async createTodo(
+  @CurrentUser() currentUser: AccessTokenUser,
+  @Args('input') input: CreateTodoInput,
+): Promise<TodoDto> {
+  const { data } = await this.commandBus.execute(
+    new CreateOneTodoCommand({
+      input: {
+        ...input,
+        userId: currentUser.user.id,
+        userEmail: currentUser.user.email,  // ← pass email from JWT to service
+      },
+    }),
+  );
+  return data as TodoDto;
+}
+```
+
+Now the service can read `input.userEmail` without a type error:
+
 ```typescript
 // apps/api/src/modules/todo/todo.service.ts (add notification call)
 @Injectable()
@@ -264,12 +300,11 @@ export class TodoService {
     const saved = await this.todoRepo.save(todo);
 
     // Enqueue — non-blocking, returns immediately
-    // The user's email comes from the JWT, which the handler passes in via input
     await this.notificationService.notifyTodoCreated({
       todoId: saved.id,
       userId: saved.userId,
       title: saved.title,
-      userEmail: input.userEmail,  // passed from resolver via @CurrentUser
+      userEmail: input.userEmail,  // typed: string — passed from resolver via @CurrentUser
     });
 
     return { success: true, data: saved };

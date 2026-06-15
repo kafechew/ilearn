@@ -793,6 +793,261 @@ Expected response: `{ "errors": [{ "message": "Unauthorized" }] }`
 
 ---
 
+## 17. Migrating Part 06 Code to Auth
+
+Part 06 built a working but unauthenticated resolver with `userId` as an explicit `@Field()`. Now that auth is in place, make two changes to the todo module:
+
+**Step 1 — Remove `userId` from `CreateTodoInput`:**
+
+```typescript
+// apps/api/src/modules/todo/dto/todo.input.ts
+@InputType()
+export class CreateTodoInput {
+  @Field()
+  @IsString()
+  @IsNotEmpty({ message: 'Todo text cannot be empty' })
+  @MaxLength(500, { message: 'Todo text cannot exceed 500 characters' })
+  text: string;
+
+  // userId removed from @Field() — injected from JWT in the resolver
+  userId?: number;
+}
+```
+
+**Step 2 — Update `todo.resolver.ts` with guards and ownership filters:**
+
+```typescript
+// apps/api/src/modules/todo/todo.resolver.ts
+import { UseGuards } from '@nestjs/common';
+import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { AuthJwtGuard } from '../auth/guards/auth-jwt.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AccessTokenUser } from '../auth/auth.interface';
+import { TodoDto } from './dto/todo.dto';
+import { CreateTodoInput, UpdateTodoInput } from './dto/todo.input';
+import { TodosQuery, TodoQueryConnection } from './dto/todo.query';
+import {
+  CountTodoQuery, CreateOneTodoCommand, DeleteOneTodoCommand,
+  FindManyTodoQuery, FindOneTodoQuery, UpdateOneTodoCommand,
+} from './cqrs';
+
+@Resolver(() => TodoDto)
+export class TodoResolver {
+  constructor(
+    private readonly queryBus: QueryBus,
+    private readonly commandBus: CommandBus,
+  ) {}
+
+  @Query(() => TodoDto, { nullable: true })
+  async todo(@Args('id', { type: () => Int }) id: number): Promise<TodoDto | null> {
+    const { data } = await this.queryBus.execute(
+      new FindOneTodoQuery({ query: { filter: { id: { eq: id } } } }),
+    );
+    return data as TodoDto;
+  }
+
+  @UseGuards(AuthJwtGuard)
+  @Query(() => TodoQueryConnection)
+  async getTodos(
+    @CurrentUser() currentUser: AccessTokenUser,
+    @Args() query: TodosQuery,
+  ) {
+    const userFilter = { userId: { eq: currentUser.user.id } };
+
+    return TodoQueryConnection.createFromPromise(
+      async (q) => {
+        const { data } = await this.queryBus.execute(new FindManyTodoQuery({ query: q }));
+        return data as TodoDto[];
+      },
+      {
+        ...query,
+        filter: query.filter ? { and: [query.filter, userFilter] } : userFilter,
+      },
+      async (filter) => {
+        const count = await this.queryBus.execute(new CountTodoQuery({ query: filter }));
+        return count as number;
+      },
+    );
+  }
+
+  @UseGuards(AuthJwtGuard)
+  @Mutation(() => TodoDto)
+  async createTodo(
+    @CurrentUser() currentUser: AccessTokenUser,
+    @Args('input') input: CreateTodoInput,
+  ): Promise<TodoDto> {
+    const { data } = await this.commandBus.execute(
+      new CreateOneTodoCommand({
+        input: { ...input, userId: currentUser.user.id },  // ← inject from JWT
+      }),
+    );
+    return data as TodoDto;
+  }
+
+  @UseGuards(AuthJwtGuard)
+  @Mutation(() => TodoDto)
+  async updateTodo(
+    @CurrentUser() currentUser: AccessTokenUser,
+    @Args('id', { type: () => Int }) id: number,
+    @Args('input') input: UpdateTodoInput,
+  ): Promise<TodoDto> {
+    const { data } = await this.commandBus.execute(
+      new UpdateOneTodoCommand({
+        query: { filter: { id: { eq: id }, userId: { eq: currentUser.user.id } } },
+        input,
+      }),
+    );
+    return data.updated as TodoDto;
+  }
+
+  @UseGuards(AuthJwtGuard)
+  @Mutation(() => Boolean)
+  async deleteTodo(
+    @CurrentUser() currentUser: AccessTokenUser,
+    @Args('id', { type: () => Int }) id: number,
+  ): Promise<boolean> {
+    await this.commandBus.execute(new DeleteOneTodoCommand({ input: id }));
+    return true;
+  }
+}
+```
+
+The service and CQRS handlers are unchanged — `userId` arrives as part of `input` (enriched at the resolver layer, never from the client).
+
+---
+
+## 18. Frontend: Apollo Client with Auth
+
+With the backend issuing JWTs, update the Next.js frontend to send the token on every request.
+
+### 18.1 Update Apollo Client
+
+```typescript
+// apps/web/src/lib/apollo-client.ts
+import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/client';
+import { setContext } from '@apollo/client/link/context';
+import { onError } from '@apollo/client/link/error';
+
+const httpLink = createHttpLink({
+  uri: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/graphql',
+});
+
+const authLink = setContext((_, { headers }) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+  return {
+    headers: {
+      ...headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  };
+});
+
+const errorLink = onError(({ graphQLErrors, networkError }) => {
+  if (process.env.NODE_ENV === 'development') {
+    graphQLErrors?.forEach(({ message, locations, path }) =>
+      console.error(`GraphQL error: ${message}`, { locations, path }),
+    );
+    if (networkError) console.error('Network error:', networkError);
+  }
+});
+
+export const apolloClient = new ApolloClient({
+  link: from([errorLink, authLink, httpLink]),
+  cache: new InMemoryCache({
+    typePolicies: {
+      Query: {
+        fields: {
+          getTodos: {
+            keyArgs: ['filter', 'sorting'],
+            merge(existing, incoming) {
+              return {
+                ...incoming,
+                edges: [...(existing?.edges ?? []), ...(incoming?.edges ?? [])],
+              };
+            },
+          },
+        },
+      },
+    },
+  }),
+});
+```
+
+### 18.2 Auth GraphQL Operations
+
+```typescript
+// apps/web/src/graphql/auth.operations.ts
+import { gql } from '@apollo/client';
+
+export const REGISTER = gql`
+  mutation Register($input: RegisterInput!) {
+    register(input: $input) {
+      accessToken
+      refreshToken
+    }
+  }
+`;
+
+export const LOGIN = gql`
+  mutation Login($input: LoginInput!) {
+    login(input: $input) {
+      accessToken
+      refreshToken
+    }
+  }
+`;
+
+export const ME = gql`
+  query Me {
+    me {
+      id
+      fullname
+      email
+    }
+  }
+`;
+```
+
+### 18.3 Auth Hook
+
+```typescript
+// apps/web/src/hooks/use-auth.ts
+'use client';
+
+import { useMutation } from '@apollo/client';
+import { useRouter } from 'next/navigation';
+import { apolloClient } from '../lib/apollo-client';
+import { LOGIN } from '../graphql/auth.operations';
+
+export function useAuth() {
+  const router = useRouter();
+  const [loginMutation, { loading }] = useMutation(LOGIN);
+
+  const login = async (email: string, password: string) => {
+    const { data } = await loginMutation({
+      variables: { input: { email, password } },
+    });
+    if (data?.login?.accessToken) {
+      localStorage.setItem('accessToken', data.login.accessToken);
+      router.push('/');
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('accessToken');
+    apolloClient.clearStore();
+    router.push('/login');
+  };
+
+  return { login, logout, loading };
+}
+```
+
+> **Token storage:** `localStorage` is fine for development. For production, store the `accessToken` in memory (React ref or Zustand) and the `refreshToken` in an `httpOnly` cookie — this prevents XSS from stealing long-lived tokens.
+
+---
+
 ## Summary
 
 | Meteor | Enterprise NestJS |
@@ -818,7 +1073,7 @@ After Parts 01-07, you have:
 - ✅ Entity + migration pattern
 - ✅ Full CQRS pipeline: Command → Handler → Service → Repository
 - ✅ GraphQL DTOs: @ObjectType, @InputType, cursor pagination
-- ✅ Next.js frontend with Apollo Client + Shadcn UI
+- ✅ Next.js frontend with Apollo Client + auth token injection
 - ✅ RS256 JWT authentication, Passport strategy, guards, decorators
 - ✅ Global ValidationPipe with security hardening
 
