@@ -215,8 +215,9 @@ These plugins give you generators (code scaffolding commands) that know how to c
 npx nx g @nx/nest:app apps/api
 ```
 
-When prompted:
+When prompted (need to arrow up, not default):
 
+- **linter?** → `eslint`
 - **Port?** → `3333`
 - **E2E test runner?** → `jest`
 
@@ -243,7 +244,9 @@ npx nx g @nx/next:app apps/web --src=true --appDir=true --style=tailwind
 
 When prompted:
 
-- **E2E test runner?** → `playwright` or `none` (we use Jest for unit tests)
+- **linter?** → `eslint`
+- **unit test runner?** → `jest` (we use Jest for unit tests)
+- **E2E test runner?** → `playwright` or `none`
 
 This creates `apps/web/` with a Next.js 14 App Router app pre-configured with Tailwind CSS.
 
@@ -254,6 +257,9 @@ This creates `apps/web/` with a Next.js 14 App Router app pre-configured with Ta
 ```bash
 npx nx g @nx/js:lib libs/contracts --bundler=tsc
 ```
+
+- **linter?** → `eslint`
+- **unit test runner?** → `jest`
 
 This creates a shared TypeScript library. Both `apps/api` and `apps/web` can import from it.
 
@@ -274,7 +280,7 @@ libs/contracts/
 From the workspace root:
 
 ```bash
-yarn add @nestjs/graphql @nestjs/apollo graphql apollo-server-express
+yarn add @nestjs/graphql @nestjs/apollo graphql @appollo/server
 yarn add @nestjs/typeorm typeorm pg
 yarn add @nestjs/cqrs nestjs-typed-cqrs nestjs-dev-utilities
 yarn add @ptc-org/nestjs-query-graphql @ptc-org/nestjs-query-typeorm @ptc-org/nestjs-query-core
@@ -312,6 +318,8 @@ yarn add --dev @types/pg @types/passport-jwt @types/bcrypt
 Instead of Meteor's embedded MongoDB, you run your own services in Docker containers.
 
 ### 5.1 Create Docker Volumes (once only)
+
+Open Docker Desktop.
 
 ```bash
 docker volume create db_volume
