@@ -280,7 +280,7 @@ libs/contracts/
 From the workspace root:
 
 ```bash
-yarn add @nestjs/graphql @nestjs/apollo graphql @appollo/server
+yarn add @nestjs/graphql @nestjs/apollo graphql @appollo/server @as-integrations/express5 express
 yarn add @nestjs/typeorm typeorm pg
 yarn add @nestjs/cqrs nestjs-typed-cqrs nestjs-dev-utilities
 yarn add @ptc-org/nestjs-query-graphql @ptc-org/nestjs-query-typeorm @ptc-org/nestjs-query-core
@@ -497,6 +497,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { GraphQLModule } from "@nestjs/graphql";
 import { ApolloDriver, ApolloDriverConfig } from "@nestjs/apollo";
 import { CqrsModule } from "@nestjs/cqrs";
+import { AppResolver } from "./app.resolver";
 
 @Module({
   imports: [
@@ -536,8 +537,23 @@ import { CqrsModule } from "@nestjs/cqrs";
     // CQRS: registers CommandBus, QueryBus, EventBus globally
     CqrsModule.forRoot(),
   ],
+  providers: [AppResolver],
 })
 export class AppModule {}
+```
+
+Add the `apps/api/src/app/app.revolver.ts`:
+
+```typescript
+import { Query, Resolver } from "@nestjs/graphql";
+
+@Resolver()
+export class AppResolver {
+  @Query(() => String)
+  health(): string {
+    return "ok";
+  }
+}
 ```
 
 **What each module does:**
