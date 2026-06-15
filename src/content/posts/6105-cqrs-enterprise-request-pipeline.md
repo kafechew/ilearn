@@ -290,7 +290,7 @@ const { data } = await this.queryBus.execute(new FindOneTodoQuery({ ... }));
 Create `apps/api/src/modules/todo/cqrs/todo.cqrs.input.ts`:
 
 ```typescript
-import { Query, UpdateManyResponse } from '@ptc-org/nestjs-query-core';
+import { Query } from '@ptc-org/nestjs-query-core';
 import {
   AbstractCqrsCommandInput,
   AbstractCqrsQueryInput,
@@ -550,7 +550,7 @@ export class TodoService {
         throw new Error('Todo not found');
       }
 
-      return { success: true, data: result };
+      return { success: true, data: result ?? undefined };
     } catch (e) {
       throw new BadRequestException(e.message);
     }
@@ -575,8 +575,8 @@ export class TodoService {
     query,
   }) => {
     try {
-      const count = await this.repo.count({ where: query as any });
-      return count;
+      const count = await this.filterQueryBuilder.select({ filter: query }).getCount();
+      return { success: true, data: count };
     } catch (e) {
       throw new BadRequestException(e.message);
     }
@@ -629,7 +629,7 @@ export class TodoService {
       const todo = await this.repo.findOne({ where: { id } });
       if (!todo) throw new NotFoundException('Todo not found');
       await this.repo.remove(todo);
-      return { success: true, data: id };
+      return { success: true, data: todo };
     } catch (e) {
       throw new BadRequestException(e.message);
     }
@@ -699,19 +699,15 @@ Register in `AppModule`:
 ```typescript
 // app.module.ts
 import { TodoModule } from './modules/todo/todo.module';
-import { TodoEntity } from './modules/todo/todo.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forRootAsync({
-      useFactory: () => ({
-        entities: [
-          TodoEntity,  // ← add here
-          // ... other entities
-        ],
-      }),
-    }),
-    TodoModule,    // ← add here
+    // TypeORM is already configured with a glob pattern:
+    // entities: [__dirname + '/**/*.entity{.ts,.js}']
+    // → new entity files are auto-discovered, no manual registration needed
+    TypeOrmModule.forRootAsync({ ... }),
+
+    TodoModule,    // ← add the module here
     // ... other modules
   ],
 })
