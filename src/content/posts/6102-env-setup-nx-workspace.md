@@ -15,7 +15,7 @@ tags:
   - enterprise
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/02-environment-setup-nx-workspace.png"
-description: By the end of this part, you will have a running (empty) enterprise-todo backend accessible at loclhost.
+description: By the end of this part, you will have a running (empty) enterprise-todo backend accessible at localhost.
 ---
 
 ## What This Part Covers
@@ -280,7 +280,7 @@ libs/contracts/
 From the workspace root:
 
 ```bash
-yarn add @nestjs/graphql @nestjs/apollo graphql @appollo/server @as-integrations/express5 express
+yarn add @nestjs/graphql @nestjs/apollo graphql @apollo/server @as-integrations/express5 express
 yarn add @nestjs/typeorm typeorm pg
 yarn add @nestjs/cqrs nestjs-typed-cqrs nestjs-dev-utilities
 yarn add @ptc-org/nestjs-query-graphql @ptc-org/nestjs-query-typeorm @ptc-org/nestjs-query-core
@@ -542,7 +542,7 @@ import { AppResolver } from "./app.resolver";
 export class AppModule {}
 ```
 
-Add the `apps/api/src/app/app.revolver.ts`:
+Add the `apps/api/src/app/app.resolver.ts`:
 
 ```typescript
 import { Query, Resolver } from "@nestjs/graphql";
@@ -657,7 +657,7 @@ You should see:
 📊 GraphQL Playground: http://localhost:3333/graphql
 ```
 
-Open `http://localhost:3333/graphql`. You will see the GraphQL Playground — an interactive query editor. The schema is currently empty (no modules added yet), but the server is running.
+Open `http://localhost:3333/graphql`. You will see the GraphQL Playground — an interactive query editor. It exposes a single `health` query from `AppResolver` (a placeholder so the schema is valid). Real queries and mutations will be added in later parts.
 
 > **Meteor analogy:** This is your `meteor` command equivalent — but now you know exactly what is running and why. PostgreSQL is handling data. Redis is ready for queues. The NestJS app is serving GraphQL. The Next.js frontend will be added in Part 06.
 
