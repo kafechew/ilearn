@@ -18,7 +18,7 @@ tags:
   - enterprise
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/05-cqrs-enterprise-request-pipeline.png"
-description: By the end of this part, you will learn CQRS, request lifecycle, GraphQL mutation, 9-step module pattern, and index pattern.  
+description: By the end of this part, you will learn CQRS, request lifecycle, GraphQL mutation, 9-step module pattern, and index pattern.
 ---
 
 ## What This Part Covers
@@ -39,19 +39,23 @@ description: By the end of this part, you will learn CQRS, request lifecycle, Gr
 // Meteor Methods: the write path
 Meteor.methods({
   async createTask(text) {
-    if (!this.userId) throw new Meteor.Error('not-authorized');
-    if (!text) throw new Meteor.Error('text-required');
-    return await TasksCollection.insertAsync({ text, userId: this.userId, createdAt: new Date() });
+    if (!this.userId) throw new Meteor.Error("not-authorized");
+    if (!text) throw new Meteor.Error("text-required");
+    return await TasksCollection.insertAsync({
+      text,
+      userId: this.userId,
+      createdAt: new Date(),
+    });
   },
   async deleteTask(taskId) {
     const task = await TasksCollection.findOneAsync(taskId);
-    if (task.userId !== this.userId) throw new Meteor.Error('not-authorized');
+    if (task.userId !== this.userId) throw new Meteor.Error("not-authorized");
     return await TasksCollection.removeAsync(taskId);
-  }
+  },
 });
 
 // Meteor Publications: the read path
-Meteor.publish('tasks', function () {
+Meteor.publish("tasks", function () {
   if (!this.userId) return this.ready();
   return TasksCollection.find({ userId: this.userId });
 });
@@ -88,40 +92,51 @@ Consider a `createTask` method after a year of feature additions:
 Meteor.methods({
   async createTask(text, projectId, assigneeId, dueDate, priority, tags) {
     // Auth check
-    if (!this.userId) throw new Meteor.Error('not-authorized');
-    
+    if (!this.userId) throw new Meteor.Error("not-authorized");
+
     // Validation
     check(text, String);
-    if (text.length > 500) throw new Meteor.Error('text-too-long');
-    
+    if (text.length > 500) throw new Meteor.Error("text-too-long");
+
     // Business rule: does the project exist?
     const project = await ProjectsCollection.findOneAsync(projectId);
-    if (!project) throw new Meteor.Error('project-not-found');
-    
+    if (!project) throw new Meteor.Error("project-not-found");
+
     // Business rule: is the user a member of the project?
-    if (!project.memberIds.includes(this.userId)) throw new Meteor.Error('not-member');
-    
+    if (!project.memberIds.includes(this.userId))
+      throw new Meteor.Error("not-member");
+
     // Business rule: assignee must be a project member too
     if (assigneeId && !project.memberIds.includes(assigneeId)) {
-      throw new Meteor.Error('assignee-not-member');
+      throw new Meteor.Error("assignee-not-member");
     }
-    
+
     // Side effect: create a notification
-    await NotificationsCollection.insertAsync({ userId: assigneeId, message: `New task: ${text}` });
-    
+    await NotificationsCollection.insertAsync({
+      userId: assigneeId,
+      message: `New task: ${text}`,
+    });
+
     // Side effect: send an email
-    Email.send({ to: assignee.email, subject: 'New task assigned' });
-    
+    Email.send({ to: assignee.email, subject: "New task assigned" });
+
     // Finally: insert
     return await TasksCollection.insertAsync({
-      text, projectId, assigneeId, dueDate, priority, tags,
-      userId: this.userId, createdAt: new Date()
+      text,
+      projectId,
+      assigneeId,
+      dueDate,
+      priority,
+      tags,
+      userId: this.userId,
+      createdAt: new Date(),
     });
-  }
+  },
 });
 ```
 
 Problems:
+
 - **Untestable.** Testing this method requires a full Meteor environment, a real database, a real email service.
 - **Unmaintainable.** Every business rule is mixed with auth checks, validation, and side effects.
 - **Unreusable.** If another method needs to create a task internally, it calls this method and inherits all its auth/validation (which may be wrong in internal context).
@@ -133,7 +148,7 @@ Problems:
 
 CQRS — Command Query Responsibility Segregation — separates **writes** (Commands) from **reads** (Queries). Instead of one `createTask` method that does everything, you have:
 
-- A **Command** class: a typed message representing the *intent* ("I want to create a todo")
+- A **Command** class: a typed message representing the _intent_ ("I want to create a todo")
 - A **CommandHandler**: a thin class that receives the command and calls the service
 - A **Service**: where the business logic lives (fully testable in isolation)
 - A **Query** class: a typed message representing a read request
@@ -242,17 +257,19 @@ Vanilla `@nestjs/cqrs` has a serious weakness: `queryBus.execute()` and `command
 ```typescript
 // Vanilla CQRS — returns any
 const result = await this.queryBus.execute(new FindOneTodoQuery({ id: 1 }));
-result.data;  // TypeScript: any — no type checking, no autocomplete
-result.daat;  // TypeScript: still OK (typo goes undetected)
+result.data; // TypeScript: any — no type checking, no autocomplete
+result.daat; // TypeScript: still OK (typo goes undetected)
 ```
 
 `nestjs-typed-cqrs` adds type-safety through generic parameters:
 
 ```typescript
 // With nestjs-typed-cqrs — fully typed
-const result = await this.queryBus.execute(new FindOneTodoQuery({ query: { filter: { id: { eq: 1 } } } }));
-result.data;   // TypeScript: TodoEntity — full autocomplete
-result.daat;   // TypeScript ERROR: Property 'daat' does not exist
+const result = await this.queryBus.execute(
+  new FindOneTodoQuery({ query: { filter: { id: { eq: 1 } } } })
+);
+result.data; // TypeScript: TodoEntity — full autocomplete
+result.daat; // TypeScript ERROR: Property 'daat' does not exist
 ```
 
 ### How Typed CQRS Works
@@ -260,17 +277,17 @@ result.daat;   // TypeScript ERROR: Property 'daat' does not exist
 ```typescript
 // The query class encodes its own return type
 export class FindOneTodoQuery extends AbstractCqrsQueryInput<
-  TodoEntity,      // entity type
-  undefined,       // filter type (undefined = use default)
-  RecordQueryWithJoinOptions,  // options type
-  TodoEntity       // ← return type
+  TodoEntity, // entity type
+  undefined, // filter type (undefined = use default)
+  RecordQueryWithJoinOptions, // options type
+  TodoEntity // ← return type
 > {}
 
 // The handler's return type is INFERRED from the query class
-export class FindOneTodoQueryHandler
-  implements IInferredQueryHandler<FindOneTodoQuery>
-{
-  async execute(query: FindOneTodoQuery): Promise<QueryResult<FindOneTodoQuery>> {
+export class FindOneTodoQueryHandler implements IInferredQueryHandler<FindOneTodoQuery> {
+  async execute(
+    query: FindOneTodoQuery
+  ): Promise<QueryResult<FindOneTodoQuery>> {
     // QueryResult<FindOneTodoQuery> resolves to { success: boolean, data: TodoEntity }
     return this.todoService.findOne(query.args);
   }
@@ -278,6 +295,7 @@ export class FindOneTodoQueryHandler
 ```
 
 At the call site:
+
 ```typescript
 const { data } = await this.queryBus.execute(new FindOneTodoQuery({ ... }));
 //      ^^^^ TypeScript knows this is TodoEntity | null
@@ -290,16 +308,16 @@ const { data } = await this.queryBus.execute(new FindOneTodoQuery({ ... }));
 Create `apps/api/src/modules/todo/cqrs/todo.cqrs.input.ts`:
 
 ```typescript
-import { Query } from '@ptc-org/nestjs-query-core';
+import { Query } from "@ptc-org/nestjs-query-core";
 import {
   AbstractCqrsCommandInput,
   AbstractCqrsQueryInput,
   RecordMutateOptions,
   RecordQueryWithJoinOptions,
-} from 'nestjs-typed-cqrs';
+} from "nestjs-typed-cqrs";
 
-import { CreateTodoInput, UpdateTodoInput } from '../dto/todo.input';
-import { TodoEntity } from '../todo.entity';
+import { CreateTodoInput, UpdateTodoInput } from "../dto/todo.input";
+import { TodoEntity } from "../todo.entity";
 
 /**
  * QUERIES (read operations)
@@ -310,7 +328,7 @@ export class FindOneTodoQuery extends AbstractCqrsQueryInput<
   TodoEntity,
   undefined,
   RecordQueryWithJoinOptions,
-  TodoEntity   // ← returns one entity (or null)
+  TodoEntity // ← returns one entity (or null)
 > {}
 
 // Find many todos by filter (e.g., all todos for a user)
@@ -318,15 +336,15 @@ export class FindManyTodoQuery extends AbstractCqrsQueryInput<
   TodoEntity,
   undefined,
   RecordQueryWithJoinOptions,
-  TodoEntity[]  // ← returns an array
+  TodoEntity[] // ← returns an array
 > {}
 
 // Count todos matching a filter
 export class CountTodoQuery extends AbstractCqrsQueryInput<
   TodoEntity,
-  Query<TodoEntity>['filter'],
+  Query<TodoEntity>["filter"],
   undefined,
-  number  // ← returns a count
+  number // ← returns a count
 > {}
 
 /**
@@ -336,34 +354,36 @@ export class CountTodoQuery extends AbstractCqrsQueryInput<
 // Create one todo
 export class CreateOneTodoCommand extends AbstractCqrsCommandInput<
   TodoEntity,
-  CreateTodoInput & { userId: number }  // ← input type (userId added server-side)
+  CreateTodoInput & { userId: number } // ← input type (userId added server-side)
 > {}
 
 // Update one todo
 export class UpdateOneTodoCommand extends AbstractCqrsCommandInput<
   TodoEntity,
   UpdateTodoInput,
-  true,              // ← isUpdateOne = true
+  true, // ← isUpdateOne = true
   RecordMutateOptions,
-  { before: TodoEntity; updated: TodoEntity }  // ← returns before and after
+  { before: TodoEntity; updated: TodoEntity } // ← returns before and after
 > {}
 
 // Delete one todo
 export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<
   TodoEntity,
-  number  // ← input is just the id
+  number // ← input is just the id
 > {}
 ```
 
 **Reading the generic type parameters:**
 
 For `AbstractCqrsQueryInput<Entity, FilterType, OptionsType, ReturnType>`:
+
 - `Entity` — the TypeORM entity this query operates on
 - `FilterType` — the filter shape (leave `undefined` to use the default)
 - `OptionsType` — query options (joins, eager loading)
 - `ReturnType` — what the handler should return (used by `QueryResult<T>`)
 
 For `AbstractCqrsCommandInput<Entity, InputType, isUpdateOne?, OptionsType?, ReturnType?>`:
+
 - `Entity` — the entity being modified
 - `InputType` — the input data shape
 - `isUpdateOne` — `true` means the command has both a `query` (to find the record) and `input` (the update data)
@@ -381,7 +401,7 @@ import {
   FindManyTodoQueryHandler,
   FindOneTodoQueryHandler,
   UpdateOneTodoCommandHandler,
-} from './todo.cqrs.handler';
+} from "./todo.cqrs.handler";
 
 // Arrays spread into module providers
 export const TodoQueryHandlers = [
@@ -399,19 +419,19 @@ export const TodoCommandHandlers = [
 export const TodoEventHandlers = [];
 
 // Re-export inputs so other files can import from './cqrs' (one import path)
-export * from './todo.cqrs.input';
+export * from "./todo.cqrs.input";
 ```
 
 **Why the index pattern?** The module file spreads these arrays into `providers`:
 
 ```typescript
-// In todo.module.ts:
+// In apps/api/src/modules/todo/todo.module.ts:
 providers: [
   TodoResolver,
   TodoService,
-  ...TodoQueryHandlers,    // spreads all query handlers
-  ...TodoCommandHandlers,  // spreads all command handlers
-]
+  ...TodoQueryHandlers, // spreads all query handlers
+  ...TodoCommandHandlers, // spreads all command handlers
+];
 ```
 
 When you add a new handler, you add it to the array in `index.ts`. The module and the bus registration update automatically.
@@ -424,9 +444,14 @@ Handlers are **always one-liners**. This is not laziness — it is a design rule
 
 ```typescript
 // apps/api/src/modules/todo/cqrs/todo.cqrs.handler.ts
-import { CommandHandler, IInferredCommandHandler, IInferredQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CommandResult, QueryResult } from '@nestjs-architects/typed-cqrs';
-import { TodoService } from '../todo.service';
+import {
+  CommandHandler,
+  IInferredCommandHandler,
+  IInferredQueryHandler,
+  QueryHandler,
+} from "@nestjs/cqrs";
+import { CommandResult, QueryResult } from "@nestjs-architects/typed-cqrs";
+import { TodoService } from "../todo.service";
 import {
   CountTodoQuery,
   CreateOneTodoCommand,
@@ -434,22 +459,26 @@ import {
   FindManyTodoQuery,
   FindOneTodoQuery,
   UpdateOneTodoCommand,
-} from './todo.cqrs.input';
+} from "./todo.cqrs.input";
 
 // ── Query Handlers ──────────────────────────────────────────
 
 @QueryHandler(FindOneTodoQuery)
 export class FindOneTodoQueryHandler implements IInferredQueryHandler<FindOneTodoQuery> {
   constructor(readonly service: TodoService) {}
-  async execute(query: FindOneTodoQuery): Promise<QueryResult<FindOneTodoQuery>> {
-    return this.service.findOne(query.args);  // one line — delegate to service
+  async execute(
+    query: FindOneTodoQuery
+  ): Promise<QueryResult<FindOneTodoQuery>> {
+    return this.service.findOne(query.args); // one line — delegate to service
   }
 }
 
 @QueryHandler(FindManyTodoQuery)
 export class FindManyTodoQueryHandler implements IInferredQueryHandler<FindManyTodoQuery> {
   constructor(readonly service: TodoService) {}
-  async execute(query: FindManyTodoQuery): Promise<QueryResult<FindManyTodoQuery>> {
+  async execute(
+    query: FindManyTodoQuery
+  ): Promise<QueryResult<FindManyTodoQuery>> {
     return this.service.findMany(query.args);
   }
 }
@@ -467,7 +496,9 @@ export class CountTodoQueryHandler implements IInferredQueryHandler<CountTodoQue
 @CommandHandler(CreateOneTodoCommand)
 export class CreateOneTodoCommandHandler implements IInferredCommandHandler<CreateOneTodoCommand> {
   constructor(readonly service: TodoService) {}
-  async execute(command: CreateOneTodoCommand): Promise<CommandResult<CreateOneTodoCommand>> {
+  async execute(
+    command: CreateOneTodoCommand
+  ): Promise<CommandResult<CreateOneTodoCommand>> {
     return this.service.createOne(command.args);
   }
 }
@@ -475,7 +506,9 @@ export class CreateOneTodoCommandHandler implements IInferredCommandHandler<Crea
 @CommandHandler(UpdateOneTodoCommand)
 export class UpdateOneTodoCommandHandler implements IInferredCommandHandler<UpdateOneTodoCommand> {
   constructor(readonly service: TodoService) {}
-  async execute(command: UpdateOneTodoCommand): Promise<CommandResult<UpdateOneTodoCommand>> {
+  async execute(
+    command: UpdateOneTodoCommand
+  ): Promise<CommandResult<UpdateOneTodoCommand>> {
     return this.service.updateOne(command.args);
   }
 }
@@ -483,13 +516,16 @@ export class UpdateOneTodoCommandHandler implements IInferredCommandHandler<Upda
 @CommandHandler(DeleteOneTodoCommand)
 export class DeleteOneTodoCommandHandler implements IInferredCommandHandler<DeleteOneTodoCommand> {
   constructor(readonly service: TodoService) {}
-  async execute(command: DeleteOneTodoCommand): Promise<CommandResult<DeleteOneTodoCommand>> {
+  async execute(
+    command: DeleteOneTodoCommand
+  ): Promise<CommandResult<DeleteOneTodoCommand>> {
     return this.service.deleteOne(command.args);
   }
 }
 ```
 
 Every handler follows the exact same pattern:
+
 1. `@QueryHandler(TheQuery)` or `@CommandHandler(TheCommand)` — registers with the bus
 2. `implements IInferredQueryHandler<TheQuery>` — TypeScript enforces correct return type
 3. Constructor injects the service
@@ -505,12 +541,15 @@ The service is where work actually happens. All business rules, all database acc
 
 ```typescript
 // apps/api/src/modules/todo/todo.service.ts
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { InjectQueryService, QueryService } from '@ptc-org/nestjs-query-core';
-import { FilterQueryBuilder } from '@ptc-org/nestjs-query-typeorm/src/query';
-import { CqrsCommandFunc, CqrsQueryFunc } from 'nestjs-typed-cqrs';
-import { Repository } from 'typeorm';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { FilterQueryBuilder } from "@ptc-org/nestjs-query-typeorm/src/query";
+import { CqrsCommandFunc, CqrsQueryFunc } from "nestjs-typed-cqrs";
+import { Repository } from "typeorm";
 
 import {
   CountTodoQuery,
@@ -519,8 +558,8 @@ import {
   FindManyTodoQuery,
   FindOneTodoQuery,
   UpdateOneTodoCommand,
-} from './cqrs/todo.cqrs.input';
-import { TodoEntity } from './todo.entity';
+} from "./cqrs/todo.cqrs.input";
+import { TodoEntity } from "./todo.entity";
 
 @Injectable()
 export class TodoService {
@@ -529,14 +568,12 @@ export class TodoService {
   constructor(
     @InjectRepository(TodoEntity)
     private readonly repo: Repository<TodoEntity>,
-    @InjectQueryService(TodoEntity)
-    private readonly queryService: QueryService<TodoEntity>,
   ) {
     this.filterQueryBuilder = new FilterQueryBuilder<TodoEntity>(this.repo);
   }
 
   // Find one record
-  findOne: CqrsQueryFunc<FindOneTodoQuery, FindOneTodoQuery['args']> = async ({
+  findOne: CqrsQueryFunc<FindOneTodoQuery, FindOneTodoQuery["args"]> = async ({
     query,
     options,
   }) => {
@@ -547,7 +584,7 @@ export class TodoService {
       const result = await builder.getOne();
 
       if (!nullable && !result) {
-        throw new Error('Todo not found');
+        throw new Error("Todo not found");
       }
 
       return { success: true, data: result ?? undefined };
@@ -557,25 +594,25 @@ export class TodoService {
   };
 
   // Find many records (for paginated list queries)
-  findMany: CqrsQueryFunc<FindManyTodoQuery, FindManyTodoQuery['args']> = async ({
-    query,
-    options,
-  }) => {
-    try {
-      const builder = this.filterQueryBuilder.select(query);
-      const results = await builder.getMany();
-      return { success: true, data: results };
-    } catch (e) {
-      throw new BadRequestException(e.message);
-    }
-  };
+  findMany: CqrsQueryFunc<FindManyTodoQuery, FindManyTodoQuery["args"]> =
+    async ({ query }) => {
+      try {
+        const builder = this.filterQueryBuilder.select(query);
+        const results = await builder.getMany();
+        return { success: true, data: results };
+      } catch (e) {
+        throw new BadRequestException(e.message);
+      }
+    };
 
   // Count records (needed for cursor pagination's totalCount)
-  count: CqrsQueryFunc<CountTodoQuery, CountTodoQuery['args']> = async ({
+  count: CqrsQueryFunc<CountTodoQuery, CountTodoQuery["args"]> = async ({
     query,
   }) => {
     try {
-      const count = await this.filterQueryBuilder.select({ filter: query }).getCount();
+      const count = await this.filterQueryBuilder
+        .select({ filter: query })
+        .getCount();
       return { success: true, data: count };
     } catch (e) {
       throw new BadRequestException(e.message);
@@ -583,16 +620,17 @@ export class TodoService {
   };
 
   // Create one record
-  createOne: CqrsCommandFunc<CreateOneTodoCommand, CreateOneTodoCommand['args']> = async ({
-    input,
-  }) => {
+  createOne: CqrsCommandFunc<
+    CreateOneTodoCommand,
+    CreateOneTodoCommand["args"]
+  > = async ({ input }) => {
     try {
       // Business rule: no duplicate text per user
       const existing = await this.repo.findOne({
         where: { text: input.text, userId: input.userId },
       });
       if (existing) {
-        throw new Error('You already have a todo with that text');
+        throw new Error("You already have a todo with that text");
       }
 
       const todo = this.repo.create(input);
@@ -604,15 +642,14 @@ export class TodoService {
   };
 
   // Update one record
-  updateOne: CqrsCommandFunc<UpdateOneTodoCommand, UpdateOneTodoCommand['args']> = async ({
-    query,
-    input,
-    options,
-  }) => {
+  updateOne: CqrsCommandFunc<
+    UpdateOneTodoCommand,
+    UpdateOneTodoCommand["args"]
+  > = async ({ query, input }) => {
     try {
       const builder = this.filterQueryBuilder.select(query);
       const before = await builder.getOne();
-      if (!before) throw new NotFoundException('Todo not found');
+      if (!before) throw new NotFoundException("Todo not found");
 
       const updated = await this.repo.save({ ...before, ...input });
       return { success: true, data: { before, updated } };
@@ -622,12 +659,13 @@ export class TodoService {
   };
 
   // Delete one record (soft or hard depending on entity)
-  deleteOne: CqrsCommandFunc<DeleteOneTodoCommand, DeleteOneTodoCommand['args']> = async ({
-    input: id,
-  }) => {
+  deleteOne: CqrsCommandFunc<
+    DeleteOneTodoCommand,
+    DeleteOneTodoCommand["args"]
+  > = async ({ input: id }) => {
     try {
       const todo = await this.repo.findOne({ where: { id } });
-      if (!todo) throw new NotFoundException('Todo not found');
+      if (!todo) throw new NotFoundException("Todo not found");
       await this.repo.remove(todo);
       return { success: true, data: todo };
     } catch (e) {
@@ -652,8 +690,8 @@ Step 5: CQRS Handlers  → one-liner delegation to service, thin always
 Step 6: CQRS Index     → export handler arrays + re-export inputs
 Step 7: Service        → business logic, repository operations
 Step 8: Resolver       → GraphQL endpoints, @UseGuards, @CurrentUser
-Step 9: Module         → CqrsModule + TypeOrmModule.forFeature + providers spread
-        Register       → add Module to AppModule, Entity to TypeORM entities[]
+Step 9: Module         → TypeOrmModule.forFeature([Entity]) + providers spread
+        Register       → add Module to AppModule, add Entity to AppModule's entities[]
         Migrate        → generate → review SQL → run → verify in Adminer
         Test           → unit tests for service + handlers (Part 10)
 ```
@@ -666,30 +704,31 @@ You will run through this checklist completely in Part 08 (Tag module) and Part 
 
 ```typescript
 // apps/api/src/modules/todo/todo.module.ts
-import { Module } from '@nestjs/common';
-import { CqrsModule } from '@nestjs/cqrs';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { NestjsQueryTypeOrmModule } from '@ptc-org/nestjs-query-typeorm';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
 
-import { TodoEntity } from './todo.entity';
-import { TodoResolver } from './todo.resolver';
-import { TodoService } from './todo.service';
-import { TodoCommandHandlers, TodoEventHandlers, TodoQueryHandlers } from './cqrs';
+import { TodoEntity } from "./todo.entity";
+import { TodoResolver } from "./todo.resolver";
+import { TodoService } from "./todo.service";
+import {
+  TodoCommandHandlers,
+  TodoEventHandlers,
+  TodoQueryHandlers,
+} from "./cqrs";
 
 @Module({
   imports: [
-    CqrsModule,
-    TypeOrmModule.forFeature([TodoEntity]),          // Repository<TodoEntity> injectable in this module
-    NestjsQueryTypeOrmModule.forFeature([TodoEntity]), // QueryService<TodoEntity> injectable in this module
+    TypeOrmModule.forFeature([TodoEntity]), // makes Repository<TodoEntity> injectable in this module
+    // CqrsModule is NOT imported here — CqrsModule.forRoot() in AppModule registers the buses globally
   ],
   providers: [
     TodoResolver,
     TodoService,
-    ...TodoQueryHandlers,    // spreads all query handlers
-    ...TodoCommandHandlers,  // spreads all command handlers
-    ...TodoEventHandlers,    // spreads all event handlers (empty for now)
+    ...TodoQueryHandlers, // spreads all query handlers
+    ...TodoCommandHandlers, // spreads all command handlers
+    ...TodoEventHandlers, // spreads all event handlers (empty for now)
   ],
-  exports: [TodoService],  // export if other modules need to call TodoService
+  exports: [TodoService], // export if other modules need to call TodoService
 })
 export class TodoModule {}
 ```
@@ -699,13 +738,21 @@ Register in `AppModule`:
 ```typescript
 // app.module.ts
 import { TodoModule } from './modules/todo/todo.module';
+import { TodoEntity } from './modules/todo/todo.entity';
 
 @Module({
   imports: [
-    // TypeORM is already configured with a glob pattern:
-    // entities: [__dirname + '/**/*.entity{.ts,.js}']
-    // → new entity files are auto-discovered, no manual registration needed
-    TypeOrmModule.forRootAsync({ ... }),
+    // ⚠️  Webpack bundles all code into main.js — glob patterns like
+    //     __dirname + '/**/*.entity{.ts,.js}' find nothing at runtime
+    //     because there are no separate .entity.js files on disk.
+    //     Every entity must be explicitly listed.
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        // ...database config...
+        entities: [TodoEntity],  // ← add each new entity here explicitly
+      }),
+    }),
 
     TodoModule,    // ← add the module here
     // ... other modules
@@ -720,18 +767,18 @@ export class AppModule {}
 
 Every name in the CQRS layer follows a strict convention. Consistency means any developer can find any file in any module without looking.
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Query class | `FindOne<Entity>Query` | `FindOneTodoQuery` |
-| Query class (many) | `FindMany<Entity>Query` | `FindManyTodoQuery` |
-| Query class (count) | `Count<Entity>Query` | `CountTodoQuery` |
-| Command class (create) | `CreateOne<Entity>Command` | `CreateOneTodoCommand` |
-| Command class (update) | `UpdateOne<Entity>Command` | `UpdateOneTodoCommand` |
-| Command class (delete) | `DeleteOne<Entity>Command` | `DeleteOneTodoCommand` |
-| Query handler | `FindOne<Entity>QueryHandler` | `FindOneTodoQueryHandler` |
-| Command handler | `CreateOne<Entity>CommandHandler` | `CreateOneTodoCommandHandler` |
-| Event | `<Entity><Action>Event` | `TodoCreatedEvent` |
-| Event handler | `<Entity><Action>EventHandler` | `TodoCreatedEventHandler` |
+| Type                   | Pattern                           | Example                       |
+| ---------------------- | --------------------------------- | ----------------------------- |
+| Query class            | `FindOne<Entity>Query`            | `FindOneTodoQuery`            |
+| Query class (many)     | `FindMany<Entity>Query`           | `FindManyTodoQuery`           |
+| Query class (count)    | `Count<Entity>Query`              | `CountTodoQuery`              |
+| Command class (create) | `CreateOne<Entity>Command`        | `CreateOneTodoCommand`        |
+| Command class (update) | `UpdateOne<Entity>Command`        | `UpdateOneTodoCommand`        |
+| Command class (delete) | `DeleteOne<Entity>Command`        | `DeleteOneTodoCommand`        |
+| Query handler          | `FindOne<Entity>QueryHandler`     | `FindOneTodoQueryHandler`     |
+| Command handler        | `CreateOne<Entity>CommandHandler` | `CreateOneTodoCommandHandler` |
+| Event                  | `<Entity><Action>Event`           | `TodoCreatedEvent`            |
+| Event handler          | `<Entity><Action>EventHandler`    | `TodoCreatedEventHandler`     |
 
 ---
 
@@ -750,7 +797,7 @@ export class TodoCreatedEvent {
 export class CreateOneTodoCommandHandler {
   constructor(
     readonly service: TodoService,
-    private readonly eventBus: EventBus,
+    private readonly eventBus: EventBus
   ) {}
 
   async execute(command: CreateOneTodoCommand) {
@@ -780,18 +827,18 @@ Events are used for side effects that should not block the primary operation. Us
 
 You now understand the full CQRS pipeline:
 
-| Concern | Layer | Rule |
-|---------|-------|------|
-| HTTP/GraphQL routing, auth, input extraction | Resolver | No business logic, no DB access |
-| Message dispatch | CommandBus / QueryBus | Never bypassed — always go through the bus |
-| Message routing | Handler | One line: call service method |
-| Business logic, DB access, side effects | Service | The only place logic lives |
-| SQL execution | TypeORM Repository | Never called from resolver or handler |
+| Concern                                      | Layer                 | Rule                                       |
+| -------------------------------------------- | --------------------- | ------------------------------------------ |
+| HTTP/GraphQL routing, auth, input extraction | Resolver              | No business logic, no DB access            |
+| Message dispatch                             | CommandBus / QueryBus | Never bypassed — always go through the bus |
+| Message routing                              | Handler               | One line: call service method              |
+| Business logic, DB access, side effects      | Service               | The only place logic lives                 |
+| SQL execution                                | TypeORM Repository    | Never called from resolver or handler      |
 
 The 9-step pattern:
 
 ```
-Entity → Constants → DTOs → CQRS Inputs → CQRS Index → 
+Entity → Constants → DTOs → CQRS Inputs → CQRS Index →
 CQRS Handlers → Service → Resolver → Module → Register → Migrate
 ```
 
