@@ -243,6 +243,8 @@ Install the package:
 yarn add typeorm-naming-strategies
 ```
 
+> **Already done if you followed Part 02.** The `typeorm-naming-strategies` package and the `namingStrategy` line in `app.module.ts` were added as part of the environment setup. This section explains _why_ it exists.
+
 **The exception:** `AbstractEntity` hardcodes `name: 'created_at'` in the `@CreateDateColumn` decorator. This means `createdAt` always maps to `created_at` regardless of any naming strategy. Why? To guarantee consistency — even if you swap naming strategies later, audit columns never change their DB name.
 
 **Rule: your entity columns follow the naming strategy. `created_at` and `updated_at` are always `created_at` and `updated_at`.**
@@ -367,7 +369,61 @@ TypeORM automatically manages the `todo_tag` join table. You never write SQL for
 
 ---
 
-## 8. Full Entity Example: TodoEntity
+## 8. Create the UserEntity Stub
+
+`TodoEntity` has a `@ManyToOne` relation to `UserEntity`. That import must resolve before the build succeeds — but `UserEntity` is fully built in Part 07 (Authentication).
+
+Create the stub now so the build works. You will flesh it out in Part 07.
+
+```typescript
+// apps/api/src/modules/user/user.constant.ts
+import { registerEnumType } from '@nestjs/graphql';
+
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED',
+}
+
+registerEnumType(UserStatus, { name: 'UserStatus' });
+```
+
+```typescript
+// apps/api/src/modules/user/user.entity.ts
+import { Column, Entity, Index } from 'typeorm';
+import { AbstractEntity } from 'nestjs-dev-utilities';
+import { UserStatus } from './user.constant';
+
+@Entity({ name: 'user' })
+export class UserEntity extends AbstractEntity {
+  @Column()
+  fullname: string;
+
+  @Index()
+  @Column({ unique: true })
+  username: string;
+
+  @Index()
+  @Column({ unique: true })
+  email: string;
+
+  // NEVER expose this field in any DTO — it is never sent to clients
+  @Column()
+  password: string;
+
+  @Column({ type: 'enum', enum: UserStatus, default: UserStatus.ACTIVE })
+  status: UserStatus;
+
+  @Column({ nullable: true })
+  twoFactorSecret: string | null;
+}
+```
+
+> Part 07 adds auth logic (hashing, JWT, guards) on top of this entity. The shape will not change — only the surrounding module wiring.
+
+---
+
+## 9. Full Entity Example: TodoEntity
 
 Here is the complete `TodoEntity` for the enterprise-todo app:
 
@@ -431,7 +487,7 @@ registerEnumType(TodoStatus, { name: "TodoStatus" });
 
 ---
 
-## 9. The Migration System
+## 10. The Migration System
 
 Migrations are versioned SQL scripts that track every schema change. They are the enterprise equivalent of "my MongoDB collection just grew a new field" — except explicit, reversible, and reviewable.
 
@@ -503,7 +559,7 @@ yarn add --dev ts-node typeorm
 
 ---
 
-## 10. The Migration Lifecycle
+## 11. The Migration Lifecycle
 
 ### Step 1: Create your entity
 
@@ -606,7 +662,7 @@ Always test both `up` and `down` locally before committing.
 
 ---
 
-## 11. Migration vs. Synchronize
+## 12. Migration vs. Synchronize
 
 ```typescript
 // NEVER use synchronize: true in production or staging
@@ -628,7 +684,7 @@ TypeOrmModule.forRootAsync({
 
 ---
 
-## 12. Migration Naming Convention
+## 13. Migration Naming Convention
 
 TypeORM auto-timestamps migration filenames:
 
@@ -642,7 +698,7 @@ TypeORM auto-timestamps migration filenames:
 
 ---
 
-## 13. Seeding
+## 14. Seeding
 
 Seeds insert initial data (default roles, permissions, sample records) after migrations.
 
@@ -709,7 +765,7 @@ yarn api:seed:run
 
 ---
 
-## 14. Common Migration Errors
+## 15. Common Migration Errors
 
 | Error                                                         | Cause                                                               | Fix                                                                                     |
 | ------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
