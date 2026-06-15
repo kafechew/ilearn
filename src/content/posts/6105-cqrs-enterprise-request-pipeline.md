@@ -469,7 +469,7 @@ export class FindOneTodoQueryHandler implements IInferredQueryHandler<FindOneTod
   async execute(
     query: FindOneTodoQuery
   ): Promise<QueryResult<FindOneTodoQuery>> {
-    return this.service.findOne(query.args); // one line — delegate to service
+    return this.service.findOneTodo(query.args); // one line — delegate to service
   }
 }
 
@@ -479,7 +479,7 @@ export class FindManyTodoQueryHandler implements IInferredQueryHandler<FindManyT
   async execute(
     query: FindManyTodoQuery
   ): Promise<QueryResult<FindManyTodoQuery>> {
-    return this.service.findMany(query.args);
+    return this.service.findManyTodo(query.args);
   }
 }
 
@@ -487,7 +487,7 @@ export class FindManyTodoQueryHandler implements IInferredQueryHandler<FindManyT
 export class CountTodoQueryHandler implements IInferredQueryHandler<CountTodoQuery> {
   constructor(readonly service: TodoService) {}
   async execute(query: CountTodoQuery): Promise<QueryResult<CountTodoQuery>> {
-    return this.service.count(query.args);
+    return this.service.countTodo(query.args);
   }
 }
 
@@ -499,7 +499,7 @@ export class CreateOneTodoCommandHandler implements IInferredCommandHandler<Crea
   async execute(
     command: CreateOneTodoCommand
   ): Promise<CommandResult<CreateOneTodoCommand>> {
-    return this.service.createOne(command.args);
+    return this.service.createOneTodo(command.args);
   }
 }
 
@@ -509,7 +509,7 @@ export class UpdateOneTodoCommandHandler implements IInferredCommandHandler<Upda
   async execute(
     command: UpdateOneTodoCommand
   ): Promise<CommandResult<UpdateOneTodoCommand>> {
-    return this.service.updateOne(command.args);
+    return this.service.updateOneTodo(command.args);
   }
 }
 
@@ -519,7 +519,7 @@ export class DeleteOneTodoCommandHandler implements IInferredCommandHandler<Dele
   async execute(
     command: DeleteOneTodoCommand
   ): Promise<CommandResult<DeleteOneTodoCommand>> {
-    return this.service.deleteOne(command.args);
+    return this.service.deleteOneTodo(command.args);
   }
 }
 ```
@@ -539,6 +539,14 @@ Every handler follows the exact same pattern:
 
 The service is where work actually happens. All business rules, all database access, all side effects.
 
+`TodoService` **extends `TypeOrmQueryService<TodoEntity>`** from `@ptc-org/nestjs-query-typeorm` (the public API). This does three things at once:
+
+- `this.filterQueryBuilder` — inherited, no need to declare or instantiate it
+- `this.repo` — the raw `Repository<TodoEntity>`, inherited for direct TypeORM operations
+- A full `QueryService<Entity>` interface (`query()`, `count()`, `findById()`, `createOne()`, `updateOne()`, `deleteOne()`) — available on `this` if needed
+
+The constructor only needs `@InjectRepository` to inject the repository from NestJS DI and pass it to `super()`. No `NestjsQueryTypeOrmModule`, no `@InjectQueryService`, no manual `FilterQueryBuilder` instantiation.
+
 ```typescript
 // apps/api/src/modules/todo/todo.service.ts
 import {
@@ -547,7 +555,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { FilterQueryBuilder } from "@ptc-org/nestjs-query-typeorm/src/query";
+import { TypeOrmQueryService } from "@ptc-org/nestjs-query-typeorm";
 import { CqrsCommandFunc, CqrsQueryFunc } from "nestjs-typed-cqrs";
 import { Repository } from "typeorm";
 
@@ -562,39 +570,35 @@ import {
 import { TodoEntity } from "./todo.entity";
 
 @Injectable()
-export class TodoService {
-  private readonly filterQueryBuilder: FilterQueryBuilder<TodoEntity>;
-
+export class TodoService extends TypeOrmQueryService<TodoEntity> {
   constructor(
     @InjectRepository(TodoEntity)
-    private readonly repo: Repository<TodoEntity>,
+    repo: Repository<TodoEntity>, // no `private readonly` — parent sets this.repo
   ) {
-    this.filterQueryBuilder = new FilterQueryBuilder<TodoEntity>(this.repo);
+    super(repo); // sets this.repo and this.filterQueryBuilder via TypeOrmQueryService
   }
 
   // Find one record
-  findOne: CqrsQueryFunc<FindOneTodoQuery, FindOneTodoQuery["args"]> = async ({
-    query,
-    options,
-  }) => {
-    const nullable = options?.nullable ?? true;
+  findOneTodo: CqrsQueryFunc<FindOneTodoQuery, FindOneTodoQuery["args"]> =
+    async ({ query, options }) => {
+      const nullable = options?.nullable ?? true;
 
-    try {
-      const builder = this.filterQueryBuilder.select(query);
-      const result = await builder.getOne();
+      try {
+        const builder = this.filterQueryBuilder.select(query);
+        const result = await builder.getOne();
 
-      if (!nullable && !result) {
-        throw new Error("Todo not found");
+        if (!nullable && !result) {
+          throw new Error("Todo not found");
+        }
+
+        return { success: true, data: result ?? undefined };
+      } catch (e) {
+        throw new BadRequestException(e.message);
       }
-
-      return { success: true, data: result ?? undefined };
-    } catch (e) {
-      throw new BadRequestException(e.message);
-    }
-  };
+    };
 
   // Find many records (for paginated list queries)
-  findMany: CqrsQueryFunc<FindManyTodoQuery, FindManyTodoQuery["args"]> =
+  findManyTodo: CqrsQueryFunc<FindManyTodoQuery, FindManyTodoQuery["args"]> =
     async ({ query }) => {
       try {
         const builder = this.filterQueryBuilder.select(query);
@@ -606,7 +610,7 @@ export class TodoService {
     };
 
   // Count records (needed for cursor pagination's totalCount)
-  count: CqrsQueryFunc<CountTodoQuery, CountTodoQuery["args"]> = async ({
+  countTodo: CqrsQueryFunc<CountTodoQuery, CountTodoQuery["args"]> = async ({
     query,
   }) => {
     try {
@@ -620,7 +624,7 @@ export class TodoService {
   };
 
   // Create one record
-  createOne: CqrsCommandFunc<
+  createOneTodo: CqrsCommandFunc<
     CreateOneTodoCommand,
     CreateOneTodoCommand["args"]
   > = async ({ input }) => {
@@ -642,7 +646,7 @@ export class TodoService {
   };
 
   // Update one record
-  updateOne: CqrsCommandFunc<
+  updateOneTodo: CqrsCommandFunc<
     UpdateOneTodoCommand,
     UpdateOneTodoCommand["args"]
   > = async ({ query, input }) => {
@@ -658,8 +662,8 @@ export class TodoService {
     }
   };
 
-  // Delete one record (soft or hard depending on entity)
-  deleteOne: CqrsCommandFunc<
+  // Delete one record
+  deleteOneTodo: CqrsCommandFunc<
     DeleteOneTodoCommand,
     DeleteOneTodoCommand["args"]
   > = async ({ input: id }) => {
@@ -811,18 +815,24 @@ Rule: every entity in every future module must be **explicitly imported and list
 
 Every name in the CQRS layer follows a strict convention. Consistency means any developer can find any file in any module without looking.
 
-| Type                   | Pattern                           | Example                       |
-| ---------------------- | --------------------------------- | ----------------------------- |
-| Query class            | `FindOne<Entity>Query`            | `FindOneTodoQuery`            |
-| Query class (many)     | `FindMany<Entity>Query`           | `FindManyTodoQuery`           |
-| Query class (count)    | `Count<Entity>Query`              | `CountTodoQuery`              |
-| Command class (create) | `CreateOne<Entity>Command`        | `CreateOneTodoCommand`        |
-| Command class (update) | `UpdateOne<Entity>Command`        | `UpdateOneTodoCommand`        |
-| Command class (delete) | `DeleteOne<Entity>Command`        | `DeleteOneTodoCommand`        |
-| Query handler          | `FindOne<Entity>QueryHandler`     | `FindOneTodoQueryHandler`     |
-| Command handler        | `CreateOne<Entity>CommandHandler` | `CreateOneTodoCommandHandler` |
-| Event                  | `<Entity><Action>Event`           | `TodoCreatedEvent`            |
-| Event handler          | `<Entity><Action>EventHandler`    | `TodoCreatedEventHandler`     |
+| Type                        | Pattern                              | Example                       |
+| --------------------------- | ------------------------------------ | ----------------------------- |
+| Query class                 | `FindOne<Entity>Query`               | `FindOneTodoQuery`            |
+| Query class (many)          | `FindMany<Entity>Query`              | `FindManyTodoQuery`           |
+| Query class (count)         | `Count<Entity>Query`                 | `CountTodoQuery`              |
+| Command class (create)      | `CreateOne<Entity>Command`           | `CreateOneTodoCommand`        |
+| Command class (update)      | `UpdateOne<Entity>Command`           | `UpdateOneTodoCommand`        |
+| Command class (delete)      | `DeleteOne<Entity>Command`           | `DeleteOneTodoCommand`        |
+| Query handler               | `FindOne<Entity>QueryHandler`        | `FindOneTodoQueryHandler`     |
+| Command handler             | `CreateOne<Entity>CommandHandler`    | `CreateOneTodoCommandHandler` |
+| Service method (find one)   | `findOne<Entity>`                    | `findOneTodo`                 |
+| Service method (find many)  | `findMany<Entity>`                   | `findManyTodo`                |
+| Service method (count)      | `count<Entity>`                      | `countTodo`                   |
+| Service method (create)     | `createOne<Entity>`                  | `createOneTodo`               |
+| Service method (update)     | `updateOne<Entity>`                  | `updateOneTodo`               |
+| Service method (delete)     | `deleteOne<Entity>`                  | `deleteOneTodo`               |
+| Event                       | `<Entity><Action>Event`              | `TodoCreatedEvent`            |
+| Event handler               | `<Entity><Action>EventHandler`       | `TodoCreatedEventHandler`     |
 
 ---
 
