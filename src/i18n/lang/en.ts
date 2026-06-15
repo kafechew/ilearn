@@ -19,8 +19,8 @@ export default {
     backToTop: "Back to top",
     goBack: "Go back",
     editPage: "Edit page",
-    previousPost: "Previous Post",
-    nextPost: "Next Post",
+    previousPost: "Next Post",
+    nextPost: "Previous Post",
   },
   pagination: {
     prev: "Prev",
