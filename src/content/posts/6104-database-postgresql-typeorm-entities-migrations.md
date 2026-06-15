@@ -19,8 +19,7 @@ tags:
   - enterprise
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/04-database-postgresql-typeorm-entities-migrations.png"
-description: By the end of this part, you will learn PostgreSQL, TypeORM, AbstractEntity, SnakeNamingStrategy, migration lifecycle and verify your schema in Adminer.  
-
+description: By the end of this part, you will learn PostgreSQL, TypeORM, AbstractEntity, SnakeNamingStrategy, migration lifecycle and verify your schema in Adminer.
 ---
 
 ## What This Part Covers
@@ -39,7 +38,7 @@ description: By the end of this part, you will learn PostgreSQL, TypeORM, Abstra
 
 ```javascript
 // Meteor: one line, no schema, no migrations
-const TasksCollection = new Mongo.Collection('tasks');
+const TasksCollection = new Mongo.Collection("tasks");
 
 // To "define" the schema (optional):
 TasksCollection.schema = new SimpleSchema({
@@ -50,7 +49,7 @@ TasksCollection.schema = new SimpleSchema({
 
 ```typescript
 // Enterprise NestJS: explicit, typed, migrations-tracked
-@Entity({ name: 'todo' })
+@Entity({ name: "todo" })
 export class TodoEntity extends AbstractEntity {
   @Column()
   text: string;
@@ -77,15 +76,15 @@ PostgreSQL is relational: each row in a table has a fixed, typed schema. You def
 
 **What you gain with PostgreSQL:**
 
-| Concern | MongoDB | PostgreSQL |
-|---------|---------|-----------|
-| Schema enforcement | Optional (SimpleSchema is opt-in) | Mandatory — columns must exist |
-| Foreign keys | No native FK constraints | `FOREIGN KEY` constraints prevent orphaned data |
-| Transactions | Multi-document transactions (v4+, complex) | ACID transactions — built-in, simple |
-| Migrations | None (schema-less) | TypeORM migrations — versioned, reversible |
-| Joins | `$lookup` aggregation | SQL `JOIN` — optimized, indexes work |
-| Type safety | Documents are `any` | TypeScript entity maps exactly to table columns |
-| Full-text search | Text index | `tsvector` + GIN index (PostGIS for geo) |
+| Concern            | MongoDB                                    | PostgreSQL                                      |
+| ------------------ | ------------------------------------------ | ----------------------------------------------- |
+| Schema enforcement | Optional (SimpleSchema is opt-in)          | Mandatory — columns must exist                  |
+| Foreign keys       | No native FK constraints                   | `FOREIGN KEY` constraints prevent orphaned data |
+| Transactions       | Multi-document transactions (v4+, complex) | ACID transactions — built-in, simple            |
+| Migrations         | None (schema-less)                         | TypeORM migrations — versioned, reversible      |
+| Joins              | `$lookup` aggregation                      | SQL `JOIN` — optimized, indexes work            |
+| Type safety        | Documents are `any`                        | TypeScript entity maps exactly to table columns |
+| Full-text search   | Text index                                 | `tsvector` + GIN index (PostGIS for geo)        |
 
 > **The real-world argument:** Your database is your last line of defense against bad data. A MongoDB collection lets you save `{ isChecked: "yes" }` when you expected `boolean`. A PostgreSQL `BOOLEAN` column will reject it with an error. In production, bad data corrupts reports, breaks features, and is expensive to clean up.
 
@@ -96,18 +95,18 @@ PostgreSQL is relational: each row in a table has a fixed, typed schema. You def
 TypeORM maps TypeScript classes to PostgreSQL tables. The class **is** the schema.
 
 ```typescript
-@Entity({ name: 'todo' })  // ← creates/references the "todo" table in PostgreSQL
+@Entity({ name: "todo" }) // ← creates/references the "todo" table in PostgreSQL
 export class TodoEntity {
-  @PrimaryGeneratedColumn()  // ← id SERIAL PRIMARY KEY
+  @PrimaryGeneratedColumn() // ← id SERIAL PRIMARY KEY
   id: number;
 
-  @Column()                  // ← text VARCHAR NOT NULL
+  @Column() // ← text VARCHAR NOT NULL
   text: string;
 
   @Column({ default: false }) // ← is_checked BOOLEAN DEFAULT false
   isChecked: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })  // ← created_at TIMESTAMPTZ
+  @CreateDateColumn({ name: "created_at" }) // ← created_at TIMESTAMPTZ
   createdAt: Date;
 }
 ```
@@ -129,7 +128,7 @@ You write TypeScript. TypeORM writes SQL.
 
 ## 3. `AbstractEntity` — The Base Class
 
-Every entity in this codebase extends `AbstractEntity` from `nestjs-dev-utilities`. It provides three columns that every entity needs:
+Every entity in this codebase extends `AbstractEntity` from [`nestjs-dev-utilities`](https://github.com/louiskhenghao/nestjs-dev-utilities). It provides three columns that every entity needs:
 
 ```typescript
 // From nestjs-dev-utilities (simplified for illustration):
@@ -137,10 +136,10 @@ export abstract class AbstractEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
+  @CreateDateColumn({ name: "created_at", type: "timestamp with time zone" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
+  @UpdateDateColumn({ name: "updated_at", type: "timestamp with time zone" })
   updatedAt: Date;
 }
 ```
@@ -153,7 +152,7 @@ export abstract class AbstractEntity {
 
 ```typescript
 // Your entity:
-@Entity({ name: 'todo' })
+@Entity({ name: "todo" })
 export class TodoEntity extends AbstractEntity {
   // id, createdAt, updatedAt come FREE from AbstractEntity
   // You only declare the fields unique to this entity:
@@ -190,7 +189,7 @@ export abstract class AbstractDto {
 Your DTO extends it:
 
 ```typescript
-@ObjectType('Todo')
+@ObjectType("Todo")
 export class TodoDto extends AbstractDto {
   // id, createdAt, updatedAt come from AbstractDto
   @FilterableField()
@@ -209,6 +208,7 @@ TypeScript convention: `camelCase` for properties.
 SQL convention: `snake_case` for column names.
 
 Without `SnakeNamingStrategy`:
+
 ```typescript
 @Column()
 isChecked: boolean;
@@ -216,6 +216,7 @@ isChecked: boolean;
 ```
 
 With `SnakeNamingStrategy`:
+
 ```typescript
 @Column()
 isChecked: boolean;
@@ -226,14 +227,14 @@ Add it to your TypeORM config:
 
 ```typescript
 // In app.module.ts TypeOrmModule.forRootAsync:
-import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
 TypeOrmModule.forRootAsync({
   useFactory: (config: ConfigService) => ({
     // ... other config ...
     namingStrategy: new SnakeNamingStrategy(),
   }),
-})
+});
 ```
 
 Install the package:
@@ -251,7 +252,7 @@ yarn add typeorm-naming-strategies
 ## 6. Column Types Reference
 
 ```typescript
-@Entity({ name: 'todo' })
+@Entity({ name: "todo" })
 export class TodoEntity extends AbstractEntity {
   // Basic string (VARCHAR NOT NULL)
   @Column()
@@ -270,19 +271,19 @@ export class TodoEntity extends AbstractEntity {
   isChecked: boolean;
 
   // Integer
-  @Column({ type: 'int' })
+  @Column({ type: "int" })
   priority: number;
 
   // Decimal (e.g. price)
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: "decimal", precision: 10, scale: 2 })
   price: number;
 
   // Enum column
-  @Column({ type: 'enum', enum: TodoStatus, default: TodoStatus.ACTIVE })
+  @Column({ type: "enum", enum: TodoStatus, default: TodoStatus.ACTIVE })
   status: TodoStatus;
 
   // JSON column
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: "jsonb", nullable: true })
   metadata: Record<string, unknown> | null;
 
   // Indexed column (add @Index to columns used in WHERE clauses)
@@ -305,16 +306,16 @@ Relations define how tables relate to each other. This replaces MongoDB's embedd
 A todo belongs to one user. One user has many todos.
 
 ```typescript
-import { ManyToOne, JoinColumn, RelationId } from 'typeorm';
-import { UserEntity } from '../user/user.entity';
+import { ManyToOne, JoinColumn, RelationId } from "typeorm";
+import { UserEntity } from "../user/user.entity";
 
-@Entity({ name: 'todo' })
+@Entity({ name: "todo" })
 export class TodoEntity extends AbstractEntity {
   @Column()
   text: string;
 
   // The FK relationship — joins to UserEntity
-  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
+  @ManyToOne(() => UserEntity, { onDelete: "CASCADE" })
   @JoinColumn()
   user: UserEntity;
 
@@ -333,11 +334,11 @@ export class TodoEntity extends AbstractEntity {
 ```typescript
 // Read just the ID (cheap, no JOIN):
 const todo = await repo.findOne({ where: { id: 1 } });
-console.log(todo.userId);   // → 5  (always available, no extra query)
+console.log(todo.userId); // → 5  (always available, no extra query)
 
 // Read the full user object (needs a JOIN):
-const todo = await repo.findOne({ where: { id: 1 }, relations: ['user'] });
-console.log(todo.user.fullname);  // → "Alice"
+const todo = await repo.findOne({ where: { id: 1 }, relations: ["user"] });
+console.log(todo.user.fullname); // → "Alice"
 ```
 
 You will use `userId` constantly (for filtering, ownership checks). You will only load `todo.user` when you actually need to display user data — and even then, DataLoader batches the query (Part 09).
@@ -347,16 +348,16 @@ You will use `userId` constantly (for filtering, ownership checks). You will onl
 A todo can have many tags. A tag can be on many todos.
 
 ```typescript
-import { ManyToMany, JoinTable } from 'typeorm';
-import { TagEntity } from '../tag/tag.entity';
+import { ManyToMany, JoinTable } from "typeorm";
+import { TagEntity } from "../tag/tag.entity";
 
-@Entity({ name: 'todo' })
+@Entity({ name: "todo" })
 export class TodoEntity extends AbstractEntity {
   @ManyToMany(() => TagEntity, { cascade: true })
   @JoinTable({
-    name: 'todo_tag',         // the join table name
-    joinColumn: { name: 'todo_id' },
-    inverseJoinColumn: { name: 'tag_id' },
+    name: "todo_tag", // the join table name
+    joinColumn: { name: "todo_id" },
+    inverseJoinColumn: { name: "tag_id" },
   })
   tags: TagEntity[];
 }
@@ -372,12 +373,19 @@ Here is the complete `TodoEntity` for the enterprise-todo app:
 
 ```typescript
 // apps/api/src/modules/todo/todo.entity.ts
-import { Column, Entity, Index, ManyToOne, JoinColumn, RelationId } from 'typeorm';
-import { AbstractEntity } from 'nestjs-dev-utilities';
-import { UserEntity } from '../user/user.entity';
-import { TodoStatus } from './todo.constant';
+import {
+  Column,
+  Entity,
+  Index,
+  ManyToOne,
+  JoinColumn,
+  RelationId,
+} from "typeorm";
+import { AbstractEntity } from "nestjs-dev-utilities";
+import { UserEntity } from "../user/user.entity";
+import { TodoStatus } from "./todo.constant";
 
-@Entity({ name: 'todo' })
+@Entity({ name: "todo" })
 export class TodoEntity extends AbstractEntity {
   // The todo text
   @Column()
@@ -388,7 +396,7 @@ export class TodoEntity extends AbstractEntity {
   isChecked: boolean;
 
   // Status enum
-  @Column({ type: 'enum', enum: TodoStatus, default: TodoStatus.ACTIVE })
+  @Column({ type: "enum", enum: TodoStatus, default: TodoStatus.ACTIVE })
   status: TodoStatus;
 
   // FK to the user who owns this todo
@@ -398,7 +406,7 @@ export class TodoEntity extends AbstractEntity {
   @RelationId((todo: TodoEntity) => todo.user)
   userId: number;
 
-  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
+  @ManyToOne(() => UserEntity, { onDelete: "CASCADE" })
   @JoinColumn()
   user: UserEntity;
 }
@@ -408,15 +416,15 @@ export class TodoEntity extends AbstractEntity {
 
 ```typescript
 // apps/api/src/modules/todo/todo.constant.ts
-import { registerEnumType } from '@nestjs/graphql';
+import { registerEnumType } from "@nestjs/graphql";
 
 export enum TodoStatus {
-  ACTIVE = 'ACTIVE',
-  ARCHIVED = 'ARCHIVED',
+  ACTIVE = "ACTIVE",
+  ARCHIVED = "ARCHIVED",
 }
 
 // Tell GraphQL about this enum so it appears in the schema
-registerEnumType(TodoStatus, { name: 'TodoStatus' });
+registerEnumType(TodoStatus, { name: "TodoStatus" });
 ```
 
 > **Why `registerEnumType`?** GraphQL needs to know about TypeScript enums. Without this call, Apollo won't include `TodoStatus` in the generated schema, and resolvers will fail to serialize it. Always call `registerEnumType` for any enum used in a `@Field`.
@@ -454,23 +462,23 @@ Create `apps/api/ormconfig.ts` — used by the TypeORM CLI tool (separate from t
 
 ```typescript
 // apps/api/ormconfig.ts
-import { DataSource } from 'typeorm';
-import { config } from 'dotenv';
-import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { DataSource } from "typeorm";
+import { config } from "dotenv";
+import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
-config({ path: '.env' });  // load .env
+config({ path: ".env" }); // load .env
 
 export const AppDataSource = new DataSource({
-  type: 'postgres',
+  type: "postgres",
   host: process.env.PROJECT_DB_HOST,
   port: Number(process.env.PROJECT_DB_PORT),
   username: process.env.PROJECT_DB_USERNAME,
   password: process.env.PROJECT_DB_PASSWORD,
   database: process.env.PROJECT_DB_DATABASE,
   namingStrategy: new SnakeNamingStrategy(),
-  entities: ['apps/api/src/**/*.entity.ts'],
-  migrations: ['apps/api/src/migrations/*.ts'],
-  synchronize: false,  // NEVER true — always use migrations
+  entities: ["apps/api/src/**/*.entity.ts"],
+  migrations: ["apps/api/src/migrations/*.ts"],
+  synchronize: false, // NEVER true — always use migrations
 });
 ```
 
@@ -512,7 +520,7 @@ TypeORM compares your entity definition against the current database schema and 
 A file is created at `apps/api/src/migrations/1720000000000-create-todo-table.ts`:
 
 ```typescript
-import { MigrationInterface, QueryRunner } from 'typeorm';
+import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class CreateTodoTable1720000000000 implements MigrationInterface {
   // up() runs when you apply the migration
@@ -553,6 +561,7 @@ export class CreateTodoTable1720000000000 implements MigrationInterface {
 **Always read the generated migration file before running it.**
 
 Watch for dangerous operations:
+
 - `DROP TABLE` — data loss (fine if intentional)
 - `ALTER COLUMN ... NOT NULL` without a default — will fail on non-empty tables
 - `DROP COLUMN` — data loss
@@ -570,6 +579,7 @@ yarn api:migration:run
 ```
 
 TypeORM:
+
 1. Checks the `migrations` table in PostgreSQL (creates it on first run)
 2. Runs all pending migration files in timestamp order
 3. Records each run in the `migrations` table
@@ -577,6 +587,7 @@ TypeORM:
 ### Step 5: Verify in Adminer
 
 Open `http://localhost:8080`, log in, and check:
+
 - The `todo` table exists
 - Columns match the entity definition
 - The `migrations` table has a row for your migration
@@ -601,7 +612,7 @@ Always test both `up` and `down` locally before committing.
 // NEVER use synchronize: true in production or staging
 TypeOrmModule.forRootAsync({
   useFactory: () => ({
-    synchronize: true,  // ← dangerous: auto-alters tables on startup
+    synchronize: true, // ← dangerous: auto-alters tables on startup
   }),
 });
 ```
@@ -642,13 +653,13 @@ yarn add @jorgebodega/typeorm-seeding
 Create `apps/api/src/seeders/0-reset.seeder.ts`:
 
 ```typescript
-import { DataSource } from 'typeorm';
-import { Seeder } from '@jorgebodega/typeorm-seeding';
+import { DataSource } from "typeorm";
+import { Seeder } from "@jorgebodega/typeorm-seeding";
 
 // Always run this first — clears tables to avoid duplicate key errors on re-seed
 export default class ResetSeeder extends Seeder {
   async run(dataSource: DataSource): Promise<void> {
-    await dataSource.query('TRUNCATE TABLE todo RESTART IDENTITY CASCADE');
+    await dataSource.query("TRUNCATE TABLE todo RESTART IDENTITY CASCADE");
   }
 }
 ```
@@ -656,18 +667,33 @@ export default class ResetSeeder extends Seeder {
 Create `apps/api/src/seeders/1-todo.seeder.ts`:
 
 ```typescript
-import { DataSource } from 'typeorm';
-import { Seeder } from '@jorgebodega/typeorm-seeding';
-import { TodoEntity } from '../modules/todo/todo.entity';
-import { TodoStatus } from '../modules/todo/todo.constant';
+import { DataSource } from "typeorm";
+import { Seeder } from "@jorgebodega/typeorm-seeding";
+import { TodoEntity } from "../modules/todo/todo.entity";
+import { TodoStatus } from "../modules/todo/todo.constant";
 
 export default class TodoSeeder extends Seeder {
   async run(dataSource: DataSource): Promise<void> {
     const repo = dataSource.getRepository(TodoEntity);
     await repo.save([
-      { text: 'Buy groceries', isChecked: false, userId: 1, status: TodoStatus.ACTIVE },
-      { text: 'Write tests', isChecked: false, userId: 1, status: TodoStatus.ACTIVE },
-      { text: 'Deploy to production', isChecked: true, userId: 1, status: TodoStatus.ARCHIVED },
+      {
+        text: "Buy groceries",
+        isChecked: false,
+        userId: 1,
+        status: TodoStatus.ACTIVE,
+      },
+      {
+        text: "Write tests",
+        isChecked: false,
+        userId: 1,
+        status: TodoStatus.ACTIVE,
+      },
+      {
+        text: "Deploy to production",
+        isChecked: true,
+        userId: 1,
+        status: TodoStatus.ARCHIVED,
+      },
     ]);
   }
 }
@@ -685,27 +711,25 @@ yarn api:seed:run
 
 ## 14. Common Migration Errors
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `relation "todo" already exists` | Migration already ran, running again | The `migrations` table should prevent this. Check if migration file was deleted from DB |
-| `column "status" of relation "todo" already exists` | DB has the column but migration doesn't know | Someone ran manual SQL. Use `ADD COLUMN IF NOT EXISTS` in the migration |
-| `null value in column "user_id" violates not-null constraint` | Running `NOT NULL` migration on a non-empty table | Add a default or backfill existing rows in the migration `up()` |
-| `FK_todo_user` constraint failed | Inserting a todo with a `userId` that doesn't exist in `user` table | Ensure the user exists first (seeder order) |
-| `TypeORM metadata not found for TodoEntity` | Entity not in `entities` array | Add to both `forRoot` entities AND `forFeature` in the module |
+| Error                                                         | Cause                                                               | Fix                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `relation "todo" already exists`                              | Migration already ran, running again                                | The `migrations` table should prevent this. Check if migration file was deleted from DB |
+| `column "status" of relation "todo" already exists`           | DB has the column but migration doesn't know                        | Someone ran manual SQL. Use `ADD COLUMN IF NOT EXISTS` in the migration                 |
+| `null value in column "user_id" violates not-null constraint` | Running `NOT NULL` migration on a non-empty table                   | Add a default or backfill existing rows in the migration `up()`                         |
+| `FK_todo_user` constraint failed                              | Inserting a todo with a `userId` that doesn't exist in `user` table | Ensure the user exists first (seeder order)                                             |
+| `TypeORM metadata not found for TodoEntity`                   | Entity not in `entities` array                                      | Add to both `forRoot` entities AND `forFeature` in the module                           |
 
 ---
 
 ## Summary
 
-| Meteor | Enterprise NestJS |
-|--------|-------------------|
+| Meteor                          | Enterprise NestJS                                                   |
+| ------------------------------- | ------------------------------------------------------------------- |
 | `new Mongo.Collection('tasks')` | `@Entity({ name: 'todo' }) class TodoEntity extends AbstractEntity` |
-| No schema enforcement | TypeScript types + PostgreSQL column types enforce shape |
-| No migrations | TypeORM migrations: generate → review → run → revert |
-| Optional `SimpleSchema` | `class-validator` on DTOs, enforced globally |
-| `$set` for updates | `repo.save({ ...entity, ...updates })` |
-| `find()` cursor | `repo.findMany({ where: { userId } })` |
-| MongoID (string) | Auto-increment integer PK from `AbstractEntity` |
-| No FK constraints | `@ManyToOne` + FK enforced by PostgreSQL |
-
-
+| No schema enforcement           | TypeScript types + PostgreSQL column types enforce shape            |
+| No migrations                   | TypeORM migrations: generate → review → run → revert                |
+| Optional `SimpleSchema`         | `class-validator` on DTOs, enforced globally                        |
+| `$set` for updates              | `repo.save({ ...entity, ...updates })`                              |
+| `find()` cursor                 | `repo.findMany({ where: { userId } })`                              |
+| MongoID (string)                | Auto-increment integer PK from `AbstractEntity`                     |
+| No FK constraints               | `@ManyToOne` + FK enforced by PostgreSQL                            |
