@@ -60,7 +60,7 @@ export class TodoEntity extends AbstractEntity {
   @Column()
   userId: number;
 }
-// Then: yarn api:migration:generate --name=create-todo-table
+// Then: yarn api:migration:generate apps/api/src/migrations/CreateTodoTable
 // Then: review the SQL, then: yarn api:migration:run
 ```
 
@@ -512,37 +512,51 @@ With migrations:
   - Zero-downtime deploy.
 ```
 
-### TypeORM ORM Config
+### Step 1 — Install peer dependencies
 
-Create `apps/api/ormconfig.ts` — used by the TypeORM CLI tool (separate from the NestJS runtime config):
+`@ptc-org/nestjs-query-graphql` (pulled in by `nestjs-dev-utilities`) has peer deps that are not installed by default. The TypeORM CLI loads entity files, which loads the full module tree, which requires these packages:
+
+```bash
+yarn add graphql-subscriptions ts-morph
+```
+
+### Step 2 — Create `apps/api/ormconfig.ts`
+
+Used by the TypeORM CLI tool only — separate from the NestJS runtime config in `app.module.ts`:
 
 ```typescript
 // apps/api/ormconfig.ts
-import { DataSource } from "typeorm";
-import { config } from "dotenv";
-import { SnakeNamingStrategy } from "typeorm-naming-strategies";
+import { DataSource } from 'typeorm';
+import { config } from 'dotenv';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
-config({ path: ".env" }); // load .env
+config({ path: '.env' }); // load .env
 
 export const AppDataSource = new DataSource({
-  type: "postgres",
+  type: 'postgres',
   host: process.env.PROJECT_DB_HOST,
   port: Number(process.env.PROJECT_DB_PORT),
   username: process.env.PROJECT_DB_USERNAME,
   password: process.env.PROJECT_DB_PASSWORD,
   database: process.env.PROJECT_DB_DATABASE,
   namingStrategy: new SnakeNamingStrategy(),
-  entities: ["apps/api/src/**/*.entity.ts"],
-  migrations: ["apps/api/src/migrations/*.ts"],
+  entities: ['apps/api/src/**/*.entity.ts'],
+  migrations: ['apps/api/src/migrations/*.ts'],
   synchronize: false, // NEVER true — always use migrations
 });
 ```
 
-### TypeORM tsconfig
+Also create the migrations directory:
 
-The TypeORM CLI runs `ts-node` from the workspace root. There is no `tsconfig.json` at the root (Nx uses `tsconfig.base.json`), so `ts-node` falls back to TypeScript defaults — which have `experimentalDecorators: false`. Every decorator in every entity will fail.
+```bash
+mkdir -p apps/api/src/migrations
+```
 
-Fix: create `tsconfig.typeorm.json` at the workspace root:
+### Step 3 — Create `tsconfig.typeorm.json`
+
+The TypeORM CLI runs `ts-node` from the workspace root. Nx uses `tsconfig.base.json` — there is no `tsconfig.json` at the root, so `ts-node` falls back to TypeScript defaults which have `experimentalDecorators: false`. Every decorator fails.
+
+Create `tsconfig.typeorm.json` at the workspace root:
 
 ```json
 {
@@ -558,18 +572,11 @@ Fix: create `tsconfig.typeorm.json` at the workspace root:
 }
 ```
 
-### Dependency compatibility patch
+### Step 4 — Create `scripts/fix-typeorm-deps.cjs`
 
-`nestjs-dev-utilities` (the `AbstractEntity` / `AbstractDto` package) internally imports `@ptc-org/nestjs-query-graphql`, which does a bare deep import of an `@nestjs/graphql` internal path without the `.js` extension:
+`nestjs-dev-utilities` imports `@ptc-org/nestjs-query-graphql`, which does a bare deep import of an `@nestjs/graphql` internal path without the `.js` extension. `@nestjs/graphql@13` added a strict `exports` field — Node.js no longer auto-adds the extension through it, so the require fails even though the file exists.
 
-```js
-require('@nestjs/graphql/dist/schema-builder/storages/lazy-metadata.storage')
-// ↑ no .js — works in CJS legacy resolution, breaks with the exports field
-```
-
-`@nestjs/graphql@13` added a strict `exports` field. Node.js now resolves through it and no longer auto-adds `.js` extensions for deep imports — the require fails even though the file exists.
-
-Fix: create `scripts/fix-typeorm-deps.cjs` in the workspace root:
+Create `scripts/fix-typeorm-deps.cjs` at the workspace root:
 
 ```js
 // Patches Module._resolveFilename so the bare deep import gets .js appended
@@ -584,9 +591,9 @@ Module._resolveFilename = function (request, ...args) {
 };
 ```
 
-### Migration Scripts in package.json
+### Step 5 — Add migration scripts to `package.json`
 
-Use `node -r` to load the patch hook before ts-node starts, and invoke the TypeORM CLI directly:
+Use `node -r` to load the patch hook before ts-node starts, and invoke the TypeORM CLI directly via its Node.js entrypoint:
 
 ```json
 {
@@ -599,29 +606,17 @@ Use `node -r` to load the patch hook before ts-node starts, and invoke the TypeO
 }
 ```
 
-> **TypeORM v1 CLI change:** `migration:generate` no longer accepts `--name`. Pass the **output path** (directory + class name) as a positional argument:
+> **TypeORM v1 CLI change:** `migration:generate` no longer accepts `--name`. Pass the **full output path** (directory + PascalCase class name) as a positional argument:
 >
 > ```bash
-> # ✅ correct
+> # ✅ correct — PascalCase, full path
 > yarn api:migration:generate apps/api/src/migrations/CreateTodoTable
 >
 > # ❌ wrong — --name flag does not exist in TypeORM v1
 > yarn api:migration:generate --name=create-todo-table
 > ```
 >
-> TypeORM prepends the Unix timestamp automatically. The class name you pass becomes the suffix (e.g. `1720000000000-CreateTodoTable.ts`). Use PascalCase — it becomes the TypeScript class name inside the file.
-
-Also create the migrations directory if it doesn't exist:
-
-```bash
-mkdir -p apps/api/src/migrations
-```
-
-Install the TypeORM CLI:
-
-```bash
-yarn add --dev ts-node typeorm
-```
+> TypeORM prepends the Unix timestamp automatically. Always run the command as a single unbroken line — a shell line break splits the path into two arguments.
 
 ---
 
@@ -637,46 +632,46 @@ Write `todo.entity.ts` as shown above.
 yarn api:migration:generate apps/api/src/migrations/CreateTodoTable
 ```
 
-TypeORM compares your entity definition against the current database schema and generates a SQL diff.
+TypeORM compares your entity definitions against the live database schema and generates a SQL diff.
 
-A file is created at `apps/api/src/migrations/1720000000000-create-todo-table.ts`:
+A file is created at `apps/api/src/migrations/<timestamp>-CreateTodoTable.ts`. The actual output for `UserEntity` + `TodoEntity` looks like this (constraint names are auto-generated hashes — do not edit them):
 
 ```typescript
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class CreateTodoTable1720000000000 implements MigrationInterface {
-  // up() runs when you apply the migration
-  async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      CREATE TYPE "public"."todo_status_enum" AS ENUM('ACTIVE', 'ARCHIVED')
-    `);
-    await queryRunner.query(`
-      CREATE TABLE "todo" (
-        "id"          SERIAL NOT NULL,
-        "text"        character varying NOT NULL,
-        "is_checked"  boolean NOT NULL DEFAULT false,
-        "status"      "public"."todo_status_enum" NOT NULL DEFAULT 'ACTIVE',
-        "user_id"     integer NOT NULL,
-        "created_at"  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-        "updated_at"  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-        CONSTRAINT "PK_todo" PRIMARY KEY ("id"),
-        CONSTRAINT "FK_todo_user" FOREIGN KEY ("user_id")
-          REFERENCES "user"("id") ON DELETE CASCADE
-      )
-    `);
-    await queryRunner.query(`
-      CREATE INDEX "IDX_todo_user_id" ON "todo" ("user_id")
-    `);
+export class CreateTodoTable1781506508967 implements MigrationInterface {
+  name = 'CreateTodoTable1781506508967'
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`CREATE TYPE "public"."user_status_enum" AS ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED')`);
+    await queryRunner.query(`CREATE TABLE "user" ("id" SERIAL NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "fullname" character varying NOT NULL, "username" character varying NOT NULL, "email" character varying NOT NULL, "password" character varying NOT NULL, "status" "public"."user_status_enum" NOT NULL DEFAULT 'ACTIVE', "two_factor_secret" character varying, CONSTRAINT "UQ_78a916df40e02a9deb1c4b75edb" UNIQUE ("username"), CONSTRAINT "UQ_e12875dfb3b1d92d7d7c5377e22" UNIQUE ("email"), CONSTRAINT "PK_cace4a159ff9f2512dd42373760" PRIMARY KEY ("id"))`);
+    await queryRunner.query(`CREATE INDEX "IDX_78a916df40e02a9deb1c4b75ed" ON "user"  ("username") `);
+    await queryRunner.query(`CREATE INDEX "IDX_e12875dfb3b1d92d7d7c5377e2" ON "user"  ("email") `);
+    await queryRunner.query(`CREATE TYPE "public"."todo_status_enum" AS ENUM('ACTIVE', 'ARCHIVED')`);
+    await queryRunner.query(`CREATE TABLE "todo" ("id" SERIAL NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "text" character varying NOT NULL, "is_checked" boolean NOT NULL DEFAULT false, "status" "public"."todo_status_enum" NOT NULL DEFAULT 'ACTIVE', "user_id" integer NOT NULL, CONSTRAINT "PK_d429b7114371f6a35c5cb4776a7" PRIMARY KEY ("id"))`);
+    await queryRunner.query(`CREATE INDEX "IDX_9cb7989853c4cb7fe427db4b26" ON "todo"  ("user_id") `);
+    await queryRunner.query(`ALTER TABLE "todo" ADD CONSTRAINT "FK_9cb7989853c4cb7fe427db4b260" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
   }
 
-  // down() runs when you revert the migration
-  async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX "IDX_todo_user_id"`);
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "todo" DROP CONSTRAINT "FK_9cb7989853c4cb7fe427db4b260"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_9cb7989853c4cb7fe427db4b26"`);
     await queryRunner.query(`DROP TABLE "todo"`);
     await queryRunner.query(`DROP TYPE "public"."todo_status_enum"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_e12875dfb3b1d92d7d7c5377e2"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_78a916df40e02a9deb1c4b75ed"`);
+    await queryRunner.query(`DROP TABLE "user"`);
+    await queryRunner.query(`DROP TYPE "public"."user_status_enum"`);
   }
 }
 ```
+
+**What to notice in this output:**
+
+- `UserEntity` and `TodoEntity` are both created — TypeORM processes ALL entities in the glob, not just the one you named
+- `user` table is created first because `todo.user_id` has a FK constraint to it
+- `down()` drops in reverse order: FK → todo index → todo → todo enum → user indexes → user → user enum
+- Constraint names are SHA-derived hashes — never edit them manually
 
 ### Step 3: Review the generated SQL
 
@@ -752,15 +747,32 @@ TypeOrmModule.forRootAsync({
 
 ## 13. Migration Naming Convention
 
-TypeORM auto-timestamps migration filenames:
+TypeORM auto-timestamps migration filenames. The name you pass becomes the class name suffix:
 
 ```
-1720000000000-create-todo-table.ts
-│             └── your name (kebab-case, describe what changed)
-└── Unix timestamp (ensures chronological ordering)
+apps/api/src/migrations/1781506508967-CreateTodoTable.ts
+                         │             └── PascalCase name you passed
+                         └── Unix timestamp (ensures chronological order)
 ```
 
-**Never rename migration files** — the timestamp is embedded in the class name inside the file. Renaming the file but not the class causes TypeORM to lose track of migration state.
+Inside the file, the class name and the `name` property both embed the timestamp:
+
+```typescript
+export class CreateTodoTable1781506508967 implements MigrationInterface {
+  name = 'CreateTodoTable1781506508967'
+  ...
+}
+```
+
+**Always use PascalCase** for the name argument — it becomes the TypeScript class name. Use descriptive names that say what changed:
+
+```bash
+yarn api:migration:generate apps/api/src/migrations/CreateUserTable
+yarn api:migration:generate apps/api/src/migrations/AddStatusToTodo
+yarn api:migration:generate apps/api/src/migrations/AddTagTable
+```
+
+**Never rename migration files** — the timestamp is embedded in the class name and `name` property inside the file. Renaming the file but not the class causes TypeORM to lose track of migration state.
 
 ---
 
