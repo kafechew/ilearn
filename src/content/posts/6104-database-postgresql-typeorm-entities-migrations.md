@@ -558,17 +558,43 @@ Fix: create `tsconfig.typeorm.json` at the workspace root:
 }
 ```
 
+### Dependency compatibility patch
+
+`nestjs-dev-utilities` (the `AbstractEntity` / `AbstractDto` package) internally imports `@ptc-org/nestjs-query-graphql`, which does a bare deep import of an `@nestjs/graphql` internal path without the `.js` extension:
+
+```js
+require('@nestjs/graphql/dist/schema-builder/storages/lazy-metadata.storage')
+// ↑ no .js — works in CJS legacy resolution, breaks with the exports field
+```
+
+`@nestjs/graphql@13` added a strict `exports` field. Node.js now resolves through it and no longer auto-adds `.js` extensions for deep imports — the require fails even though the file exists.
+
+Fix: create `scripts/fix-typeorm-deps.cjs` in the workspace root:
+
+```js
+// Patches Module._resolveFilename so the bare deep import gets .js appended
+// before Node.js tries to resolve it through @nestjs/graphql's exports field.
+const Module = require('module');
+const orig = Module._resolveFilename;
+Module._resolveFilename = function (request, ...args) {
+  if (request === '@nestjs/graphql/dist/schema-builder/storages/lazy-metadata.storage') {
+    return orig.call(this, request + '.js', ...args);
+  }
+  return orig.call(this, request, ...args);
+};
+```
+
 ### Migration Scripts in package.json
 
-Point every migration script to this tsconfig via `TS_NODE_PROJECT`:
+Use `node -r` to load the patch hook before ts-node starts, and invoke the TypeORM CLI directly:
 
 ```json
 {
   "scripts": {
-    "api:migration:generate": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:generate -d apps/api/ormconfig.ts",
-    "api:migration:run": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:run -d apps/api/ormconfig.ts",
-    "api:migration:revert": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:revert -d apps/api/ormconfig.ts",
-    "api:migration:create": "TS_NODE_PROJECT=tsconfig.typeorm.json typeorm-ts-node-commonjs migration:create"
+    "api:migration:generate": "TS_NODE_PROJECT=tsconfig.typeorm.json node -r ./scripts/fix-typeorm-deps.cjs ./node_modules/typeorm/cli-ts-node-commonjs.js migration:generate -d apps/api/ormconfig.ts",
+    "api:migration:run": "TS_NODE_PROJECT=tsconfig.typeorm.json node -r ./scripts/fix-typeorm-deps.cjs ./node_modules/typeorm/cli-ts-node-commonjs.js migration:run -d apps/api/ormconfig.ts",
+    "api:migration:revert": "TS_NODE_PROJECT=tsconfig.typeorm.json node -r ./scripts/fix-typeorm-deps.cjs ./node_modules/typeorm/cli-ts-node-commonjs.js migration:revert -d apps/api/ormconfig.ts",
+    "api:migration:create": "TS_NODE_PROJECT=tsconfig.typeorm.json node -r ./scripts/fix-typeorm-deps.cjs ./node_modules/typeorm/cli-ts-node-commonjs.js migration:create"
   }
 }
 ```
