@@ -733,33 +733,77 @@ import {
 export class TodoModule {}
 ```
 
-Register in `AppModule`:
+Register in `AppModule`. This is the complete, working `app.module.ts` after adding the Todo module:
 
 ```typescript
-// app.module.ts
-import { TodoModule } from './modules/todo/todo.module';
-import { TodoEntity } from './modules/todo/todo.entity';
+// apps/api/src/app/app.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { GraphQLModule } from '@nestjs/graphql';
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { CqrsModule } from '@nestjs/cqrs';
+import { AppResolver } from './app.resolver';
+import { HealthModule } from '../modules/health/health.module';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { TodoModule } from '../modules/todo/todo.module';
+import { TodoEntity } from '../modules/todo/todo.entity';
+import { UserEntity } from '../modules/user/user.entity';
 
 @Module({
   imports: [
-    // ⚠️  Webpack bundles all code into main.js — glob patterns like
-    //     __dirname + '/**/*.entity{.ts,.js}' find nothing at runtime
-    //     because there are no separate .entity.js files on disk.
-    //     Every entity must be explicitly listed.
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        // ...database config...
-        entities: [TodoEntity],  // ← add each new entity here explicitly
+        type: 'postgres',
+        host: config.get('PROJECT_DB_HOST'),
+        port: config.get<number>('PROJECT_DB_PORT'),
+        username: config.get('PROJECT_DB_USERNAME'),
+        password: config.get('PROJECT_DB_PASSWORD'),
+        database: config.get('PROJECT_DB_DATABASE'),
+        entities: [TodoEntity, UserEntity],
+        synchronize: false,
+        logging: config.get('PROJECT_DB_DEBUG') === 'true',
+        namingStrategy: new SnakeNamingStrategy(),
       }),
     }),
 
-    TodoModule,    // ← add the module here
-    // ... other modules
+    GraphQLModule.forRootAsync<ApolloDriverConfig>({
+      driver: ApolloDriver,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        autoSchemaFile: true,
+        playground: config.get('PROJECT_GRAPHQL_PLAYGROUND') === 'true',
+        context: ({ req }) => ({ req }),
+      }),
+    }),
+
+    CqrsModule.forRoot(),  // registers CommandBus, QueryBus, EventBus globally
+    HealthModule,
+    TodoModule,
   ],
+  providers: [AppResolver],
 })
 export class AppModule {}
 ```
+
+**Two things to understand here:**
+
+**1. `entities: [TodoEntity, UserEntity]` — explicit, not a glob**
+
+You might expect to use a glob pattern like `__dirname + '/**/*.entity{.ts,.js}'` to auto-discover entities. That works with `ts-node` directly, but this project uses **Webpack**, which compiles everything into a single `main.js`. At runtime there are no separate `.entity.js` files on disk — the glob finds nothing. TypeORM silently boots with zero entities, and then crashes the moment a query touches any table.
+
+Rule: every entity in every future module must be **explicitly imported and listed** in `AppModule`'s `entities[]`.
+
+**2. `UserEntity` is required even though there is no `UserModule` yet**
+
+`TodoEntity` declares `@ManyToOne(() => UserEntity)`. TypeORM needs every entity in a relationship to be registered in the same DataSource — even if you're not querying `UserEntity` directly. Omitting it produces `EntityMetadataNotFoundError: No metadata for "UserEntity" was found` at startup.
+
+**3. `CqrsModule.forRoot()` here, not in feature modules**
+
+`CqrsModule.forRoot()` registers `CommandBus`, `QueryBus`, and `EventBus` as **global providers**. This is why `TodoModule` does not import `CqrsModule` — the buses are already in scope for the entire application once `AppModule` calls `forRoot()`. Feature modules that import plain `CqrsModule` (without `forRoot`) will get a separate, isolated bus instance that has no handlers registered — a subtle bug that is hard to diagnose.
 
 ---
 
@@ -820,6 +864,46 @@ export class TodoCreatedEventHandler implements IEventHandler<TodoCreatedEvent> 
 ```
 
 Events are used for side effects that should not block the primary operation. Use them for: sending emails, creating notifications, updating analytics, triggering background jobs. You will implement this pattern with Bull queues in Part 11.
+
+---
+
+## 13. Troubleshooting: `reflect-metadata` Version Conflict
+
+If the application throws this error on startup:
+
+```
+UnknownDependenciesException: Nest can't resolve dependencies of the ConfigService (?).
+  Symbol(CONFIG_SERVICE) at index [0] in ConfigModule module.
+```
+
+The root cause is almost certainly a **`reflect-metadata` version conflict**.
+
+NestJS decorators (`@Module`, `@Injectable`, etc.) store metadata using `reflect-metadata`. Two versions of this library coexist in the dependency tree — v0.1.x (older) and v0.2.x (newer, bundled inside `typeorm`, `nestjs-dev-utilities`, and `@ptc-org/nestjs-query-*`). Each version maintains its own internal `WeakMap`. When v0.2.x loads, it overwrites the global `Reflect` methods to point at its own empty `WeakMap`. Any metadata written earlier by v0.1.x is now inaccessible. NestJS's module scanner calls `Reflect.getMetadata('imports', ConfigModule)` — it now hits v0.2.x's empty map, gets `undefined`, never discovers `ConfigHostModule`, and the DI lookup for `ConfigService` fails.
+
+**The fix** — upgrade the root `reflect-metadata` to v0.2.x so `yarn` (or npm) deduplicates all nested copies down to one version:
+
+```json
+// package.json
+"dependencies": {
+  "reflect-metadata": "^0.2.2",  // was ^0.1.13 — upgrade to force deduplication
+  ...
+}
+```
+
+Then reinstall:
+
+```bash
+yarn install
+```
+
+Verify there is only one copy:
+
+```bash
+find node_modules -path "*/reflect-metadata/package.json" | xargs grep '"version"'
+# Should show only one result — the root node_modules copy
+```
+
+`@nestjs/common` declares `"peerDependencies": { "reflect-metadata": "^0.1.12 || ^0.2.0" }` so both versions are supported; upgrading is safe.
 
 ---
 
