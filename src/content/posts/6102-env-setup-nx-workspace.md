@@ -116,6 +116,20 @@ Download from [code.visualstudio.com](https://code.visualstudio.com/).
 
 ### 2.2 Install Extensions
 
+> `zsh: command not found: code`
+> GitHub Copilot: Optimized tool selectionThe `code` command isn't available in your PATH. Install it from VS Code:
+> 
+> 1. Open VS Code
+> 2. Press **Cmd+Shift+P** and run: `Shell Command: Install 'code' command in PATH`
+> 3. Restart your terminal
+> 
+> Then retry:
+> 
+> `code --install-extension nrwl.angular-console`
+>
+> Alternatively, install the extension directly in VS Code via **Extensions** (Cmd+Shift+X) → search "Angular Console" → Install.
+> 
+
 Run these commands one by one (or paste all at once):
 
 ```bash
