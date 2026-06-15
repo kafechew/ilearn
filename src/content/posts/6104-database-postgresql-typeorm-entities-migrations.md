@@ -504,7 +504,7 @@ Without migrations:
 
 With migrations:
   - Dev adds @Column() to entity
-  - Runs: yarn api:migration:generate --name=add-status-to-todo
+  - Runs: yarn api:migration:generate apps/api/src/migrations/AddStatusToTodo
   - Checks the generated SQL
   - Runs: yarn api:migration:run
   - Commits the migration file
@@ -551,6 +551,24 @@ export const AppDataSource = new DataSource({
 }
 ```
 
+> **TypeORM v1 CLI change:** `migration:generate` no longer accepts `--name`. Pass the **output path** (directory + class name) as a positional argument after the script name:
+>
+> ```bash
+> # ✅ correct
+> yarn api:migration:generate apps/api/src/migrations/CreateTodoTable
+>
+> # ❌ wrong — --name flag does not exist in TypeORM v1
+> yarn api:migration:generate --name=create-todo-table
+> ```
+>
+> TypeORM prepends the Unix timestamp automatically. The class name you pass becomes the suffix (e.g. `1720000000000-CreateTodoTable.ts`). Use PascalCase — it becomes the TypeScript class name inside the file.
+
+Also create the migrations directory if it doesn't exist:
+
+```bash
+mkdir -p apps/api/src/migrations
+```
+
 Install the TypeORM CLI:
 
 ```bash
@@ -568,7 +586,7 @@ Write `todo.entity.ts` as shown above.
 ### Step 2: Generate the migration
 
 ```bash
-yarn api:migration:generate --name=create-todo-table
+yarn api:migration:generate apps/api/src/migrations/CreateTodoTable
 ```
 
 TypeORM compares your entity definition against the current database schema and generates a SQL diff.
