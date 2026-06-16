@@ -267,7 +267,20 @@ If you forget `tenantId` in the filter, Tenant A can read Tenant B's data. This 
 
 ## 7. RBAC — Roles & Permissions
 
-### 7.1 Roles Enum
+### 7.1 Two-tier Authorization Model
+
+Production apps use two guards in combination:
+
+| Guard | Type | Speed | What it checks |
+|-------|------|-------|----------------|
+| `RolesGuard` | Coarse, enum-based | Fast (in-memory) | Tenant-level role (ADMIN, OWNER…) |
+| `ACPermissionGuard` | Fine-grained, DB-backed | Slightly slower (DB join on login) | Specific action slugs (`create-tag`, `delete-user`…) |
+
+`RolesGuard` answers "what level is this user?" — `ACPermissionGuard` answers "can this user perform this action?". Use `RolesGuard` for coarse tenant-level gates; use `ACPermissionGuard` for feature/action-level gates. Both are guards, so they compose with `@UseGuards()` without coupling to business logic.
+
+### 7.2 UserRole Enum
+
+Still used for coarse tenant-level checks (e.g. only OWNER can transfer the tenant):
 
 ```typescript
 // libs/core/src/enums/role.enum.ts
@@ -279,62 +292,202 @@ export enum UserRole {
 }
 ```
 
-### 7.2 Roles on the User Entity
+### 7.3 PermissionEntity
+
+Permissions are rows in the DB. Each permission has a human-readable `name`, a grouping `module`, and a unique kebab-case `slug` that the guard checks against:
 
 ```typescript
-@Entity('user')
-export class UserEntity extends AbstractEntity {
-  // ... other fields
+// apps/api/src/modules/permission/permission.entity.ts
+import { Column, Entity, Index, ManyToMany } from 'typeorm';
+import { AbstractEntity } from 'nestjs-dev-utilities';
+import { RoleEntity } from '../role/role.entity';
 
-  @Column({ type: 'simple-array', default: UserRole.MEMBER })
-  roles: UserRole[];
+@Entity({ name: 'permission' })
+export class PermissionEntity extends AbstractEntity {
+  @Column()
+  name: string;  // e.g. "Create Todo"
+
+  @Column()
+  module: string;  // e.g. "TODO"
+
+  @Index({ unique: true })
+  @Column()
+  slug: string;  // e.g. "create-todo", "delete-user" — kebab-case, always lowercase
+
+  @ManyToMany(() => RoleEntity, (role) => role.permissions)
+  roles: RoleEntity[];
 }
 ```
 
-### 7.3 RolesGuard
+### 7.4 RoleEntity
+
+A role groups permissions. System roles (like "Super Admin") are marked non-editable so they can't be stripped via the UI:
 
 ```typescript
-// apps/api/src/shared/roles.guard.ts
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+// apps/api/src/modules/role/role.entity.ts
+import { Column, Entity, JoinTable, ManyToMany } from 'typeorm';
+import { AbstractEntity } from 'nestjs-dev-utilities';
+import { PermissionEntity } from '../permission/permission.entity';
+import { UserEntity } from '../user/user.entity';
+
+@Entity({ name: 'role' })
+export class RoleEntity extends AbstractEntity {
+  @Column()
+  name: string;  // e.g. "Super Admin", "Todo Manager"
+
+  @Column({ default: true })
+  isEditable: boolean;  // system roles (like Super Admin) are not editable
+
+  @ManyToMany(() => PermissionEntity, (permission) => permission.roles, { eager: true })
+  @JoinTable({ name: 'role_permission' })
+  permissions: PermissionEntity[];
+
+  @ManyToMany(() => UserEntity, (user) => user.roles)
+  users: UserEntity[];
+}
+```
+
+### 7.5 Update UserEntity — Replace simple-array with ManyToMany
+
+Replace the `simple-array` roles column on `UserEntity` with a proper join table:
+
+```typescript
+// In UserEntity — replace the simple-array roles column:
+@ManyToMany(() => RoleEntity, (role) => role.users, { eager: true })
+@JoinTable({ name: 'user_role' })
+roles: RoleEntity[];
+```
+
+Eager loading on roles means every user fetch also loads their roles + permissions in one query. That's acceptable for auth checks. If you're listing many users (e.g. an admin user list page), use a DataLoader instead to avoid N+1.
+
+### 7.6 ACPermissionGuard
+
+The guard flattens all permission slugs from the user's roles and checks them against the decorator's required slugs:
+
+```typescript
+// apps/api/src/shared/guards/ac-permission.guard.ts
+import {
+  CanActivate, ExecutionContext, Injectable, ForbiddenException, UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
-import { UserRole } from '@enterprise-todo/core';
+import { UserStatus } from '../enums/user-status.enum';
 
-export const ROLES_KEY = 'roles';
-export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
+export const AC_GUARD_KEY = 'ac_guard';
+
+export interface AcGuardOptions {
+  module: string;
+  permissions: string[];
+  allowGuest?: boolean;
+}
+
+export const UseACGuard = (module: string, permissions: string[]) =>
+  SetMetadata(AC_GUARD_KEY, { module, permissions, allowGuest: false });
+
+export const AllowGuest = () =>
+  SetMetadata(AC_GUARD_KEY, { module: '', permissions: [], allowGuest: true });
 
 @Injectable()
-export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+export class ACPermissionGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
+    const options = this.reflector.getAllAndOverride<AcGuardOptions>(AC_GUARD_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    if (!requiredRoles?.length) return true;  // no roles required → open
+    // No @UseACGuard decorator → open endpoint
+    if (!options) return true;
+
+    // @AllowGuest() → skip auth entirely
+    if (options.allowGuest) return true;
 
     const ctx = GqlExecutionContext.create(context);
     const { user } = ctx.getContext().req;
 
-    return requiredRoles.some((role) => user?.roles?.includes(role));
+    if (!user) throw new UnauthorizedException('Not authenticated');
+
+    // User must be ACTIVE — suspended/inactive users are rejected even with valid JWT
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException('Account is not active');
+    }
+
+    // No specific permissions required → authenticated + active is enough
+    if (!options.permissions.length) return true;
+
+    // Flatten all permission slugs across all user roles
+    const userSlugs = new Set(
+      user.roles?.flatMap((role) =>
+        role.permissions?.map((p) => p.slug) ?? []
+      ) ?? []
+    );
+
+    const hasPermission = options.permissions.every((slug) => userSlugs.has(slug));
+    if (!hasPermission) {
+      throw new ForbiddenException(`Missing permission: ${options.permissions.join(', ')}`);
+    }
+
+    return true;
   }
 }
 ```
 
-### 7.4 Using @Roles on Resolvers
+### 7.7 Using @UseACGuard on Resolvers
 
 ```typescript
+// Before (RolesGuard only):
 @Mutation(() => TagDto)
 @UseGuards(AuthJwtGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.OWNER)
-async createTag(
-  @Args('input') input: CreateTagInput,
-): Promise<TagDto> {
-  return this.commandBus.execute(new CreateOneTagCommand({ input }));
+async createTag(...) {}
+
+// After (ACPermissionGuard — production pattern):
+@Mutation(() => TagDto)
+@UseGuards(AuthJwtGuard, ACPermissionGuard)
+@UseACGuard('TAG', ['create-tag'])
+async createTag(...) {}
+
+// Guest endpoint (public, no auth):
+@Query(() => [TagDto])
+@UseGuards(ACPermissionGuard)
+@AllowGuest()
+async publicTags(...) {}
+```
+
+The slug `'create-tag'` is seeded into `PermissionEntity`. Any role that holds that permission slug can execute this mutation — regardless of whether they're ADMIN or MEMBER. This decouples authorization from role names: you can create a "Tag Manager" role that has `create-tag` and `delete-tag` without giving that role full ADMIN access.
+
+### 7.8 Seeding Roles and Permissions
+
+Create permissions and the initial "Super Admin" role in a seeder:
+
+```typescript
+// apps/api/src/seeders/2-permissions.seeder.ts
+export class PermissionSeeder extends Seeder {
+  async run(em: EntityManager): Promise<void> {
+    const permissions = [
+      { name: 'Create Todo', module: 'TODO', slug: 'create-todo' },
+      { name: 'Delete Todo', module: 'TODO', slug: 'delete-todo' },
+      { name: 'Create Tag',  module: 'TAG',  slug: 'create-tag'  },
+      { name: 'Delete Tag',  module: 'TAG',  slug: 'delete-tag'  },
+      { name: 'Manage Users', module: 'USER', slug: 'manage-users' },
+    ];
+    // upsert permissions, create Super Admin role with all permissions
+  }
 }
 ```
+
+Each new module adds its permission slugs here. The seeder is idempotent — running it twice doesn't create duplicates.
+
+### 7.9 Migration
+
+```bash
+yarn api:migration:generate apps/api/src/migrations/AddRolePermissionTables
+yarn api:migration:run
+yarn api:seed:run
+```
+
+**Verify:** Boot the API. Create a user, assign the "Super Admin" role in Adminer, call the `createTag` mutation → succeeds. Remove the role, retry → `403 Forbidden`.
 
 ---
 
@@ -455,7 +608,7 @@ AuthJwtGuard           → verifies JWT signature (RS256), rejects if expired/in
 TenantGuard            → extracts tenantId from JWT, stores in TenantContext (REQUEST scope)
      │
      ▼
-RolesGuard             → checks user.roles against @Roles() on the resolver method
+ACPermissionGuard      → validates user.status === ACTIVE + checks permission slugs
      │
      ▼
 Resolver method        → @CurrentUser() injects user, CommandBus dispatches
@@ -509,7 +662,9 @@ Auth:
 [✅] Admin-only operations use PortalAuthJwtGuard, not AuthJwtGuard
 
 RBAC:
-[✅] Admin/owner-only mutations have @Roles(UserRole.ADMIN, UserRole.OWNER)
+[✅] Add @UseACGuard('MODULE', ['action-slug']) to write mutations
+[✅] Seed permissions for the new module in 2-permissions.seeder.ts
+[✅] Add PermissionEntity and RoleEntity to AppModule entities[] if not already there
 [✅] Viewer-only operations are idempotent GET-equivalent resolvers (no mutations)
 
 Tests:
