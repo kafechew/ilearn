@@ -21,12 +21,12 @@ tags:
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/06-graphql-api-nextjs-frontend.png"
 description: By the end of this part, you will learn DTOs, @Field, @FilterableField, class-validator, resolver anatomy, QueryArgsType, ConnectionType, and FilterQueryBuilder for backend. As well as Next.js, Shadcn UI, Apollo, witing GraphQL queries and mutations.
-
 ---
 
 ## What This Part Covers
 
 **Backend:**
+
 - DTOs: `@ObjectType` (what GraphQL returns), `@InputType` (what clients send)
 - `@Field` vs `@FilterableField` — and the security implications
 - `class-validator` decorators for input validation
@@ -35,6 +35,7 @@ description: By the end of this part, you will learn DTOs, @Field, @FilterableFi
 - `FilterQueryBuilder` — how `nestjs-query` bridges GraphQL filters to SQL
 
 **Frontend:**
+
 - Setting up Next.js 14 with the App Router in the Nx workspace
 - Shadcn UI initialization
 - Apollo Client setup
@@ -46,6 +47,7 @@ description: By the end of this part, you will learn DTOs, @Field, @FilterableFi
 ## 1. DTOs — The API Contract
 
 DTOs (Data Transfer Objects) define the shape of data at the API boundary. They are separate from entities because the API contract and the database schema are different concerns:
+
 - The entity is the DB schema — it has all columns, FKs, internal fields
 - The DTO is the API shape — it exposes only what clients should see
 
@@ -60,22 +62,22 @@ The `@ObjectType` DTO defines what GraphQL returns to clients.
 
 ```typescript
 // apps/api/src/modules/todo/dto/todo.dto.ts
-import { Field, Int, ObjectType } from '@nestjs/graphql';
-import { FilterableField } from '@ptc-org/nestjs-query-graphql';
-import { AbstractDto } from 'nestjs-dev-utilities';
-import { TodoStatus } from '../todo.constant';
+import { Field, Int, ObjectType } from "@nestjs/graphql";
+import { FilterableField } from "@ptc-org/nestjs-query-graphql";
+import { AbstractDto } from "nestjs-dev-utilities";
+import { TodoStatus } from "../todo.constant";
 
-@ObjectType('Todo')  // ← 'Todo' is the name in the GraphQL schema
+@ObjectType("Todo") // ← 'Todo' is the name in the GraphQL schema
 export class TodoDto extends AbstractDto {
   // AbstractDto provides: id (Int!), createdAt (DateTime!), updatedAt (DateTime!)
 
-  @FilterableField()   // ← clients can filter by text: { text: { like: "%milk%" } }
+  @FilterableField() // ← clients can filter by text: { text: { like: "%milk%" } }
   text: string;
 
-  @FilterableField()   // ← clients can filter by isChecked: { isChecked: { is: true } }
+  @FilterableField() // ← clients can filter by isChecked: { isChecked: { is: true } }
   isChecked: boolean;
 
-  @FilterableField(() => TodoStatus)  // ← clients can filter by status
+  @FilterableField(() => TodoStatus) // ← clients can filter by status
   status: TodoStatus;
 
   // userId is NOT exposed as a @Field — it's an internal column
@@ -86,10 +88,10 @@ export class TodoDto extends AbstractDto {
 
 **`@Field` vs `@FilterableField`:**
 
-| Decorator | What it does | When to use |
-|-----------|-------------|-------------|
-| `@Field()` | Exposes the field in GraphQL responses. Clients can request it but cannot filter by it. | Fields that are returned but shouldn't be filterable (e.g., color, description) |
-| `@FilterableField()` | Exposes the field AND registers it with nestjs-query's filter system. Clients can use it in `filter: { fieldName: { eq: "value" } }`. | Fields you want to support filtering on |
+| Decorator            | What it does                                                                                                                          | When to use                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `@Field()`           | Exposes the field in GraphQL responses. Clients can request it but cannot filter by it.                                               | Fields that are returned but shouldn't be filterable (e.g., color, description) |
+| `@FilterableField()` | Exposes the field AND registers it with nestjs-query's filter system. Clients can use it in `filter: { fieldName: { eq: "value" } }`. | Fields you want to support filtering on                                         |
 
 > **Security rule:** Only add `@FilterableField` to columns you explicitly support filtering on. Never add it to internal columns like `password`, `twoFactorSecret`, or FK IDs that expose data from other tenants.
 
@@ -99,7 +101,7 @@ Input DTOs define what clients send in mutations. `class-validator` decorators e
 
 ```typescript
 // apps/api/src/modules/todo/dto/todo.input.ts
-import { Field, InputType, Int } from '@nestjs/graphql';
+import { Field, InputType, Int } from "@nestjs/graphql";
 import {
   IsBoolean,
   IsEnum,
@@ -108,15 +110,15 @@ import {
   IsOptional,
   IsString,
   MaxLength,
-} from 'class-validator';
-import { TodoStatus } from '../todo.constant';
+} from "class-validator";
+import { TodoStatus } from "../todo.constant";
 
 @InputType()
 export class CreateTodoInput {
   @Field()
   @IsString()
-  @IsNotEmpty({ message: 'Todo text cannot be empty' })
-  @MaxLength(500, { message: 'Todo text cannot exceed 500 characters' })
+  @IsNotEmpty({ message: "Todo text cannot be empty" })
+  @MaxLength(500, { message: "Todo text cannot exceed 500 characters" })
   text: string;
 
   // Part 07: userId removed from @Field and injected from JWT instead
@@ -156,15 +158,15 @@ For list queries with filtering, sorting, and pagination, `nestjs-query` generat
 
 ```typescript
 // apps/api/src/modules/todo/dto/todo.query.ts
-import { ArgsType } from '@nestjs/graphql';
-import { SortDirection } from '@ptc-org/nestjs-query-core';
-import { PagingStrategies, QueryArgsType } from '@ptc-org/nestjs-query-graphql';
-import { TodoDto } from './todo.dto';
+import { ArgsType } from "@nestjs/graphql";
+import { SortDirection } from "@ptc-org/nestjs-query-core";
+import { PagingStrategies, QueryArgsType } from "@ptc-org/nestjs-query-graphql";
+import { TodoDto } from "./todo.dto";
 
 @ArgsType()
 export class TodosQuery extends QueryArgsType(TodoDto, {
-  defaultSort: [{ field: 'createdAt', direction: SortDirection.DESC }],
-  pagingStrategy: PagingStrategies.CURSOR,  // Relay cursor pagination
+  defaultSort: [{ field: "createdAt", direction: SortDirection.DESC }],
+  pagingStrategy: PagingStrategies.CURSOR, // Relay cursor pagination
   enableTotalCount: true,
 }) {}
 
@@ -173,6 +175,7 @@ export const TodoQueryConnection = TodosQuery.ConnectionType;
 ```
 
 `QueryArgsType(TodoDto)` auto-generates a GraphQL argument type that includes:
+
 - `filter: TodoFilter` — filter by any `@FilterableField` (nested AND/OR, operators: eq, like, in, between, gt, lt...)
 - `sorting: [TodoSort!]` — sort by any `@FilterableField`, ASC or DESC
 - `paging: CursorPaging` — cursor-based pagination (first, after, last, before)
@@ -207,9 +210,9 @@ The Relay cursor response shape:
 ```graphql
 {
   getTodos {
-    totalCount          # total matching records
+    totalCount # total matching records
     edges {
-      cursor            # opaque string encoding this record's position
+      cursor # opaque string encoding this record's position
       node {
         id
         text
@@ -231,8 +234,16 @@ To get the next page, pass `endCursor` as `after`:
 ```graphql
 {
   getTodos(paging: { first: 10, after: "eyJpZCI6MTB9" }) {
-    edges { node { id text } }
-    pageInfo { hasNextPage endCursor }
+    edges {
+      node {
+        id
+        text
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
   }
 }
 ```
@@ -247,12 +258,12 @@ The resolver is the GraphQL entry point — the Meteor Method and Publication co
 
 ```typescript
 // apps/api/src/modules/todo/todo.resolver.ts
-import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { Args, Int, Mutation, Query, Resolver } from "@nestjs/graphql";
+import { CommandBus, QueryBus } from "@nestjs/cqrs";
 
-import { TodoDto } from './dto/todo.dto';
-import { CreateTodoInput, UpdateTodoInput } from './dto/todo.input';
-import { TodosQuery, TodoQueryConnection } from './dto/todo.query';
+import { TodoDto } from "./dto/todo.dto";
+import { CreateTodoInput, UpdateTodoInput } from "./dto/todo.input";
+import { TodosQuery, TodoQueryConnection } from "./dto/todo.query";
 import {
   CountTodoQuery,
   CreateOneTodoCommand,
@@ -260,23 +271,23 @@ import {
   FindManyTodoQuery,
   FindOneTodoQuery,
   UpdateOneTodoCommand,
-} from './cqrs';
+} from "./cqrs";
 
 @Resolver(() => TodoDto)
 export class TodoResolver {
   constructor(
     private readonly queryBus: QueryBus,
-    private readonly commandBus: CommandBus,
+    private readonly commandBus: CommandBus
   ) {}
 
   // ── Queries (reads) ─────────────────────────────────────────────
 
   @Query(() => TodoDto, { nullable: true })
   async todo(
-    @Args('id', { type: () => Int }) id: number,
+    @Args("id", { type: () => Int }) id: number
   ): Promise<TodoDto | null> {
     const { data } = await this.queryBus.execute(
-      new FindOneTodoQuery({ query: { filter: { id: { eq: id } } } }),
+      new FindOneTodoQuery({ query: { filter: { id: { eq: id } } } })
     );
     return data as TodoDto;
   }
@@ -284,55 +295,51 @@ export class TodoResolver {
   @Query(() => TodoQueryConnection)
   async getTodos(@Args() query: TodosQuery) {
     return TodoQueryConnection.createFromPromise(
-      async (q) => {
+      async q => {
         const { data } = await this.queryBus.execute(
-          new FindManyTodoQuery({ query: q }),
+          new FindManyTodoQuery({ query: q })
         );
         return data as TodoDto[];
       },
       query,
-      async (filter) => {
+      async filter => {
         const { data: count } = await this.queryBus.execute(
-          new CountTodoQuery({ query: filter }),
+          new CountTodoQuery({ query: filter })
         );
         return count as number;
-      },
+      }
     );
   }
 
   // ── Mutations (writes) ──────────────────────────────────────────
 
   @Mutation(() => TodoDto)
-  async createTodo(
-    @Args('input') input: CreateTodoInput,
-  ): Promise<TodoDto> {
+  async createTodo(@Args("input") input: CreateTodoInput): Promise<TodoDto> {
     const { data } = await this.commandBus.execute(
-      new CreateOneTodoCommand({ input }),
+      new CreateOneTodoCommand({ input })
     );
     return data as TodoDto;
   }
 
   @Mutation(() => TodoDto)
   async updateTodo(
-    @Args('id', { type: () => Int }) id: number,
-    @Args('input') input: UpdateTodoInput,
+    @Args("id", { type: () => Int }) id: number,
+    @Args("input") input: UpdateTodoInput
   ): Promise<TodoDto> {
     const { data } = await this.commandBus.execute(
       new UpdateOneTodoCommand({
         query: { filter: { id: { eq: id } } },
         input,
-      }),
+      })
     );
     return data.updated as TodoDto;
   }
 
   @Mutation(() => Boolean)
   async deleteTodo(
-    @Args('id', { type: () => Int }) id: number,
+    @Args("id", { type: () => Int }) id: number
   ): Promise<boolean> {
-    await this.commandBus.execute(
-      new DeleteOneTodoCommand({ input: id }),
-    );
+    await this.commandBus.execute(new DeleteOneTodoCommand({ input: id }));
     return true;
   }
 }
@@ -341,6 +348,7 @@ export class TodoResolver {
 **What Part 07 changes in `updateTodo`:**
 
 After auth is added, the filter will be:
+
 ```typescript
 query: { filter: { id: { eq: id }, userId: { eq: currentUser.user.id } } }
 ```
@@ -357,12 +365,9 @@ The `userId` filter is included alongside `id`. If a malicious user sends `id: 9
 // A GraphQL filter:
 const graphqlFilter = {
   filter: {
-    and: [
-      { status: { eq: 'ACTIVE' } },
-      { text: { like: '%milk%' } },
-    ]
+    and: [{ status: { eq: "ACTIVE" } }, { text: { like: "%milk%" } }],
   },
-  sorting: [{ field: 'createdAt', direction: 'DESC' }],
+  sorting: [{ field: "createdAt", direction: "DESC" }],
 };
 
 // FilterQueryBuilder translates this to:
@@ -378,7 +383,7 @@ You instantiate it in the service constructor:
 this.filterQueryBuilder = new FilterQueryBuilder<TodoEntity>(this.repo);
 
 // Then use it:
-const builder = this.filterQueryBuilder.select(query);  // query = { filter, sorting }
+const builder = this.filterQueryBuilder.select(query); // query = { filter, sorting }
 const results = await builder.getMany();
 const single = await builder.getOne();
 ```
@@ -403,27 +408,87 @@ npx nx g @nx/next:app apps/web --src=true --appDir=true --style=tailwind
 
 ```bash
 # From workspace root:
-yarn add @apollo/client graphql
-yarn add --dev @graphql-codegen/cli @graphql-codegen/typescript @graphql-codegen/typescript-operations @graphql-codegen/typescript-react-apollo
+yarn add @apollo/client graphql@16
+yarn add --dev @graphql-codegen/cli@5 @graphql-codegen/typescript @graphql-codegen/typescript-operations @graphql-codegen/typescript-react-apollo
 ```
 
-### 5.3 Initialize Shadcn UI
+### 5.3 Initialize Shadcn UI (Nx Monorepo)
+
+> **Nx gotcha:** `apps/web` has no `package.json` — deps are managed at the workspace root. Running `npx shadcn init` directly from `apps/web` detects no `package.json` and scaffolds a brand-new standalone Next.js project inside it. Do not do this.
+
+The correct approach is four manual steps.
+
+**Step 1 — Install runtime deps at the workspace root:**
+
+```bash
+# From workspace root:
+yarn add @base-ui/react class-variance-authority clsx lucide-react tailwind-merge
+```
+
+**Step 2 — Create `apps/web/components.json`:**
+
+```json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "base-nova",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/app/global.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "rtl": false,
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  }
+}
+```
+
+**Step 3 — Add `@/*` path alias to `apps/web/tsconfig.json`:**
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
+```
+
+**Step 4 — Generate components via a temp subdir, then transplant:**
+
+Shadcn's CLI needs a `package.json` to install deps. The trick: let it scaffold inside `apps/web`, generate all components at once, copy the source files to `src/`, then delete the temp folder.
 
 ```bash
 cd apps/web
-npx shadcn@latest init -d
-```
-
-When prompted, accept defaults. Then add the components you need:
-
-```bash
+npx shadcn@latest init -d          # creates apps/web/enterprise-todo-ui/
+cd enterprise-todo-ui
 npx shadcn@latest add button input card checkbox badge
+cd ..
+
+# Copy component source files into the real Nx app
+mkdir -p src/components/ui src/lib src/hooks
+cp enterprise-todo-ui/components/ui/*.tsx src/components/ui/
+cp enterprise-todo-ui/lib/utils.ts src/lib/utils.ts
+
+# Delete the temp scaffold
+rm -rf enterprise-todo-ui
 cd ../..  # back to workspace root
 ```
 
-Shadcn UI generates component files in `apps/web/src/components/ui/`. These are **your** components — you own the code and can customize them freely. Unlike traditional component libraries, Shadcn ships source code, not compiled packages.
+You now have `apps/web/src/components/ui/` with button, input, card, checkbox, and badge. These are **your** components — you own the code and can customize them freely. Unlike traditional component libraries, Shadcn ships source code, not compiled packages.
 
-> **Meteor analogy:** Instead of PicoCSS providing global semantic styles, Shadcn gives you pre-built accessible component primitives (Button, Input, Card, Checkbox) built on Radix UI primitives, styled with Tailwind. You compose them to build your UI.
+> **Meteor analogy:** Instead of PicoCSS providing global semantic styles, Shadcn gives you pre-built accessible component primitives (Button, Input, Card, Checkbox) built on Base UI primitives, styled with Tailwind. You compose them to build your UI.
 
 ---
 
@@ -431,20 +496,25 @@ Shadcn UI generates component files in `apps/web/src/components/ui/`. These are 
 
 ```typescript
 // apps/web/src/lib/apollo-client.ts
-import { ApolloClient, InMemoryCache, createHttpLink, from } from '@apollo/client';
-import { onError } from '@apollo/client/link/error';
+import {
+  ApolloClient,
+  InMemoryCache,
+  createHttpLink,
+  from,
+} from "@apollo/client";
+import { onError } from "@apollo/client/link/error";
 
 const httpLink = createHttpLink({
-  uri: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333/graphql',
+  uri: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333/graphql",
 });
 
 // Log errors in development
 const errorLink = onError(({ graphQLErrors, networkError }) => {
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === "development") {
     graphQLErrors?.forEach(({ message, locations, path }) =>
-      console.error(`GraphQL error: ${message}`, { locations, path }),
+      console.error(`GraphQL error: ${message}`, { locations, path })
     );
-    if (networkError) console.error('Network error:', networkError);
+    if (networkError) console.error("Network error:", networkError);
   }
 });
 
@@ -459,7 +529,7 @@ export const apolloClient = new ApolloClient({
         fields: {
           getTodos: {
             // Merge paginated results into a single list
-            keyArgs: ['filter', 'sorting'],
+            keyArgs: ["filter", "sorting"],
             merge(existing, incoming) {
               return {
                 ...incoming,
@@ -513,10 +583,14 @@ Define your queries and mutations as typed constants. With GraphQL Code Generato
 
 ```typescript
 // apps/web/src/graphql/todo.operations.ts
-import { gql } from '@apollo/client';
+import { gql } from "@apollo/client";
 
 export const GET_TODOS = gql`
-  query GetTodos($filter: TodoFilter, $paging: CursorPaging, $sorting: [TodoSort!]) {
+  query GetTodos(
+    $filter: TodoFilter
+    $paging: CursorPaging
+    $sorting: [TodoSort!]
+  ) {
     getTodos(filter: $filter, paging: $paging, sorting: $sorting) {
       totalCount
       edges {
@@ -750,20 +824,20 @@ Create `codegen.ts` at the workspace root:
 
 ```typescript
 // codegen.ts
-import type { CodegenConfig } from '@graphql-codegen/cli';
+import type { CodegenConfig } from "@graphql-codegen/cli";
 
 const config: CodegenConfig = {
-  schema: 'http://localhost:3333/graphql',  // fetch schema from running server
-  documents: ['apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx'],
+  schema: "http://localhost:3333/graphql", // fetch schema from running server
+  documents: ["apps/web/src/**/*.ts", "apps/web/src/**/*.tsx"],
   generates: {
-    'apps/web/src/graphql/generated.ts': {
+    "apps/web/src/graphql/generated.ts": {
       plugins: [
-        'typescript',
-        'typescript-operations',
-        'typescript-react-apollo',
+        "typescript",
+        "typescript-operations",
+        "typescript-react-apollo",
       ],
       config: {
-        withHooks: true,    // generate useQuery/useMutation hooks
+        withHooks: true, // generate useQuery/useMutation hooks
         withComponent: false,
         withHOC: false,
       },
@@ -791,6 +865,7 @@ yarn codegen
 ```
 
 This generates `apps/web/src/graphql/generated.ts` with:
+
 - TypeScript types for every GraphQL type
 - Typed `useGetTodosQuery()`, `useCreateTodoMutation()` hooks
 - Full autocomplete in your IDE
@@ -824,6 +899,7 @@ cd apps/web && npx next dev --port 4200
 ```
 
 Open:
+
 - `http://localhost:3333/graphql` — GraphQL Playground (backend)
 - `http://localhost:4200` — Next.js app (frontend)
 
@@ -859,10 +935,19 @@ query {
   ) {
     totalCount
     edges {
-      node { id text isChecked status createdAt }
+      node {
+        id
+        text
+        isChecked
+        status
+        createdAt
+      }
       cursor
     }
-    pageInfo { hasNextPage endCursor }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
   }
 }
 ```
@@ -898,6 +983,7 @@ mutation DeleteTodo {
 Expected: `{ "data": { "deleteTodo": true } }`
 
 > **Apollo Sandbox quirk:** `deleteTodo` returns `Boolean` (a scalar, not an object). Apollo Studio Sandbox sometimes rejects anonymous scalar-return mutations with a spurious "syntax error: invalid number" error. Naming the operation (`mutation DeleteTodo { ... }`) fixes it. If the Sandbox still misbehaves, verify directly with curl:
+>
 > ```bash
 > curl -s -X POST http://localhost:3333/graphql \
 >   -H "Content-Type: application/json" \
@@ -914,7 +1000,8 @@ Re-create a todo first (the one from step 1 was deleted), then:
 ```graphql
 mutation {
   createTodo(input: { text: "Filter test todo", userId: 1 }) {
-    id status
+    id
+    status
   }
 }
 ```
@@ -927,7 +1014,13 @@ query {
     paging: { first: 10 }
   ) {
     totalCount
-    edges { node { id text status } }
+    edges {
+      node {
+        id
+        text
+        status
+      }
+    }
   }
 }
 ```
@@ -975,22 +1068,22 @@ This is less magical than Meteor's reactive subscriptions — and far more predi
 
 **Backend GraphQL:**
 
-| Concept | Decorator/Tool | Meteor equivalent |
-|---------|---------------|-------------------|
-| Return type | `@ObjectType()` | Minimongo document shape |
-| Input type | `@InputType()` | Method argument |
-| Filterable field | `@FilterableField()` | Minimongo query key |
-| List query with pagination | `QueryArgsType` + `ConnectionType` | `find()` cursor |
-| Cursor pagination | `PagingStrategies.CURSOR` | No equivalent |
-| SQL filter translation | `FilterQueryBuilder` | Minimongo's query operators |
-| Auth guard (Part 07) | `@UseGuards(AuthJwtGuard)` | `Meteor.userId()` check |
+| Concept                    | Decorator/Tool                     | Meteor equivalent           |
+| -------------------------- | ---------------------------------- | --------------------------- |
+| Return type                | `@ObjectType()`                    | Minimongo document shape    |
+| Input type                 | `@InputType()`                     | Method argument             |
+| Filterable field           | `@FilterableField()`               | Minimongo query key         |
+| List query with pagination | `QueryArgsType` + `ConnectionType` | `find()` cursor             |
+| Cursor pagination          | `PagingStrategies.CURSOR`          | No equivalent               |
+| SQL filter translation     | `FilterQueryBuilder`               | Minimongo's query operators |
+| Auth guard (Part 07)       | `@UseGuards(AuthJwtGuard)`         | `Meteor.userId()` check     |
 
 **Frontend:**
 
-| Concept | Tool | Meteor equivalent |
-|---------|------|------------------|
-| Data fetching | `useQuery(GET_TODOS)` | `useTracker(() => Collection.find())` |
-| Mutations | `useMutation(CREATE_TODO)` | `Meteor.callAsync('method', data)` |
-| Client cache | Apollo InMemoryCache | Minimongo |
-| Type safety | GraphQL Code Generator | None (Meteor was untyped) |
-| UI components | Shadcn UI + Tailwind | PicoCSS global styles |
+| Concept       | Tool                       | Meteor equivalent                     |
+| ------------- | -------------------------- | ------------------------------------- |
+| Data fetching | `useQuery(GET_TODOS)`      | `useTracker(() => Collection.find())` |
+| Mutations     | `useMutation(CREATE_TODO)` | `Meteor.callAsync('method', data)`    |
+| Client cache  | Apollo InMemoryCache       | Minimongo                             |
+| Type safety   | GraphQL Code Generator     | None (Meteor was untyped)             |
+| UI components | Shadcn UI + Tailwind       | PicoCSS global styles                 |
