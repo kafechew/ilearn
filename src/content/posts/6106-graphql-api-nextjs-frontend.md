@@ -20,7 +20,7 @@ tags:
   - enterprise
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/06-graphql-api-nextjs-frontend.png"
-description: By the end of this part, you will learn DTOs, @Field, @FilterableField, class-validator, resolver anatomy, QueryArgsType, ConnectionType, and FilterQueryBuilder for backend. As well as Next.js, Shadcn UI, Apollo, witing GraphQL queries and mutations.
+description: By the end of this part, you will learn DTOs, @Field, @FilterableField, class-validator, resolver anatomy, QueryArgsType, ConnectionType, and FilterQueryBuilder for backend. As well as Next.js, Shadcn UI, Apollo, writing GraphQL queries and mutations.
 ---
 
 ## What This Part Covers
@@ -36,7 +36,7 @@ description: By the end of this part, you will learn DTOs, @Field, @FilterableFi
 
 **Frontend:**
 
-- Setting up Next.js 14 with the App Router in the Nx workspace
+- Setting up Next.js 16 with the App Router in the Nx workspace
 - Shadcn UI initialization
 - Apollo Client setup
 - Writing GraphQL queries and mutations
@@ -454,9 +454,12 @@ yarn add @base-ui/react class-variance-authority clsx lucide-react tailwind-merg
 
 **Step 3 — Add `@/*` path alias to `apps/web/tsconfig.json`:**
 
+Add `baseUrl` and `paths` inside the existing `compilerOptions` — do not replace the file:
+
 ```json
 {
   "compilerOptions": {
+    "...existing options...": "...",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
@@ -562,6 +565,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 ```typescript
 // apps/web/src/app/layout.tsx
+// Wrap the existing body content — do not replace fonts/metadata already there
 import { Providers } from './providers';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -682,20 +686,18 @@ export function TodoList() {
   // Create mutation
   // Meteor equivalent: Meteor.callAsync('createTask', text)
   const [createTodo, { loading: creating }] = useMutation(CREATE_TODO, {
-    refetchQueries: [{ query: GET_TODOS }],  // refetch list after mutation
-    onError: (error) => console.error('Create failed:', error.message),
+    refetchQueries: ['GetTodos'],  // refetch all active GetTodos queries after mutation
+    onError: (err) => console.error('Create failed:', err.message),
   });
 
   // Toggle completion
   const [updateTodo] = useMutation(UPDATE_TODO, {
-    optimisticResponse: ({ id, input }) => ({
-      updateTodo: { __typename: 'Todo', id, ...input },
-    }),
+    refetchQueries: ['GetTodos'],
   });
 
   // Delete
   const [deleteTodo] = useMutation(DELETE_TODO, {
-    refetchQueries: [{ query: GET_TODOS }],
+    refetchQueries: ['GetTodos'],
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -893,9 +895,8 @@ Start both the backend and frontend:
 # Terminal 1: start the NestJS backend
 yarn api:dev
 
-# Terminal 2: start the Next.js frontend
-cd apps/web && npx next dev --port 4200
-# Or via Nx: npx nx serve web
+# Terminal 2: start the Next.js frontend (from workspace root)
+npx nx serve web
 ```
 
 Open:
