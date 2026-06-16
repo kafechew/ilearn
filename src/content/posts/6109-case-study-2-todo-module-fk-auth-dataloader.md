@@ -388,7 +388,7 @@ export class TodoService {
     this.filterQueryBuilder = new FilterQueryBuilder<TodoEntity>(this.repo);
   }
 
-  findOne: CqrsQueryFunc<FindOneTodoQuery, FindOneTodoQuery['args']> = async ({ query, options }) => {
+  findOneTodo: CqrsQueryFunc<FindOneTodoQuery, FindOneTodoQuery['args']> = async ({ query, options }) => {
     const nullable = options?.nullable ?? true;
     try {
       const result = await this.filterQueryBuilder.select(query).getOne();
@@ -399,7 +399,7 @@ export class TodoService {
     }
   };
 
-  findMany: CqrsQueryFunc<FindManyTodoQuery, FindManyTodoQuery['args']> = async ({ query }) => {
+  findManyTodo: CqrsQueryFunc<FindManyTodoQuery, FindManyTodoQuery['args']> = async ({ query }) => {
     try {
       const results = await this.filterQueryBuilder.select(query).getMany();
       return { success: true, data: results };
@@ -408,7 +408,7 @@ export class TodoService {
     }
   };
 
-  count: CqrsQueryFunc<CountTodoQuery, CountTodoQuery['args']> = async ({ query }) => {
+  countTodo: CqrsQueryFunc<CountTodoQuery, CountTodoQuery['args']> = async ({ query }) => {
     try {
       return this.repo.count({ where: query as any });
     } catch (e) {
@@ -416,7 +416,7 @@ export class TodoService {
     }
   };
 
-  createOne: CqrsCommandFunc<CreateOneTodoCommand, CreateOneTodoCommand['args']> = async ({ input }) => {
+  createOneTodo: CqrsCommandFunc<CreateOneTodoCommand, CreateOneTodoCommand['args']> = async ({ input }) => {
     try {
       // Business rule: no duplicate text for same user
       const duplicate = await this.repo.findOne({
@@ -432,7 +432,7 @@ export class TodoService {
     }
   };
 
-  updateOne: CqrsCommandFunc<UpdateOneTodoCommand, UpdateOneTodoCommand['args']> = async ({ query, input }) => {
+  updateOneTodo: CqrsCommandFunc<UpdateOneTodoCommand, UpdateOneTodoCommand['args']> = async ({ query, input }) => {
     try {
       const before = await this.filterQueryBuilder.select(query).getOne();
       if (!before) throw new NotFoundException('Todo not found or access denied');
@@ -446,12 +446,12 @@ export class TodoService {
     }
   };
 
-  deleteOne: CqrsCommandFunc<DeleteOneTodoCommand, DeleteOneTodoCommand['args']> = async ({ input: id }) => {
+  deleteOneTodo: CqrsCommandFunc<DeleteOneTodoCommand, DeleteOneTodoCommand['args']> = async ({ input: { id, userId } }) => {
     try {
-      const todo = await this.repo.findOne({ where: { id } });
+      const todo = await this.repo.findOne({ where: { id, userId } });
       if (!todo) throw new NotFoundException('Todo not found');
       await this.repo.remove(todo);
-      return { success: true, data: id };
+      return { success: true, data: todo };
     } catch (e) {
       throw new BadRequestException(e.message);
     }
@@ -643,7 +643,7 @@ export class TodoResolver {
 
   // This method is called once per todo in the response — DataLoader batches them
   @ResolveField(() => UserDto, { nullable: true })
-  async user(@Parent() todo: TodoEntity): Promise<UserDto | null> {
+  async user(@Parent() todo: TodoDto): Promise<UserDto | null> {
     // todos[0].userId → loader.load(5)
     // todos[1].userId → loader.load(5)  ← same user, batched together
     // todos[2].userId → loader.load(7)
@@ -683,7 +683,7 @@ import { UserEntity } from '../user/user.entity';
 
 @Module({
   imports: [
-    CqrsModule,
+    // CqrsModule is NOT imported here — it is registered globally via CqrsModule.forRoot() in AppModule
     TypeOrmModule.forFeature([TodoEntity, UserEntity]),   // UserEntity needed by TodoUserLoader
     NestjsQueryTypeOrmModule.forFeature([TodoEntity]),
   ],

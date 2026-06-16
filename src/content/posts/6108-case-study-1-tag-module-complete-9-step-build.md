@@ -631,7 +631,6 @@ export class TagResolver {
 ```typescript
 // apps/api/src/modules/tag/tag.module.ts
 import { Module } from '@nestjs/common';
-import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NestjsQueryTypeOrmModule } from '@ptc-org/nestjs-query-typeorm';
 
@@ -642,7 +641,7 @@ import { TagCommandHandlers, TagEventHandlers, TagQueryHandlers } from './cqrs';
 
 @Module({
   imports: [
-    CqrsModule,
+    // CqrsModule is NOT imported here — it is registered globally via CqrsModule.forRoot() in AppModule
     TypeOrmModule.forFeature([TagEntity]),
     NestjsQueryTypeOrmModule.forFeature([TagEntity]),
   ],
@@ -1072,7 +1071,7 @@ If lint fails: `yarn lint:fix` → re-`git add` → `yarn cz`
 [✅] cqrs/index.ts            — Handler arrays + re-export inputs
 [✅] tag.service.ts           — Business logic: slug uniqueness, findOne/Many/count/create/update/delete
 [✅] tag.resolver.ts          — Public reads, auth-required writes
-[✅] tag.module.ts            — CqrsModule + TypeOrmModule + NestjsQueryTypeOrmModule
+[✅] tag.module.ts            — TypeOrmModule + NestjsQueryTypeOrmModule (no CqrsModule — buses are global)
 [✅] AppModule updated        — TagEntity in entities[], TagModule in imports[]
 [✅] Migration generated      — create-tag-table
 [✅] Migration reviewed       — checked SQL for correctness

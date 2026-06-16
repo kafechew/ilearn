@@ -338,7 +338,7 @@ Redis PubSub (correct):
 ### 5.2 Install Redis PubSub
 
 ```bash
-yarn add graphql-redis-subscriptions ioredis
+yarn add graphql-redis-subscriptions ioredis graphql@16
 ```
 
 ### 5.3 PubSub Provider
@@ -449,7 +449,7 @@ export class TodoService {
 ```typescript
 // apps/api/src/modules/todo/todo.resolver.ts (add subscription methods)
 import { Args, Int, Mutation, Query, Resolver, Subscription, ResolveField, Parent } from '@nestjs/graphql';
-import { PubSub } from 'graphql-subscriptions';
+import { RedisPubSub } from 'graphql-redis-subscriptions';  // NOT PubSub from graphql-subscriptions — in-process PubSub breaks multi-instance
 import { Inject } from '@nestjs/common';
 import { REDIS_PUB_SUB } from '../../shared/redis-pubsub.provider';
 import { TodoEventType } from './todo.constant';
@@ -496,7 +496,7 @@ export class TodoResolver {
 
 ```typescript
 // apps/web/src/components/TodoList.tsx (add subscription)
-import { useSubscription } from '@apollo/client';
+import { useSubscription } from '@apollo/client/react';  // v4: React APIs moved to /react
 import { gql } from '../generated/gql';
 
 const TODO_CREATED_SUBSCRIPTION = gql(`
@@ -532,14 +532,14 @@ export function TodoList() {
 In development, mount `bull-board` to view and manage queued jobs:
 
 ```bash
-yarn add @bull-board/nestjs @bull-board/express
+yarn add @bull-board/nestjs @bull-board/express @bull-board/api
 ```
 
 ```typescript
 // apps/api/src/app/app.module.ts
 import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
-import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { BullAdapter } from '@bull-board/api/bullAdapter';  // BullAdapter for @nestjs/bull (legacy); use BullMQAdapter only with @nestjs/bullmq
 
 @Module({
   imports: [
@@ -547,12 +547,12 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
       route: '/queues',
       adapter: ExpressAdapter,
     }),
-    BullBoardModule.forFeature({ name: NOTIFICATION_QUEUE, adapter: BullMQAdapter }),
+    BullBoardModule.forFeature({ name: NOTIFICATION_QUEUE, adapter: BullAdapter }),
   ],
 })
 ```
 
-Navigate to `http://localhost:3000/queues` in development. You can see pending jobs, failed jobs, and retry them manually.
+Navigate to `http://localhost:3333/queues` in development. You can see pending jobs, failed jobs, and retry them manually.
 
 ---
 
