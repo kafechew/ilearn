@@ -907,13 +907,46 @@ export class TodoResolver {
     @CurrentUser() currentUser: AccessTokenUser,
     @Args('id', { type: () => Int }) id: number,
   ): Promise<boolean> {
-    await this.commandBus.execute(new DeleteOneTodoCommand({ input: id }));
+    await this.commandBus.execute(
+      new DeleteOneTodoCommand({ input: { id, userId: currentUser.user.id } }),  // ← ownership filter
+    );
     return true;
   }
 }
 ```
 
-The service and CQRS handlers are unchanged — `userId` arrives as part of `input` (enriched at the resolver layer, never from the client).
+**Step 3 — Update `DeleteOneTodoCommand` and `deleteOneTodo` service for ownership:**
+
+The delete command was originally defined with a plain `number` input (Part 06). Now that auth is in place, it must carry `userId` so the service can verify ownership before deleting:
+
+```typescript
+// apps/api/src/modules/todo/cqrs/todo.cqrs.input.ts  (Part 07 update)
+export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<
+  TodoEntity,
+  { id: number; userId: number }  // ← was: number
+> {}
+```
+
+```typescript
+// apps/api/src/modules/todo/todo.service.ts  (Part 07 update)
+deleteOneTodo: CqrsCommandFunc<
+  DeleteOneTodoCommand,
+  DeleteOneTodoCommand['args']
+> = async ({ input: { id, userId } }) => {  // ← destructure both
+  try {
+    const todo = await this.repo.findOne({ where: { id, userId } });
+    if (!todo) throw new NotFoundException('Todo not found');
+    await this.repo.remove(todo);
+    return { success: true, data: todo };
+  } catch (e) {
+    throw new BadRequestException(e.message);
+  }
+};
+```
+
+> **Security note:** Without the `userId` filter, any authenticated user could delete any todo by id. Always filter mutations by both the record id and the JWT-extracted `userId`.
+
+The `create` and `update` CQRS inputs and their service methods are otherwise unchanged.
 
 ---
 
@@ -1015,7 +1048,7 @@ export const ME = gql`
 // apps/web/src/hooks/use-auth.ts
 'use client';
 
-import { useMutation } from '@apollo/client';
+import { useMutation } from '@apollo/client/react';  // v4: React APIs moved to /react
 import { useRouter } from 'next/navigation';
 import { apolloClient } from '../lib/apollo-client';
 import { LOGIN } from '../graphql/auth.operations';
