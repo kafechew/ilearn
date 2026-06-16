@@ -1,7 +1,7 @@
 ---
 author: Kai
 pubDatetime: 2026-05-15T09:00:00+08:00
-title: MCP Setup: GitHub, ClickUp & Lark Integration
+title: MCP Setup - GitHub, ClickUp & Lark Integration
 featured: false
 draft: false
 slug: 6115-github-mcp-clickuplark-project-management-integration
@@ -17,7 +17,6 @@ tags:
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/15-github-mcp-clickuplark-project-management-integration.png"
 description: Set up GitHub MCP for PR and CI management, ClickUp MCP as your primary project management integration, and Lark MCP as a team comms alternative — all from the terminal without context-switching.
-
 ---
 
 ## What This Part Covers
@@ -71,6 +70,7 @@ When you run `claude`, Claude Code reads `.claude/mcp.json` and connects to ever
 ### 2.1 Why Add It
 
 Without GitHub MCP:
+
 ```
 You: "Create a PR for this branch"
 Claude: "Here's the gh command to run: gh pr create --title..."
@@ -78,6 +78,7 @@ You: (copy, paste, run, fill template manually)
 ```
 
 With GitHub MCP:
+
 ```
 You: "Create a PR for feat/product-module.
      Title: feat(product): add product CRUD module
@@ -86,6 +87,7 @@ Claude: (creates PR directly, fills template, returns PR URL)
 ```
 
 Other things GitHub MCP enables from inside your Claude session:
+
 - Read and comment on issues
 - Check CI status on any PR
 - List open PRs assigned to you
@@ -151,16 +153,19 @@ claude
 ### 2.3 Daily GitHub Prompts
 
 **Check your PR queue:**
+
 ```
 "Show me all open PRs in this repo that need my review."
 ```
 
 **Check CI on a specific PR:**
+
 ```
 "Check the CI status on PR #42. Which checks are failing?"
 ```
 
 **Create a PR from the current branch:**
+
 ```
 "Open a PR for feat/product-module.
 Title: feat(product): add product CRUD module
@@ -169,16 +174,19 @@ Link to ticket CU-1234."
 ```
 
 **Read review comments and plan fixes:**
+
 ```
 "Show me all review comments on PR #42. Summarize what needs fixing."
 ```
 
 **Merge when approved:**
+
 ```
 "PR #42 is approved with all checks green. Squash merge and delete the branch."
 ```
 
 **Create an issue from a code review finding:**
+
 ```
 "Create a GitHub issue:
 Title: Missing @Index on userId in TodoEntity
@@ -217,6 +225,7 @@ source ~/.zshrc
 ```
 
 Verify in a Claude session:
+
 ```bash
 /mcp
 # → clickup: connected ✓
@@ -225,38 +234,45 @@ Verify in a Claude session:
 ### 3.2 Daily ClickUp Prompts
 
 **Morning sprint check:**
+
 ```
 "Show me all ClickUp tasks assigned to me in the current sprint that aren't started."
 ```
 
 **Start a ticket:**
+
 ```
 "Mark CU-1234 as in progress."
 ```
 
 **Create a subtask:**
+
 ```
 "Create a subtask under CU-1234: 'Write unit tests for ProductService',
 assign to me, due this Friday."
 ```
 
 **Log progress during development:**
+
 ```
 "Add a comment to CU-1234:
 'Migration created and tested locally. PR up for review at #PR-URL.'"
 ```
 
 **Find what's blocking review:**
+
 ```
 "Show all ClickUp tasks with status 'in review' in the Backend space."
 ```
 
 **Close a ticket after merge:**
+
 ```
 "Mark CU-1234 as complete."
 ```
 
 **Technical debt tracking:**
+
 ```
 "Create a ClickUp task in the Backend space:
 Title: Add @Index to userId on ProductEntity
@@ -285,12 +301,14 @@ Lark MCP is available as a built-in Claude integration. In a Claude session, cli
 ### 4.2 Daily Lark Prompts
 
 **Notify the team a PR is ready:**
+
 ```
 "Post a message to the #backend-team channel:
 'Product module PR ready for review: <PR URL>. Needs 1 approval.'"
 ```
 
 **Announce a deploy:**
+
 ```
 "Post to #deployments:
 'v1.4.2 deployed to production at 3:45pm. Product module is live.
@@ -298,17 +316,20 @@ Migration completed cleanly. Monitoring for 10 minutes.'"
 ```
 
 **Create a technical doc:**
+
 ```
 "Create a Lark doc titled 'Product Module Architecture Decision'
 with this content: <paste>"
 ```
 
 **Find a previous message:**
+
 ```
 "Find the message in #deployments from today about the staging deploy."
 ```
 
 **Schedule a meeting:**
+
 ```
 "Schedule a Lark meeting with @alex for tomorrow at 3pm:
 'Sprint review — 30 minutes.'"
@@ -316,13 +337,13 @@ with this content: <paste>"
 
 ### 4.3 ClickUp vs Lark — Decision Table
 
-| | ClickUp | Lark |
-|---|---|---|
-| Best for | Sprint tracking, ticket lifecycle, time logging | Team messaging, docs, announcements |
-| Use when... | Your PM lives in ClickUp | Your team communicates in Lark |
-| Ticket management | Primary — full sprint/task support | Secondary — basic tasks only |
-| Team comms | Minimal | Primary |
-| Common together | Track work in ClickUp | Notify the team in Lark |
+|                   | ClickUp                                         | Lark                                |
+| ----------------- | ----------------------------------------------- | ----------------------------------- |
+| Best for          | Sprint tracking, ticket lifecycle, time logging | Team messaging, docs, announcements |
+| Use when...       | Your PM lives in ClickUp                        | Your team communicates in Lark      |
+| Ticket management | Primary — full sprint/task support              | Secondary — basic tasks only        |
+| Team comms        | Minimal                                         | Primary                             |
+| Common together   | Track work in ClickUp                           | Notify the team in Lark             |
 
 For most teams using this stack: **ClickUp for tickets, Lark for notifications**. They complement rather than compete.
 
@@ -330,14 +351,15 @@ For most teams using this stack: **ClickUp for tickets, Lark for notifications**
 
 ## 5. Recommended MCP Stack
 
-| Priority | MCP | Reason |
-|----------|-----|--------|
-| Day 1 | `gitnexus` | Impact analysis — required before editing any symbol |
-| Day 1 | `github` | PR creation and CI checks without a browser |
-| Week 1 | `clickup` | Ticket updates and sprint tracking from the terminal |
-| Week 2 | `lark` | Team notifications, docs, and comms if your team uses Lark |
+| Priority | MCP        | Reason                                                     |
+| -------- | ---------- | ---------------------------------------------------------- |
+| Day 1    | `gitnexus` | Impact analysis — required before editing any symbol       |
+| Day 1    | `github`   | PR creation and CI checks without a browser                |
+| Week 1   | `clickup`  | Ticket updates and sprint tracking from the terminal       |
+| Week 2   | `lark`     | Team notifications, docs, and comms if your team uses Lark |
 
 **What NOT to add:**
+
 - Database MCPs with direct SQL on production — never
 - MCPs with write access to infrastructure (AWS, GCP) without explicit per-action auth
 - Any MCP that stores credentials as a literal value in the committed `mcp.json`
@@ -346,11 +368,11 @@ For most teams using this stack: **ClickUp for tickets, Lark for notifications**
 
 ## Summary
 
-| Tool | Setup time | Daily value |
-|------|-----------|-------------|
-| GitHub MCP | 10 min | High — PRs, CI checks, issues from the terminal |
-| ClickUp MCP | 5 min | High — start ticket, log progress, close ticket without a browser |
-| Lark MCP | 5 min | Medium — team notifications and docs if your team uses Lark |
-| gitnexus | Built into project | Critical — impact analysis before every symbol edit |
+| Tool        | Setup time         | Daily value                                                       |
+| ----------- | ------------------ | ----------------------------------------------------------------- |
+| GitHub MCP  | 10 min             | High — PRs, CI checks, issues from the terminal                   |
+| ClickUp MCP | 5 min              | High — start ticket, log progress, close ticket without a browser |
+| Lark MCP    | 5 min              | Medium — team notifications and docs if your team uses Lark       |
+| gitnexus    | Built into project | Critical — impact analysis before every symbol edit               |
 
 The compound effect: code, PR, ticket update, team message — all from one terminal session. Zero browser tabs. Part 17 shows exactly how this plays out across a full day, with a real-world case study of building a module from ticket to production.
