@@ -542,7 +542,7 @@ User Portal: users@your-app.com
   → Reads/writes ONLY their tenant's data
   → AuthJwtGuard (RS256, User key pair)
 
-Admin Portal: internal.admin@your-company.com
+Admin Portal: admin@your-app.com
   → Your support/operations team
   → Can read any tenant's data (filtered by tenantId passed as arg)
   → PortalAuthJwtGuard (RS256, DIFFERENT key pair)
