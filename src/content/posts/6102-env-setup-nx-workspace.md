@@ -116,8 +116,7 @@ Download from [code.visualstudio.com](https://code.visualstudio.com/).
 
 ### 2.2 Install Extensions
 
-> `zsh: command not found: code`
-> GitHub Copilot: Optimized tool selectionThe `code` command isn't available in your PATH. Install it from VS Code:
+> **`zsh: command not found: code`?** The `code` command isn't in your PATH yet. Install it from VS Code:
 >
 > 1. Open VS Code
 > 2. Press **Cmd+Shift+P** and run: `Shell Command: Install 'code' command in PATH`
@@ -204,7 +203,7 @@ enterprise-todo/
 Install the Nx plugins for NestJS, Next.js, and plain JS libraries:
 
 ```bash
-npm install --save-dev @nx/nest @nx/next @nx/js
+yarn add --dev @nx/nest @nx/next @nx/js
 ```
 
 These plugins give you generators (code scaffolding commands) that know how to create NestJS apps, Next.js apps, and shared libraries inside your monorepo.
@@ -248,7 +247,7 @@ When prompted:
 - **unit test runner?** → `jest` (we use Jest for unit tests)
 - **E2E test runner?** → `playwright` or `none`
 
-This creates `apps/web/` with a Next.js 14 App Router app pre-configured with Tailwind CSS.
+This creates `apps/web/` with a Next.js 16 App Router app pre-configured with Tailwind CSS.
 
 > **Meteor analogy:** `apps/web/` is your `client/` directory. But now it is a completely separate application — it communicates with `apps/api` only through HTTP, not through shared memory.
 
@@ -280,7 +279,7 @@ libs/contracts/
 From the workspace root:
 
 ```bash
-yarn add @nestjs/graphql @nestjs/apollo graphql @apollo/server @as-integrations/express5 express
+yarn add @nestjs/graphql @nestjs/apollo graphql@16 @apollo/server @as-integrations/express5 express
 yarn add @nestjs/typeorm typeorm pg
 yarn add @nestjs/cqrs nestjs-typed-cqrs nestjs-dev-utilities
 yarn add @ptc-org/nestjs-query-graphql @ptc-org/nestjs-query-typeorm @ptc-org/nestjs-query-core
@@ -291,6 +290,8 @@ yarn add class-validator class-transformer
 yarn add bcrypt
 yarn add --dev @types/pg @types/passport-jwt @types/bcrypt
 ```
+
+> **`reflect-metadata` gotcha:** After installing, check that `reflect-metadata` is `^0.2.2` in your root `package.json`. `typeorm` and `nestjs-dev-utilities` both bundle `^0.2.x` — if the root dep is `^0.1.x` (the Nx default), two separate `WeakMap` instances coexist and NestJS DI metadata breaks at runtime with `UnknownDependenciesException: Nest can't resolve dependencies of ConfigService`. Fix: set `"reflect-metadata": "^0.2.2"` in `package.json` and re-run `yarn install`.
 
 **What each package does:**
 
@@ -517,7 +518,11 @@ import { AppResolver } from "./app.resolver";
         username: config.get("PROJECT_DB_USERNAME"),
         password: config.get("PROJECT_DB_PASSWORD"),
         database: config.get("PROJECT_DB_DATABASE"),
-        entities: [__dirname + "/**/*.entity{.ts,.js}"],
+        entities: [],
+        // ⚠️ Never use a glob pattern here (e.g. "**/*.entity{.ts,.js}").
+        // This project builds with Webpack — at runtime everything is bundled into
+        // main.js, so glob discovery finds nothing. Every entity must be explicitly
+        // imported and listed here. See Part 04 when you add the first entity.
         synchronize: false, // NEVER true in production — use migrations
         logging: config.get("PROJECT_DB_DEBUG") === "true",
       }),
