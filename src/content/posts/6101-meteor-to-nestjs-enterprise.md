@@ -95,7 +95,7 @@ flowchart TD
 
     subgraph Client ["🖥️ CLIENT (Browser)"]
         direction TB
-        Next["<b>Next.js 14 (App Router)</b>"]:::component
+        Next["<b>Next.js 16 (App Router)</b>"]:::component
         Shadcn["Shadcn UI components<br/><small><i>← Blaze templates + PicoCSS</i></small>"]:::component
         Tailwind["Tailwind CSS<br/><small><i>← inline Blaze styles</i></small>"]:::component
         Apollo["Apollo Client<br/><small><i>← Minimongo / DDP subscriber</i></small>"]:::component
