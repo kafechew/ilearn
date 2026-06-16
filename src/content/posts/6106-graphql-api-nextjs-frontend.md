@@ -412,6 +412,8 @@ yarn add @apollo/client graphql@16
 yarn add --dev @graphql-codegen/cli@5 @graphql-codegen/typescript @graphql-codegen/typescript-operations @graphql-codegen/typescript-react-apollo
 ```
 
+> **Node version gotcha:** `@apollo/client` without a version pin installs v4 + `graphql@17`, which requires Node 22+. This project runs Node 20 — pin to `graphql@16` as shown above. Same applies to `@graphql-codegen/cli`: v6 pulls in `listr2@10` which also requires Node 22 — pin to `@5`.
+
 ### 5.3 Initialize Shadcn UI (Nx Monorepo)
 
 > **Nx gotcha:** `apps/web` has no `package.json` — deps are managed at the workspace root. Running `npx shadcn init` directly from `apps/web` detects no `package.json` and scaffolds a brand-new standalone Next.js project inside it. Do not do this.
@@ -493,6 +495,48 @@ You now have `apps/web/src/components/ui/` with button, input, card, checkbox, a
 
 > **Meteor analogy:** Instead of PicoCSS providing global semantic styles, Shadcn gives you pre-built accessible component primitives (Button, Input, Card, Checkbox) built on Base UI primitives, styled with Tailwind. You compose them to build your UI.
 
+### 5.4 Upgrade to Tailwind v4
+
+Shadcn v4 (`base-nova` style) generates components that use Tailwind v4 arbitrary CSS variable syntax (e.g. `[--card-spacing:--spacing(4)]`). The Nx-generated app ships Tailwind v3 — this causes a CSS parse error at runtime. Upgrade:
+
+**Step 1 — Install Tailwind v4 and its PostCSS plugin:**
+
+```bash
+# From workspace root:
+yarn add tailwindcss@^4 @tailwindcss/postcss@^4
+```
+
+**Step 2 — Replace `apps/web/postcss.config.js`:**
+
+```js
+module.exports = {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+```
+
+**Step 3 — Update `apps/web/src/app/global.css` (first line only):**
+
+Replace:
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+With:
+```css
+@import "tailwindcss";
+```
+
+**Step 4 — Delete `apps/web/tailwind.config.js`:**
+
+Tailwind v4 auto-detects content — the v3 config file is not needed and can confuse the build.
+
+```bash
+rm apps/web/tailwind.config.js
+```
+
 ---
 
 ## 6. Apollo Client Setup
@@ -555,7 +599,8 @@ Wrap your root layout in the Apollo provider:
 // apps/web/src/app/providers.tsx
 'use client';
 
-import { ApolloProvider } from '@apollo/client';
+// Apollo Client v4: ApolloProvider moved from '@apollo/client' to '@apollo/client/react'
+import { ApolloProvider } from '@apollo/client/react';
 import { apolloClient } from '../lib/apollo-client';
 
 export function Providers({ children }: { children: React.ReactNode }) {
