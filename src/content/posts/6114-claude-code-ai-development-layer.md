@@ -28,8 +28,8 @@ description: By the end of this part, you will learn Claude Code configuration, 
 - Installing and configuring Claude Code for a NestJS project
 - The `.claude/` directory — every file explained
 - MCP servers: what they are and which ones matter
-- `graphify` — semantic codebase search with a knowledge graph
-- `gitnexus` — call graph, blast radius, safe renames
+- `graphify` — introduced here; full deep-dive in Part 6116
+- `gitnexus` — introduced here; full deep-dive in Part 6116
 - The 6-phase AI-accelerated module workflow
 - The prompt library: copy-paste starters for every phase
 - What agents cannot do — keeping judgment with the human
@@ -327,9 +327,7 @@ This file is gitignored (yours alone). Pre-approve common commands so Claude doe
 
 ## 3. graphify — Semantic Codebase Search
 
-`graphify` builds a knowledge graph from your source code's AST (abstract syntax tree). It extracts symbols, relationships, and concepts — then lets you query in natural language.
-
-### Building the Graph
+`graphify` builds a knowledge graph from your source code's AST (abstract syntax tree). It extracts symbols, relationships, and concepts — then lets you query in natural language. Use it to understand how the codebase is structured without opening individual files.
 
 ```bash
 # Initial build (runs once, or after major refactors)
@@ -339,52 +337,25 @@ graphify export .
 graphify update .
 ```
 
-This creates `graphify-out/` with:
-- `graph.json` — the full symbol graph
-- `wiki/index.md` — navigable overview of the codebase
-- `GRAPH_REPORT.md` — architecture summary
-
-### Querying the Graph
+Example queries:
 
 ```bash
-# Semantic concept search — best for "what" questions
 graphify query "how does auth guard work"
-graphify query "which modules use DataLoader"
-graphify query "CQRS handler pattern"
-
-# Relationship query — best for "how do X and Y connect"
 graphify path "TodoResolver" "TodoService"
-
-# Deep explanation — best for "explain this"
 graphify explain "FilterQueryBuilder"
 ```
 
-**In Claude sessions** (preferred — Claude interprets results):
-```
-"Query the graph for how the auth module handles RS256 JWT verification."
-"Find all modules that inject TenantContext."
-"Explain the FilterQueryBuilder usage pattern in this codebase."
-```
+**When to use:** understanding unfamiliar code. For modifying or debugging specific files, Read directly.
 
-### When to Use graphify vs Read
-
-| Question | Tool |
-|----------|------|
-| "How does X work?" | `graphify query "X"` |
-| "Which files use X?" | `graphify query "X"` |
-| "What's the relationship between A and B?" | `graphify path "A" "B"` |
-| "I need to edit file X.ts" | `Read` the file directly |
-| "I need to debug a specific function" | `Read` the specific file |
-
-Rule: use graphify for **understanding**, Read/Edit for **modifying**.
+> Graphify is covered in full — what it stores, how to maintain it, team practices — in Part 6116: Memory, Knowledge Graphs & Code Intelligence.
 
 ---
 
 ## 4. gitnexus — Call Graph & Impact Analysis
 
-`gitnexus` indexes the actual call relationships between functions, classes, and modules. It answers: "if I change X, what breaks?"
+`gitnexus` indexes the actual call relationships between functions, classes, and modules. It answers: "if I change X, what breaks?" Use it before touching any existing symbol.
 
-### The Most Important Rule in This Stack
+**The most important rule in this stack:**
 
 > **MUST run impact analysis before editing any symbol.**
 
@@ -411,27 +382,7 @@ AuthResolver.signIn → CommandBus → SignInCommandHandler.execute → AuthServ
 
 LOW risk → safe to proceed. If it returns HIGH or CRITICAL, Claude explains why and what else would break.
 
-### Other gitnexus Tools
-
-```
-# Full context on a symbol (callers + callees + execution flows)
-"Give me full context on TodoService.createOne"
-→ context({ name: "TodoService.createOne" })
-
-# Detect what your changes actually touched
-"Run detect_changes and tell me if I accidentally changed anything outside TodoModule"
-→ detect_changes({ scope: "uncommitted" })
-
-# Compare against main before a PR
-"Check detect_changes against main to verify my PR scope"
-→ detect_changes({ scope: "compare", base_ref: "main" })
-
-# Safe rename (updates all call sites in the graph)
-"Rename createOneTodoCommandHandler to createTodoCommandHandler everywhere"
-→ rename({ from: "createOneTodoCommandHandler", to: "createTodoCommandHandler" })
-```
-
-**Why rename matters:** `find-and-replace` renames strings. `gitnexus rename` understands the call graph — it knows which occurrences are symbol references vs. string literals vs. comments.
+> gitnexus tools — `context`, `detect_changes`, `rename` — are covered in full in Part 6116: Memory, Knowledge Graphs & Code Intelligence.
 
 ---
 
@@ -668,12 +619,12 @@ The right mental model: **you are the architect, the agents are skilled contract
 
 ## Summary
 
-| Tool | When to use | What it does |
-|------|-------------|--------------|
-| `CLAUDE.md` + rules | Always | Loads project context and constraints automatically |
-| `agents/` | Phase 2, 3, 4 | Scaffolds modules, reviews migrations, writes tests |
-| `graphify query` | Phase 1, anytime | Semantic search over codebase without reading files |
-| `gitnexus impact` | Before any edit to existing code | Blast radius, risk level |
-| `gitnexus detect_changes` | Before every commit | Verify you only changed what you meant to |
-| `/code-review` | Phase 5, before every PR | Security + pattern violations in the diff |
-| `settings.local.json` | Once, personal setup | Pre-approve common commands to reduce prompts |
+| Tool | When to use | What it does | See |
+|------|-------------|--------------|-----|
+| `CLAUDE.md` + rules | Always | Loads project context and constraints automatically | — |
+| `agents/` | Phase 2, 3, 4 | Scaffolds modules, reviews migrations, writes tests | — |
+| `graphify query` | Phase 1, anytime | Semantic search over codebase without reading files | Part 6116 |
+| `gitnexus impact` | Before any edit to existing code | Blast radius, risk level | Part 6116 |
+| `gitnexus detect_changes` | Before every commit | Verify you only changed what you meant to | Part 6116 |
+| `/code-review` | Phase 5, before every PR | Security + pattern violations in the diff | — |
+| `settings.local.json` | Once, personal setup | Pre-approve common commands to reduce prompts | — |
