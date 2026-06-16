@@ -720,5 +720,5 @@ You have set up:
 | ------------------------- | ------------------------------------------- |
 | `meteor create`           | Nx workspace with three separate projects   |
 | Embedded MongoDB          | PostgreSQL in Docker                        |
-| `meteor` (single process) | NestJS at :3333 (will add Next.js at :4200) |
+| `meteor` (single process) | NestJS at :3333 (will add Next.js at :3000) |
 | No configuration          | `.env` + `ConfigModule` + `ValidationPipe`  |

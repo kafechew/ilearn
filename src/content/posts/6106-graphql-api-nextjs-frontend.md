@@ -950,7 +950,7 @@ yarn web:dev
 Open:
 
 - `http://localhost:3333/graphql` — GraphQL Playground (backend)
-- `http://localhost:4200` — Next.js app (frontend)
+- `http://localhost:3000` — Next.js app (frontend)
 
 ### GraphQL Playground Smoke Test
 
@@ -1090,7 +1090,7 @@ Here is how the frontend and backend communicate:
 
 ```
 ┌────────────────────────────────────────────┐
-│  Next.js (apps/web, :4200)                 │
+│  Next.js (apps/web, :3000)                 │
 │                                            │
 │  Apollo useQuery(GET_TODOS)                │
 │    └── POST http://localhost:3333/graphql  │
