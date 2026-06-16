@@ -701,7 +701,8 @@ export const DELETE_TODO = gql`
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQuery } from '@apollo/client';
+// Apollo Client v4: React hooks moved to '@apollo/client/react'
+import { useMutation, useQuery } from '@apollo/client/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
