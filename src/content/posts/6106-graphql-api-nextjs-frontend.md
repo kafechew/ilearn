@@ -850,11 +850,12 @@ const config: CodegenConfig = {
 export default config;
 ```
 
-Add a script to `package.json`:
+Add scripts to the root `package.json`:
 
 ```json
 {
   "scripts": {
+    "web:dev": "nx dev web",
     "codegen": "graphql-codegen --config codegen.ts"
   }
 }
@@ -896,7 +897,8 @@ Start both the backend and frontend:
 yarn api:dev
 
 # Terminal 2: start the Next.js frontend (from workspace root)
-npx nx serve web
+# Note: @nx/next registers the target as "dev", not "serve"
+yarn web:dev
 ```
 
 Open:

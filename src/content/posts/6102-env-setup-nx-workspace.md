@@ -407,8 +407,11 @@ In `package.json` at the workspace root, add:
 Start the containers:
 
 ```bash
-yarn docker:dev
+yarn docker:dev        # Intel Mac / Linux
+yarn docker:dev:arm    # Apple Silicon (M1/M2/M3)
 ```
+
+> **Apple Silicon:** The standard `postgres:15-alpine` image runs via Rosetta 2 emulation on M-series Macs. Create a separate `docker-compose.dev.arm.yml` using `--platform linux/arm64` images if you experience slowness or crashes.
 
 Wait ~10 seconds, then verify all three are running:
 
@@ -629,7 +632,10 @@ In `package.json` at the workspace root:
     "api:build": "nx build api",
     "api:test": "nx test api",
     "api:e2e": "nx e2e api-e2e",
+    "web:dev": "nx dev web",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "docker:dev": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:dev:arm": "docker compose -f docker-compose.dev.arm.yml up -d",
     "docker:stop": "docker compose -f docker-compose.dev.yml down",
     "lint": "nx run-many --target=lint --all",
     "lint:fix": "nx run-many --target=lint --all --fix",
@@ -637,6 +643,8 @@ In `package.json` at the workspace root:
   }
 }
 ```
+
+> **`@nx/next` uses `dev`, not `serve`:** The Next.js Nx plugin registers `devTargetName: "dev"` (not `serve`). Running `nx serve web` fails. Always use `yarn web:dev` or `nx dev web` for the frontend.
 
 ---
 
