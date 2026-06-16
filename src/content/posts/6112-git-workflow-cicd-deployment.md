@@ -1,7 +1,7 @@
 ---
 author: Kai
 pubDatetime: 2026-05-12T09:00:00+08:00
-title: Git Workflow, CI/CD & Deployment
+title: Git Commit Standards & CI/CD Pipeline
 featured: false
 draft: false
 slug: 6112-git-workflow-cicd-deployment
@@ -15,19 +15,20 @@ tags:
   - enterprise
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/12-git-workflow-cicd-deployment.png"
-description: By the end of this part, you will learn Commitizen, Husky, Branch strategy, Docker Compose, GitHub Actions CI pipeline, Deployment to AWS ECS Fargate, Production database migrations and AWS Secrets Manager pattern.  
+description: Set up Commitizen with correct selective staging, Husky pre-commit hooks, branch strategy, GitHub branch protection rules, Docker multi-stage build, GitHub Actions CI/CD, and production migration patterns on AWS ECS Fargate.
 
 ---
 
 ## What This Part Covers
 
-- Conventional commits with Commitizen
+- Conventional commits with Commitizen — and the staging mistake that bites everyone
 - Husky pre-commit and commit-msg hooks
 - Branch strategy (feature → main, squash merge)
+- GitHub branch protection rules
 - Dockerfile (multi-stage build)
 - Docker Compose for local development
 - GitHub Actions CI pipeline (lint, test, E2E)
-- Deployment to AWS ECS Fargate (overview)
+- Deployment to AWS ECS Fargate
 - Production database migrations via one-off ECS task
 - Environment secrets: AWS Secrets Manager pattern
 
@@ -35,7 +36,7 @@ description: By the end of this part, you will learn Commitizen, Husky, Branch s
 
 ## Meteor Equivalent
 
-Meteor's deployment story was Galaxy — a proprietary PaaS. It handled containerization for you but limited control. Here you own the full deployment pipeline.
+Meteor's deployment story was Galaxy — a proprietary PaaS. It handled containerization but limited control. Here you own the full pipeline.
 
 | Concern | Meteor/Galaxy | Enterprise NestJS |
 |---------|--------------|-------------------|
@@ -96,16 +97,47 @@ yarn add -D commitizen cz-conventional-changelog
 }
 ```
 
-Now `yarn cz` opens an interactive prompt that formats the message correctly.
+### The Correct Commit Workflow: Stage → Verify → cz
+
+`yarn cz` formats the commit message. It does not decide what to stage. Staging is your responsibility — and it's where the most common mistakes happen.
+
+**Never do this:**
+```bash
+git add .     # stages everything: .env, debug logs, half-finished files, unrelated changes
+yarn cz
+```
+
+**Do this instead:**
+```bash
+# Stage by module — name exactly what you changed
+git add apps/api/src/modules/product/
+git add apps/api/src/migrations/*product*
+git add apps/api/src/app/app.module.ts
+
+# Verify what will actually be in the commit
+git diff --staged
+
+# Only then open the commit prompt
+yarn cz
+```
+
+Why this matters:
+- `git add .` will stage `.env` if you ever forget to `.gitignore` it — once pushed, a secret is compromised
+- Unrelated changes in the same commit make PRs harder to review, revert, and bisect
+- The commit message should accurately describe the staged diff — if you staged 6 modules, no single message does that
+
+Internalize: **stage → verify → cz**. The `git add .` shortcut is fine for personal scripts and throwaway projects. Not here.
 
 ---
 
 ## 2. Husky Hooks
 
-Husky runs scripts before git events (commit, push). Two critical hooks:
+Husky runs scripts before git events. Two hooks catch problems before they reach the remote:
 
-1. **pre-commit**: run lint on staged files
-2. **commit-msg**: enforce conventional commit format
+1. **pre-commit**: lint staged files (runs first)
+2. **commit-msg**: enforce conventional commit format (runs after pre-commit passes)
+
+If lint fails, the commit-msg check never runs. Fix lint errors before worrying about the message format.
 
 ```bash
 yarn add -D husky lint-staged @commitlint/cli @commitlint/config-conventional
@@ -147,7 +179,7 @@ npx --no -- commitlint --edit "$1"
 module.exports = { extends: ['@commitlint/config-conventional'] };
 ```
 
-Now a commit message like `"fixed stuff"` will be rejected:
+A message like `"fixed stuff"` is rejected at the commit-msg stage:
 ```
 ✖ subject may not be empty [subject-empty]
 ✖ type may not be empty [type-empty]
@@ -171,14 +203,25 @@ Rules:
 - Feature branches: `feature/<ticket-or-description>`
 - Bugfix branches: `fix/<description>`
 - PRs squash-merged to main — one commit per feature in history
-- No direct pushes to main (enforce via GitHub branch protection)
+- No direct pushes to main (enforced via branch protection — see §4)
 
-### PR Checklist (add to PULL_REQUEST_TEMPLATE.md)
+### PR Template (add to `.github/PULL_REQUEST_TEMPLATE.md`)
 
 ```markdown
-## PR Checklist
+## Summary
+- What was added/changed
+- Why (link to ticket)
 
-- [ ] Migration generated and reviewed (`migration:generate`, reviewed SQL)
+## Migration
+- Tables added/changed:
+- Run + revert both tested locally: yes / no
+
+## Testing
+- Unit: (test file names + count)
+- E2E: (test file + operations covered)
+
+## Checklist
+- [ ] Migration generated and reviewed (SQL reviewed, not just generated)
 - [ ] `migration:run` tested locally
 - [ ] `migration:revert` tested locally
 - [ ] Unit tests added/updated
@@ -187,14 +230,42 @@ Rules:
 - [ ] No `console.log` left in production code
 - [ ] `@UseGuards(AuthJwtGuard)` on all new mutations/queries that need auth
 - [ ] `tenantId` FK present on any new domain entity
-- [ ] impact analysis run for any symbol changes
+- [ ] impact analysis run for any symbol changes (`gitnexus impact`)
 ```
 
 ---
 
-## 4. Dockerfile — Multi-Stage Build
+## 4. GitHub Branch Protection Rules
 
-A multi-stage Docker build keeps the final image small (no devDependencies, no TypeScript compiler).
+Set these up once per repository. They enforce the branch strategy at the platform level — no individual can bypass them, including admins, unless the rules are explicitly disabled.
+
+```
+GitHub repo → Settings → Branches → Add branch ruleset
+
+Branch name pattern: main
+```
+
+```
+[✅] Require a pull request before merging
+  [✅] Require approvals: 1
+  [✅] Dismiss stale pull request approvals when new commits are pushed
+
+[✅] Require status checks to pass before merging
+  [✅] Require branches to be up to date before merging
+  Status checks: lint, unit-test, e2e-test
+
+[✅] Require conversation resolution before merging
+[✅] Delete head branches automatically
+[✅] Do not allow bypassing the above settings
+```
+
+The last rule is the important one. Without it, the repo owner can force-push over everything. If you ever need to hotfix directly on main, temporarily disable it, apply the fix, then re-enable it immediately. Treating that process as the rare exception keeps the protection meaningful.
+
+---
+
+## 5. Dockerfile — Multi-Stage Build
+
+A multi-stage build keeps the final image small — no devDependencies, no TypeScript compiler.
 
 ```dockerfile
 # Dockerfile
@@ -206,11 +277,9 @@ COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 COPY . .
-
-# Build the NestJS API
 RUN yarn nx build api --prod
 
-# ── Stage 2: Prune dev deps ────────────────────────────────────
+# ── Stage 2: Production deps only ─────────────────────────────
 FROM node:20-alpine AS deps-prod
 WORKDIR /app
 
@@ -221,22 +290,18 @@ RUN yarn install --frozen-lockfile --production
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# Non-root user for security
 RUN addgroup -S app && adduser -S app -G app
 
-# Copy only production dependencies
 COPY --from=deps-prod /app/node_modules ./node_modules
-# Copy the compiled output
 COPY --from=builder /app/dist/apps/api ./dist
 
 USER app
 
 EXPOSE 3000
-
 CMD ["node", "dist/main.js"]
 ```
 
-Build and run locally:
+Build and test locally:
 
 ```bash
 docker build -t enterprise-todo-api .
@@ -245,7 +310,7 @@ docker run -p 3000:3000 --env-file .env enterprise-todo-api
 
 ---
 
-## 5. docker-compose.dev.yml (Full Version)
+## 6. docker-compose.dev.yml
 
 ```yaml
 # docker-compose.dev.yml
@@ -295,7 +360,7 @@ volumes:
 
 ---
 
-## 6. GitHub Actions CI Pipeline
+## 7. GitHub Actions CI Pipeline
 
 ```yaml
 # .github/workflows/ci.yml
@@ -410,8 +475,6 @@ jobs:
           docker push $ECR_REGISTRY/enterprise-todo-api:$IMAGE_TAG
       - name: Deploy to ECS
         run: |
-          # Update the ECS task definition with the new image tag
-          # then update the service to force a new deployment
           aws ecs update-service \
             --cluster enterprise-todo-prod \
             --service api-service \
@@ -420,29 +483,27 @@ jobs:
 
 ---
 
-## 7. Production Migrations — One-Off ECS Task
+## 8. Production Migrations — One-Off ECS Task
 
-**Never run migrations as part of the API startup.** The pattern:
+**Never run migrations inside the API startup.** The pattern:
 
 ```
 1. Build new Docker image (SHA-tagged)
 2. Run migration as a one-off ECS task (using the new image)
-   → This hits the PRODUCTION database
-   → Runs and exits (exit code 0 = success, exit code 1 = failure + rollback trigger)
-3. If migration succeeds → update ECS service to new image
+   → Hits the PRODUCTION database
+   → Exits: code 0 = success | code 1 = failure + rollback trigger
+3. If success → update ECS service to new image
 4. ECS rolling deploy: new tasks start, old tasks drain
-5. If migration fails → stop deploy, run migration:revert
+5. If failure → stop deploy, run migration:revert, investigate
 ```
 
-Why not on startup?
-- Multiple pods starting simultaneously would each try to run the migration → race condition
-- A failed migration kills the deployment; a pod restart loop is noisy
-- A one-off task is explicit, auditable, and stoppable
-
-**Separate migration entrypoint:**
+Why not on startup:
+- Multiple pods starting simultaneously each attempt the migration → race condition
+- A failed migration kills every pod in a restart loop — noisy and hard to abort cleanly
+- A one-off task is explicit, observable, and stoppable before touching the service
 
 ```typescript
-// apps/api/src/migrate.ts — separate entry point for migration task
+// apps/api/src/migrate.ts — separate entry point for migration ECS task
 import { DataSource } from 'typeorm';
 import { dataSourceOptions } from './ormconfig';
 
@@ -460,22 +521,20 @@ runMigrations().catch((error) => {
 });
 ```
 
-Run as an ECS task with `CMD ["node", "dist/migrate.js"]`.
+ECS task definition uses `CMD ["node", "dist/migrate.js"]` — a separate task definition from the API service.
 
 ---
 
-## 8. Secrets in Production
+## 9. Secrets in Production
 
-| Environment | Secrets storage |
-|-------------|----------------|
-| Local dev | `.env` file (gitignored) |
+| Environment | Storage |
+|-------------|---------|
+| Local dev | `.env` (gitignored) |
 | CI | GitHub Actions secrets |
 | Staging/Production | AWS Secrets Manager |
 
-**AWS Secrets Manager pattern:**
-
 ```typescript
-// apps/api/src/config/secrets.ts — load from AWS at startup
+// apps/api/src/config/secrets.ts
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 
 const client = new SecretsManagerClient({ region: 'ap-southeast-1' });
@@ -488,8 +547,8 @@ export async function loadSecrets(): Promise<Record<string, string>> {
 }
 ```
 
-Inject in `main.ts` before bootstrap if running in production:
 ```typescript
+// apps/api/src/main.ts
 if (process.env.NODE_ENV === 'production') {
   const secrets = await loadSecrets();
   Object.assign(process.env, secrets);
@@ -497,17 +556,17 @@ if (process.env.NODE_ENV === 'production') {
 const app = await NestFactory.create(AppModule);
 ```
 
-**What goes into Secrets Manager:**
+**What goes in Secrets Manager:**
 - `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`
 - `DB_PASSWORD`
-- API keys for third-party services (email, AI providers)
+- Third-party API keys (email provider, AI, SMS)
 - `ADMIN_JWT_PRIVATE_KEY`, `ADMIN_JWT_PUBLIC_KEY`
 
-**Never commit** these to git, even in a private repo.
+Never commit these to git — even in a private repo. A repo that becomes public, a leaked deploy key, or a compromised team member account all become incidents if secrets are in the codebase.
 
 ---
 
-## 9. Summary — What Happens When You Push to Main
+## 10. What Happens When You Push to Main
 
 ```
 git push origin feature/add-tag ──→ open PR
@@ -522,7 +581,7 @@ git push origin feature/add-tag ──→ open PR
                                       │
                                       ▼
                                GitHub Actions CD
-                               ├── docker build
+                               ├── docker build (SHA-tagged)
                                ├── push to ECR
                                ├── run migration task (ECS one-off)
                                └── update ECS service (rolling deploy)
@@ -530,3 +589,5 @@ git push origin feature/add-tag ──→ open PR
                                       ▼
                                Production live ✓
 ```
+
+The next part covers the MCP tools — GitHub MCP, ClickUp, and Lark — that let you manage PRs, tickets, and team notifications without leaving the terminal. Part 17 shows the full daily workflow with a real case study end-to-end.
