@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-07-13T09:00:00+08:00
+pubDatetime: 2026-05-24T09:00:00+08:00
 title: Production Deployment — ECS Fargate, RDS, ElastiCache & Zero-Downtime Releases
 featured: false
 draft: false
@@ -18,7 +18,6 @@ tags:
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/24-production-deployment-ecs-rds-elasticache.png"
 description: Deploy both NestJS apps (api + portal-api) and the Next.js frontend to AWS ECS Fargate with RDS PostgreSQL, ElastiCache Redis, Secrets Manager for environment variables, a GitHub Actions CD pipeline, and a zero-downtime migration strategy using one-off ECS tasks
-
 ---
 
 ## What This Part Covers
@@ -39,16 +38,16 @@ description: Deploy both NestJS apps (api + portal-api) and the Next.js frontend
 
 ## Meteor Equivalents
 
-| Meteor deployment | NestJS enterprise deployment |
-|---|---|
-| `meteor deploy` to Galaxy | ECS Fargate (containerised, auto-scaling) |
-| MongoDB Atlas | RDS PostgreSQL 15 (Multi-AZ) |
-| Environment variables in Galaxy dashboard | AWS Secrets Manager |
-| Galaxy automatic restarts | ECS health checks + rolling deployment |
-| Single app server | Separate `api` + `portal-api` services |
-| Meteor's built-in DDP pub/sub | Not applicable — replaced by GraphQL subscriptions over Redis PubSub |
-| Galaxy logs | CloudWatch Logs with structured log filtering |
-| One key pair for all environments | Unique RSA key pairs per environment (dev / staging / production) |
+| Meteor deployment                         | NestJS enterprise deployment                                         |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| `meteor deploy` to Galaxy                 | ECS Fargate (containerised, auto-scaling)                            |
+| MongoDB Atlas                             | RDS PostgreSQL 15 (Multi-AZ)                                         |
+| Environment variables in Galaxy dashboard | AWS Secrets Manager                                                  |
+| Galaxy automatic restarts                 | ECS health checks + rolling deployment                               |
+| Single app server                         | Separate `api` + `portal-api` services                               |
+| Meteor's built-in DDP pub/sub             | Not applicable — replaced by GraphQL subscriptions over Redis PubSub |
+| Galaxy logs                               | CloudWatch Logs with structured log filtering                        |
+| One key pair for all environments         | Unique RSA key pairs per environment (dev / staging / production)    |
 
 ---
 
@@ -108,11 +107,11 @@ This step is the most frequently skipped and the most dangerous to get wrong. Th
 
 **Required key files:**
 
-| Environment | User API | Portal API |
-|---|---|---|
-| Local dev | `user_private_dev.pem` / `user_public_dev.pem` | `portal_private_dev.pem` / `portal_public_dev.pem` |
-| Staging | `user_private_staging.pem` / `user_public_staging.pem` | `portal_private_staging.pem` / `portal_public_staging.pem` |
-| Production | `user_private_prod.pem` / `user_public_prod.pem` | `portal_private_prod.pem` / `portal_public_prod.pem` |
+| Environment | User API                                               | Portal API                                                 |
+| ----------- | ------------------------------------------------------ | ---------------------------------------------------------- |
+| Local dev   | `user_private_dev.pem` / `user_public_dev.pem`         | `portal_private_dev.pem` / `portal_public_dev.pem`         |
+| Staging     | `user_private_staging.pem` / `user_public_staging.pem` | `portal_private_staging.pem` / `portal_public_staging.pem` |
+| Production  | `user_private_prod.pem` / `user_public_prod.pem`       | `portal_private_prod.pem` / `portal_public_prod.pem`       |
 
 That is 12 files total. Generate them once per environment. Never reuse across environments.
 
@@ -328,32 +327,32 @@ CMD ["node", "dist/migration-runner.js"]
 
 ```typescript
 // apps/api/src/migration-runner.ts
-import 'reflect-metadata';
-import { AppDataSource } from './app/ormconfig';
+import "reflect-metadata";
+import { AppDataSource } from "./app/ormconfig";
 
 async function runMigrations(): Promise<void> {
-  console.log('Initialising data source...');
+  console.log("Initialising data source...");
   await AppDataSource.initialize();
 
   const pending = await AppDataSource.showMigrations();
   if (!pending) {
-    console.log('No pending migrations — exiting.');
+    console.log("No pending migrations — exiting.");
     await AppDataSource.destroy();
     process.exit(0);
   }
 
-  console.log('Running pending migrations...');
-  const executed = await AppDataSource.runMigrations({ transaction: 'each' });
+  console.log("Running pending migrations...");
+  const executed = await AppDataSource.runMigrations({ transaction: "each" });
   console.log(`Executed ${executed.length} migration(s):`);
-  executed.forEach((m) => console.log(`  - ${m.name}`));
+  executed.forEach(m => console.log(`  - ${m.name}`));
 
   await AppDataSource.destroy();
-  console.log('Migrations complete.');
+  console.log("Migrations complete.");
   process.exit(0);
 }
 
-runMigrations().catch((err) => {
-  console.error('Migration failed:', err);
+runMigrations().catch(err => {
+  console.error("Migration failed:", err);
   process.exit(1);
 });
 ```
@@ -364,9 +363,7 @@ Register `migration-runner.ts` as a separate webpack entry point in `apps/api/pr
 // apps/api/project.json (targets.build.options excerpt)
 {
   "main": "apps/api/src/main.ts",
-  "additionalEntryPoints": [
-    "apps/api/src/migration-runner.ts"
-  ]
+  "additionalEntryPoints": ["apps/api/src/migration-runner.ts"]
 }
 ```
 
@@ -454,13 +451,13 @@ aws rds create-db-instance \
 
 Key settings explained:
 
-| Setting | Value | Reason |
-|---|---|---|
-| `db.t4g.medium` | 2 vCPU, 4 GB RAM | Adequate for most production workloads under ~200 concurrent users; upgrade to `r7g.large` if you see OOM |
-| `multi-az` | true | RDS automatically fails over to standby replica on hardware failure; RPO ~1 min, RTO ~1–2 min |
-| `storage-encrypted` | true | KMS-encrypted at rest; required for most compliance frameworks |
-| `deletion-protection` | true | Prevents accidental `aws rds delete-db-instance`; must be disabled explicitly before deletion |
-| `backup-retention-period` | 7 | 7-day automated backups; increase to 35 for financial or compliance workloads |
+| Setting                   | Value            | Reason                                                                                                    |
+| ------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------- |
+| `db.t4g.medium`           | 2 vCPU, 4 GB RAM | Adequate for most production workloads under ~200 concurrent users; upgrade to `r7g.large` if you see OOM |
+| `multi-az`                | true             | RDS automatically fails over to standby replica on hardware failure; RPO ~1 min, RTO ~1–2 min             |
+| `storage-encrypted`       | true             | KMS-encrypted at rest; required for most compliance frameworks                                            |
+| `deletion-protection`     | true             | Prevents accidental `aws rds delete-db-instance`; must be disabled explicitly before deletion             |
+| `backup-retention-period` | 7                | 7-day automated backups; increase to 35 for financial or compliance workloads                             |
 
 For staging, use `db.t4g.micro`, `--no-multi-az`, and `--backup-retention-period 1` to reduce cost.
 
@@ -565,19 +562,18 @@ Update `RedisPubSub` in the subscriptions module:
 
 ```typescript
 // apps/api/src/app/pubsub.provider.ts
-import { RedisPubSub } from 'graphql-redis-subscriptions';
-import { ConfigService } from '@nestjs/config';
+import { RedisPubSub } from "graphql-redis-subscriptions";
+import { ConfigService } from "@nestjs/config";
 
 export const PubSubProvider = {
-  provide: 'PUB_SUB',
+  provide: "PUB_SUB",
   inject: [ConfigService],
   useFactory: (config: ConfigService) => {
-    const tlsOptions =
-      process.env.NODE_ENV === 'production' ? { tls: {} } : {};
+    const tlsOptions = process.env.NODE_ENV === "production" ? { tls: {} } : {};
     return new RedisPubSub({
       connection: {
-        host: config.get<string>('REDIS_PUBSUB_HOST'),
-        port: config.get<number>('REDIS_PUBSUB_PORT'),
+        host: config.get<string>("REDIS_PUBSUB_HOST"),
+        port: config.get<number>("REDIS_PUBSUB_PORT"),
         ...tlsOptions,
       },
     });
@@ -663,9 +659,7 @@ Save as `infra/task-definitions/api.json`. Replace `123456789` with your AWS acc
       "name": "api",
       "image": "123456789.dkr.ecr.ap-southeast-1.amazonaws.com/enterprise-todo/api:latest",
       "essential": true,
-      "portMappings": [
-        { "containerPort": 3333, "protocol": "tcp" }
-      ],
+      "portMappings": [{ "containerPort": 3333, "protocol": "tcp" }],
       "secrets": [
         {
           "name": "JWT_PRIVATE_KEY",
@@ -683,13 +677,22 @@ Save as `infra/task-definitions/api.json`. Replace `123456789` with your AWS acc
       "environment": [
         { "name": "NODE_ENV", "value": "production" },
         { "name": "PROJECT_PORT", "value": "3333" },
-        { "name": "PROJECT_DB_HOST", "value": "enterprise-todo-prod.abc123def456.ap-southeast-1.rds.amazonaws.com" },
+        {
+          "name": "PROJECT_DB_HOST",
+          "value": "enterprise-todo-prod.abc123def456.ap-southeast-1.rds.amazonaws.com"
+        },
         { "name": "PROJECT_DB_PORT", "value": "5432" },
         { "name": "PROJECT_DB_USER", "value": "etadmin" },
         { "name": "PROJECT_DB_NAME", "value": "enterprise_todo" },
-        { "name": "REDIS_BULL_HOST", "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com" },
+        {
+          "name": "REDIS_BULL_HOST",
+          "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com"
+        },
         { "name": "REDIS_BULL_PORT", "value": "6379" },
-        { "name": "REDIS_PUBSUB_HOST", "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com" },
+        {
+          "name": "REDIS_PUBSUB_HOST",
+          "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com"
+        },
         { "name": "REDIS_PUBSUB_PORT", "value": "6379" }
       ],
       "logConfiguration": {
@@ -740,9 +743,7 @@ aws ecs register-task-definition \
       "name": "portal-api",
       "image": "123456789.dkr.ecr.ap-southeast-1.amazonaws.com/enterprise-todo/portal-api:latest",
       "essential": true,
-      "portMappings": [
-        { "containerPort": 3334, "protocol": "tcp" }
-      ],
+      "portMappings": [{ "containerPort": 3334, "protocol": "tcp" }],
       "secrets": [
         {
           "name": "JWT_PRIVATE_KEY",
@@ -760,13 +761,22 @@ aws ecs register-task-definition \
       "environment": [
         { "name": "NODE_ENV", "value": "production" },
         { "name": "PROJECT_PORT", "value": "3334" },
-        { "name": "PROJECT_DB_HOST", "value": "enterprise-todo-prod.abc123def456.ap-southeast-1.rds.amazonaws.com" },
+        {
+          "name": "PROJECT_DB_HOST",
+          "value": "enterprise-todo-prod.abc123def456.ap-southeast-1.rds.amazonaws.com"
+        },
         { "name": "PROJECT_DB_PORT", "value": "5432" },
         { "name": "PROJECT_DB_USER", "value": "etadmin" },
         { "name": "PROJECT_DB_NAME", "value": "enterprise_todo" },
-        { "name": "REDIS_BULL_HOST", "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com" },
+        {
+          "name": "REDIS_BULL_HOST",
+          "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com"
+        },
         { "name": "REDIS_BULL_PORT", "value": "6379" },
-        { "name": "REDIS_PUBSUB_HOST", "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com" },
+        {
+          "name": "REDIS_PUBSUB_HOST",
+          "value": "enterprise-todo-prod.abc123.use1.cache.amazonaws.com"
+        },
         { "name": "REDIS_PUBSUB_PORT", "value": "6379" }
       ],
       "logConfiguration": {
@@ -818,7 +828,10 @@ The migrator uses the same execution role and secrets as the api, but has no por
       ],
       "environment": [
         { "name": "NODE_ENV", "value": "production" },
-        { "name": "PROJECT_DB_HOST", "value": "enterprise-todo-prod.abc123def456.ap-southeast-1.rds.amazonaws.com" },
+        {
+          "name": "PROJECT_DB_HOST",
+          "value": "enterprise-todo-prod.abc123def456.ap-southeast-1.rds.amazonaws.com"
+        },
         { "name": "PROJECT_DB_PORT", "value": "5432" },
         { "name": "PROJECT_DB_USER", "value": "etadmin" },
         { "name": "PROJECT_DB_NAME", "value": "enterprise_todo" }
@@ -974,14 +987,14 @@ aws elbv2 create-rule \
 
 ```typescript
 // apps/api/src/modules/health/health.resolver.ts
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle } from "@nestjs/throttler";
 
 @SkipThrottle()
 @Resolver()
 export class HealthResolver {
   @Query(() => String)
   health(): string {
-    return 'ok';
+    return "ok";
   }
 }
 ```
@@ -1218,7 +1231,7 @@ env:
   ECS_CLUSTER: enterprise-todo-prod
 
 permissions:
-  id-token: write   # required for OIDC
+  id-token: write # required for OIDC
   contents: read
 
 jobs:
@@ -1508,6 +1521,7 @@ aws cloudwatch describe-alarms \
 Work through this checklist before routing real traffic to production.
 
 **Identity and Keys**
+
 - [ ] Unique RSA key pairs generated per environment — user API and portal API keys are different
 - [ ] 12 key files exist (user private + user public + portal private + portal public) x (dev / staging / prod)
 - [ ] All 12 files stored in Secrets Manager, never committed to git
@@ -1515,6 +1529,7 @@ Work through this checklist before routing real traffic to production.
 - [ ] Production task definitions reference `enterprise-todo/production/` secrets
 
 **Database**
+
 - [ ] RDS Multi-AZ enabled on production instance
 - [ ] RDS deletion protection enabled
 - [ ] DB password stored in Secrets Manager (not in task definition `environment` array)
@@ -1523,18 +1538,21 @@ Work through this checklist before routing real traffic to production.
 - [ ] `migration:revert` tested locally before deploying to staging
 
 **Cache and Queues**
+
 - [ ] ElastiCache TLS enabled (`transit-encryption-enabled`)
 - [ ] `BullModule` configured with `tls: {}` in production
 - [ ] `RedisPubSub` configured with `tls: {}` in production
 - [ ] Security group allows port 6379 only from ECS task security group
 
 **Networking**
+
 - [ ] ALB HTTPS listener with valid ACM certificate
 - [ ] HTTP to HTTPS redirect on port 80
 - [ ] ECS tasks in private subnets with no public IP
 - [ ] RDS and ElastiCache in private subnets
 
 **Application**
+
 - [ ] `NODE_ENV=production` in all ECS task definitions — disables GraphQL playground, enables full Helmet CSP
 - [ ] `HealthResolver` has `@SkipThrottle()` — ALB health checks will not hit rate limiter
 - [ ] `TWOFA_BYPASS_PASSWORD` is NOT set in any production environment variable or secret
@@ -1543,17 +1561,20 @@ Work through this checklist before routing real traffic to production.
 - [ ] JWT payloads include `platform` claim — tokens cannot cross platform boundaries
 
 **Deployment**
+
 - [ ] GitHub Actions OIDC role configured — no long-lived access keys in GitHub Secrets
 - [ ] CD pipeline runs migrator before deploying api and portal-api
 - [ ] `aws ecs wait services-stable` at the end of deploy job — workflow fails if deployment does not stabilise
 
 **Observability**
+
 - [ ] CloudWatch log groups created with 30-day retention
 - [ ] Error rate metric filter created for `/ecs/enterprise-todo-api`
 - [ ] CloudWatch alarms configured and in OK state
 - [ ] SNS topic subscribed and email confirmed
 
 **Media (from part 6122)**
+
 - [ ] S3 bucket has `Block Public Access` enabled — only CloudFront can read objects
 - [ ] CloudFront distribution using ACM certificate for `media.yourdomain.com`
 - [ ] Signed URL TTL appropriate for your use case (15 minutes for user-uploaded content)
@@ -1562,19 +1583,19 @@ Work through this checklist before routing real traffic to production.
 
 ## Summary: Before vs After
 
-| Concern | Local Docker Compose | Production AWS |
-|---|---|---|
-| Container runtime | Docker Desktop on developer machine | ECS Fargate (managed, auto-scaling) |
-| Database | PostgreSQL 15 container, data in Docker volume | RDS PostgreSQL 15 Multi-AZ, automated backups |
-| Cache / queues | Redis container, ephemeral | ElastiCache Redis 7.x with TLS, private subnet |
-| Secrets | `.env` file on disk | AWS Secrets Manager, injected at task launch |
-| RSA keys | Single dev key pair | Unique key pairs per environment × per app |
-| Image registry | Local Docker daemon | ECR with image scanning and lifecycle policy |
-| Deployments | `docker-compose up --build` | GitHub Actions CD: build → migrate → rolling deploy |
-| Migrations | `yarn api:migration:run` in terminal | One-off ECS task before traffic routes to new image |
-| Load balancing | Not applicable (single container) | ALB with host-based routing, HTTPS, ACM certificate |
-| Observability | `docker-compose logs -f` | CloudWatch Logs with metric filters and alarms |
-| Network access | All ports exposed to localhost | Only ALB accessible from internet; everything else in private subnets |
+| Concern           | Local Docker Compose                           | Production AWS                                                        |
+| ----------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| Container runtime | Docker Desktop on developer machine            | ECS Fargate (managed, auto-scaling)                                   |
+| Database          | PostgreSQL 15 container, data in Docker volume | RDS PostgreSQL 15 Multi-AZ, automated backups                         |
+| Cache / queues    | Redis container, ephemeral                     | ElastiCache Redis 7.x with TLS, private subnet                        |
+| Secrets           | `.env` file on disk                            | AWS Secrets Manager, injected at task launch                          |
+| RSA keys          | Single dev key pair                            | Unique key pairs per environment × per app                            |
+| Image registry    | Local Docker daemon                            | ECR with image scanning and lifecycle policy                          |
+| Deployments       | `docker-compose up --build`                    | GitHub Actions CD: build → migrate → rolling deploy                   |
+| Migrations        | `yarn api:migration:run` in terminal           | One-off ECS task before traffic routes to new image                   |
+| Load balancing    | Not applicable (single container)              | ALB with host-based routing, HTTPS, ACM certificate                   |
+| Observability     | `docker-compose logs -f`                       | CloudWatch Logs with metric filters and alarms                        |
+| Network access    | All ports exposed to localhost                 | Only ALB accessible from internet; everything else in private subnets |
 
 ---
 
@@ -1585,6 +1606,7 @@ This is the final tutorial in the 24-part Meteor to NestJS migration series. The
 **The Complete Enterprise-Grade Fullstack NestJS Stack**
 
 **Foundation**
+
 - **`apps/api/src/main.ts`** — NestJS user API with global pipes, guards, interceptors, filters, and Helmet
 - **`apps/portal-api/src/main.ts`** — NestJS admin portal API with separate auth strategy and platform interceptor
 - **`apps/web/`** — Next.js 16 App Router frontend with Apollo Client v4 and Tailwind CSS v4
@@ -1592,6 +1614,7 @@ This is the final tutorial in the 24-part Meteor to NestJS migration series. The
 - **`libs/contracts/`** — Shared TypeScript types across api and web
 
 **Data Layer**
+
 - **TypeORM 1.x** with `SnakeNamingStrategy` — all columns snake_case, no magic
 - **`AbstractEntity`** from `nestjs-dev-utilities` — `id`, `createdAt`, `updatedAt` on every entity
 - **`AbstractDto`** — DTO base with `fromEntity` mapper
@@ -1599,18 +1622,21 @@ This is the final tutorial in the 24-part Meteor to NestJS migration series. The
 - **Migrations** — every schema change tracked, reversible, and tested before production
 
 **CQRS Architecture**
+
 - **`nestjs-typed-cqrs`** — type-safe `TypedCommand<T>` and `TypedQuery<T>` buses throughout
 - **9-step module pattern** — Entity → Constants → DTOs → Inputs → Handlers → Index → Service → Resolver → Module
 - **Handlers are one-liners** — all business logic lives in services, never handlers or resolvers
 - **`TypeOrmQueryService<Entity>`** as service base — auto-implements find, findOne, create, update, delete with filtering
 
 **GraphQL API**
+
 - **Apollo Server v5** — code-first schema with `@Resolver`, `@Query`, `@Mutation`, `@ResolveField`
 - **Relay cursor pagination** — `Connection` types on all list queries
 - **DataLoader** with `Scope.REQUEST` — N+1 queries eliminated for all relation fields
 - **Subscriptions** over Redis PubSub — real-time updates without in-process state
 
 **Auth and Permissions**
+
 - **Passport JWT RS256** — asymmetric key pairs, separate strategies for user and portal APIs
 - **`AccessTokenFactory` / `PortalAccessTokenFactory`** — tokens stamped with `platform` claim
 - **`RequestPlatformInterceptor`** — cross-platform token usage rejected at the boundary
@@ -1618,6 +1644,7 @@ This is the final tutorial in the 24-part Meteor to NestJS migration series. The
 - **`PortalJwtStrategy`** isolated to `apps/portal-api` only — cannot leak into user API
 
 **Security**
+
 - **Helmet** — full CSP in production, relaxed for GraphQL sandbox in development
 - **`@nestjs/throttler`** — rate limiting on all public endpoints
 - **`ValidationPipe`** with `forbidNonWhitelisted: true` — unknown fields rejected globally
@@ -1626,24 +1653,29 @@ This is the final tutorial in the 24-part Meteor to NestJS migration series. The
 - **API keys stored as SHA-256 hashes** — raw key never persisted
 
 **Async and Performance**
+
 - **Bull queues backed by Redis** — email, notifications, and heavy computation are always async
 - **`graphql-depth-limit`** (max 7) and complexity guard (max 50) — DoS protection in production
 - **`@Index`** on all filtered columns — no sequential scans on hot query paths
 - **Running number service** with pessimistic write lock — no duplicate sequence numbers under concurrent load
 
 **Media and Storage**
+
 - **S3 + CloudFront** — media uploads with signed URLs, TTL-controlled access, no public bucket exposure
 - **`S3MediaService`** behind interface — SDK never embedded in business logic directly
 
 **Email**
+
 - **`@nestjs-modules/mailer`** with Handlebars templates — all transactional email via Bull queue
 - **`requestPasswordReset` always returns true** — no user enumeration via email existence check
 
 **Two-Factor Authentication**
+
 - **`speakeasy` TOTP** — RFC 6238 compliant, 30-second windows, QR code provisioning
 - **`TWOFA_BYPASS_PASSWORD`** for test environments only — hard-blocked from staging and production
 
 **Production Infrastructure**
+
 - **ECS Fargate** — containerised, auto-scaling, no server management
 - **RDS PostgreSQL 15 Multi-AZ** — automated failover, 7-day backups, deletion protection
 - **ElastiCache Redis 7.x** — TLS in-transit and at-rest, private subnet

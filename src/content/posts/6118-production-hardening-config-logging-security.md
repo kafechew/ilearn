@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-06-01T09:00:00+08:00
+pubDatetime: 2026-05-18T09:00:00+08:00
 title: Production Hardening — Config Validation, Logging & Security Middleware
 featured: false
 draft: false
@@ -17,7 +17,6 @@ tags:
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/18-production-hardening-config-logging-security.png"
 description: Add Joi environment validation, typed config mapper, global LoggingInterceptor, Helmet, rate limiting and a custom ExceptionFilter — the production hardening layer that prevents silent failures in any NestJS app.
-
 ---
 
 ## What This Part Covers
@@ -35,15 +34,15 @@ description: Add Joi environment validation, typed config mapper, global Logging
 
 ## Meteor Equivalents
 
-| Meteor | NestJS | Notes |
-|--------|--------|-------|
-| No startup env validation | `ConfigModule` + `validationSchema` (Joi) | Meteor silently starts with undefined vars; NestJS can be made to crash fast |
-| `Meteor.settings` loaded from `settings.json` | `ConfigModule.forRoot({ load: [configuration] })` | NestJS config mapper gives full TypeScript types |
-| `console.log` + DDP inspector | `LoggingInterceptor` | Structured request/response logs in every environment |
-| No built-in HTTP headers hardening | `helmet` | Meteor/Galaxy has no equivalent — you added headers via Nginx config |
-| No built-in rate limiting | `@nestjs/throttler` | Meteor needed a community package or Nginx `limit_req` |
-| Uncaught exceptions crash the process | `AllExceptionsFilter` | Centralised: log, shape, and gracefully handle all errors |
-| `linux/amd64` images run under Rosetta on M1 | `docker-compose.dev.arm.yml` with `platform: linux/arm64` | Significant performance difference on Apple Silicon |
+| Meteor                                        | NestJS                                                    | Notes                                                                        |
+| --------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| No startup env validation                     | `ConfigModule` + `validationSchema` (Joi)                 | Meteor silently starts with undefined vars; NestJS can be made to crash fast |
+| `Meteor.settings` loaded from `settings.json` | `ConfigModule.forRoot({ load: [configuration] })`         | NestJS config mapper gives full TypeScript types                             |
+| `console.log` + DDP inspector                 | `LoggingInterceptor`                                      | Structured request/response logs in every environment                        |
+| No built-in HTTP headers hardening            | `helmet`                                                  | Meteor/Galaxy has no equivalent — you added headers via Nginx config         |
+| No built-in rate limiting                     | `@nestjs/throttler`                                       | Meteor needed a community package or Nginx `limit_req`                       |
+| Uncaught exceptions crash the process         | `AllExceptionsFilter`                                     | Centralised: log, shape, and gracefully handle all errors                    |
+| `linux/amd64` images run under Rosetta on M1  | `docker-compose.dev.arm.yml` with `platform: linux/arm64` | Significant performance difference on Apple Silicon                          |
 
 ---
 
@@ -78,18 +77,18 @@ yarn add joi
 
 ```typescript
 // apps/api/src/config/config.validation.ts
-import * as Joi from 'joi';
+import * as Joi from "joi";
 
 export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test')
-    .default('development'),
+    .valid("development", "production", "test")
+    .default("development"),
 
   PROJECT_PORT: Joi.number().default(3333),
   PROJECT_GRAPHQL_PLAYGROUND: Joi.boolean().default(true),
   PROJECT_GRAPHQL_SUBSCRIPTIONS: Joi.boolean().default(false),
 
-  PROJECT_DB_CONNECTION: Joi.string().default('postgres'),
+  PROJECT_DB_CONNECTION: Joi.string().default("postgres"),
   PROJECT_DB_HOST: Joi.string().required(),
   PROJECT_DB_PORT: Joi.number().default(5432),
   PROJECT_DB_USERNAME: Joi.string().required(),
@@ -98,18 +97,18 @@ export const validationSchema = Joi.object({
   PROJECT_DB_DATABASE_TEST: Joi.string().optional(),
   PROJECT_DB_DEBUG: Joi.boolean().default(false),
 
-  REDIS_BULL_HOST: Joi.string().default('localhost'),
+  REDIS_BULL_HOST: Joi.string().default("localhost"),
   REDIS_BULL_PORT: Joi.number().default(6379),
 
-  JWT_EXPIRATION_TIME: Joi.string().default('1d'),
-  JWT_REFRESH_EXPIRATION_TIME: Joi.string().default('7d'),
+  JWT_EXPIRATION_TIME: Joi.string().default("1d"),
+  JWT_REFRESH_EXPIRATION_TIME: Joi.string().default("7d"),
   // JWT keys are required in production but optional in development (file-based keys)
-  JWT_PRIVATE_KEY: Joi.string().when('NODE_ENV', {
-    is: 'production',
+  JWT_PRIVATE_KEY: Joi.string().when("NODE_ENV", {
+    is: "production",
     then: Joi.required(),
   }),
-  JWT_PUBLIC_KEY: Joi.string().when('NODE_ENV', {
-    is: 'production',
+  JWT_PUBLIC_KEY: Joi.string().when("NODE_ENV", {
+    is: "production",
     then: Joi.required(),
   }),
   JWT_REFRESH_PRIVATE_KEY: Joi.string().optional(),
@@ -121,14 +120,14 @@ export const validationSchema = Joi.object({
 
 ```typescript
 // apps/api/src/app/app.module.ts
-import { validationSchema } from '../config/config.validation';
+import { validationSchema } from "../config/config.validation";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
-      validationSchema,          // ← add this
+      envFilePath: ".env",
+      validationSchema, // ← add this
     }),
     // ... rest of imports unchanged
   ],
@@ -192,7 +191,7 @@ export type AppConfig = {
 };
 
 export const configuration = (): AppConfig => ({
-  env: process.env.NODE_ENV || 'development',
+  env: process.env.NODE_ENV || "development",
   port: parseInt(process.env.PROJECT_PORT, 10) || 3333,
   db: {
     host: process.env.PROJECT_DB_HOST,
@@ -200,23 +199,23 @@ export const configuration = (): AppConfig => ({
     username: process.env.PROJECT_DB_USERNAME,
     password: process.env.PROJECT_DB_PASSWORD,
     database: process.env.PROJECT_DB_DATABASE,
-    debug: process.env.PROJECT_DB_DEBUG === 'true',
+    debug: process.env.PROJECT_DB_DEBUG === "true",
   },
   redis: {
-    host: process.env.REDIS_BULL_HOST || 'localhost',
+    host: process.env.REDIS_BULL_HOST || "localhost",
     port: parseInt(process.env.REDIS_BULL_PORT, 10) || 6379,
   },
   graphql: {
-    playground: process.env.PROJECT_GRAPHQL_PLAYGROUND === 'true',
-    subscriptions: process.env.PROJECT_GRAPHQL_SUBSCRIPTIONS === 'true',
+    playground: process.env.PROJECT_GRAPHQL_PLAYGROUND === "true",
+    subscriptions: process.env.PROJECT_GRAPHQL_SUBSCRIPTIONS === "true",
   },
   jwt: {
     privateKey: process.env.JWT_PRIVATE_KEY,
     publicKey: process.env.JWT_PUBLIC_KEY,
     refreshPrivateKey: process.env.JWT_REFRESH_PRIVATE_KEY,
     refreshPublicKey: process.env.JWT_REFRESH_PUBLIC_KEY,
-    expirationTime: process.env.JWT_EXPIRATION_TIME || '1d',
-    refreshExpirationTime: process.env.JWT_REFRESH_EXPIRATION_TIME || '7d',
+    expirationTime: process.env.JWT_EXPIRATION_TIME || "1d",
+    refreshExpirationTime: process.env.JWT_REFRESH_EXPIRATION_TIME || "7d",
   },
 });
 ```
@@ -225,15 +224,15 @@ export const configuration = (): AppConfig => ({
 
 ```typescript
 // apps/api/src/app/app.module.ts
-import { configuration } from '../config/config.mapper';
-import { validationSchema } from '../config/config.validation';
+import { configuration } from "../config/config.mapper";
+import { validationSchema } from "../config/config.validation";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
-      load: [configuration],      // ← add this
+      envFilePath: ".env",
+      load: [configuration], // ← add this
       validationSchema,
     }),
     // ...
@@ -248,28 +247,28 @@ Before this change, `main.ts` and `AppModule` accessed raw string keys:
 
 ```typescript
 // Before — returns string | undefined
-config.get('PROJECT_PORT')
-config.get('PROJECT_DB_HOST')
+config.get("PROJECT_PORT");
+config.get("PROJECT_DB_HOST");
 ```
 
 After the mapper, you access structured typed paths:
 
 ```typescript
 // After — returns the correct type from AppConfig
-config.get<number>('port')
-config.get<AppConfig['db']>('db')
-config.get<AppConfig['jwt']>('jwt')
+config.get<number>("port");
+config.get<AppConfig["db"]>("db");
+config.get<AppConfig["jwt"]>("jwt");
 ```
 
 Update `main.ts` to use the typed path:
 
 ```typescript
 // apps/api/src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { AppModule } from './app/app.module';
-import { AppConfig } from './config/config.mapper';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { AppModule } from "./app/app.module";
+import { AppConfig } from "./config/config.mapper";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -280,17 +279,17 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
   app.enableCors({
     origin:
-      config.get<string>('env') === 'development'
-        ? '*'
+      config.get<string>("env") === "development"
+        ? "*"
         : process.env.ALLOWED_ORIGINS,
   });
 
-  const port = config.get<number>('port') ?? 3333;
+  const port = config.get<number>("port") ?? 3333;
   await app.listen(port);
 
   console.log(`API running at http://localhost:${port}`);
@@ -355,12 +354,12 @@ GraphQLModule.forRootAsync<ApolloDriverConfig>({
 
 ```typescript
 // apps/api/src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { LoggingInterceptor } from 'nestjs-dev-utilities';
-import { AppModule } from './app/app.module';
-import { AppConfig } from './config/config.mapper';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { LoggingInterceptor } from "nestjs-dev-utilities";
+import { AppModule } from "./app/app.module";
+import { AppConfig } from "./config/config.mapper";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -371,7 +370,7 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
   // Log every request: method, path, status, duration
@@ -379,12 +378,12 @@ async function bootstrap() {
 
   app.enableCors({
     origin:
-      config.get<string>('env') === 'development'
-        ? '*'
+      config.get<string>("env") === "development"
+        ? "*"
         : process.env.ALLOWED_ORIGINS,
   });
 
-  const port = config.get<number>('port') ?? 3333;
+  const port = config.get<number>("port") ?? 3333;
   await app.listen(port);
 
   console.log(`API running at http://localhost:${port}`);
@@ -426,7 +425,7 @@ yarn add helmet
 
 ```typescript
 // apps/api/src/main.ts
-import helmet from 'helmet';
+import helmet from "helmet";
 // ... other imports
 
 async function bootstrap() {
@@ -439,8 +438,8 @@ async function bootstrap() {
     helmet({
       crossOriginEmbedderPolicy: false,
       contentSecurityPolicy:
-        config.get<string>('env') === 'production' ? undefined : false,
-    }),
+        config.get<string>("env") === "production" ? undefined : false,
+    })
   );
 
   app.useGlobalPipes(
@@ -448,19 +447,19 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
   app.useGlobalInterceptors(new LoggingInterceptor());
 
   app.enableCors({
     origin:
-      config.get<string>('env') === 'development'
-        ? '*'
+      config.get<string>("env") === "development"
+        ? "*"
         : process.env.ALLOWED_ORIGINS,
   });
 
-  const port = config.get<number>('port') ?? 3333;
+  const port = config.get<number>("port") ?? 3333;
   await app.listen(port);
 
   console.log(`API running at http://localhost:${port}`);
@@ -472,14 +471,14 @@ bootstrap();
 
 ### 5.2 What Helmet adds
 
-| Header | What it does |
-|--------|-------------|
-| `X-XSS-Protection: 1; mode=block` | Tells older browsers to block reflected XSS attacks |
-| `X-Frame-Options: SAMEORIGIN` | Prevents clickjacking by blocking iframe embedding from other origins |
-| `X-Content-Type-Options: nosniff` | Prevents browsers from MIME-sniffing responses |
-| `Strict-Transport-Security` | Forces HTTPS for subsequent requests (production only) |
-| `X-Download-Options: noopen` | Prevents IE from executing downloaded files in the context of the site |
-| `Content-Security-Policy` | Restricts sources for scripts, styles, and other resources |
+| Header                            | What it does                                                           |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `X-XSS-Protection: 1; mode=block` | Tells older browsers to block reflected XSS attacks                    |
+| `X-Frame-Options: SAMEORIGIN`     | Prevents clickjacking by blocking iframe embedding from other origins  |
+| `X-Content-Type-Options: nosniff` | Prevents browsers from MIME-sniffing responses                         |
+| `Strict-Transport-Security`       | Forces HTTPS for subsequent requests (production only)                 |
+| `X-Download-Options: noopen`      | Prevents IE from executing downloaded files in the context of the site |
+| `Content-Security-Policy`         | Restricts sources for scripts, styles, and other resources             |
 
 > **The GraphQL Playground caveat:** Apollo Sandbox / GraphQL Playground loads inline scripts, which a strict CSP blocks. The `contentSecurityPolicy: false` in development disables that check only in `development` mode. In production where `playground: false`, CSP can remain enabled without any issue. Never ship to production with `contentSecurityPolicy: false`.
 
@@ -499,16 +498,16 @@ yarn add @nestjs/throttler
 
 ```typescript
 // apps/api/src/app/app.module.ts
-import { ThrottlerModule } from '@nestjs/throttler';
-import { configuration } from '../config/config.mapper';
-import { AppConfig } from '../config/config.mapper';
-import { validationSchema } from '../config/config.validation';
+import { ThrottlerModule } from "@nestjs/throttler";
+import { configuration } from "../config/config.mapper";
+import { AppConfig } from "../config/config.mapper";
+import { validationSchema } from "../config/config.validation";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ".env",
       load: [configuration],
       validationSchema,
     }),
@@ -516,8 +515,8 @@ import { validationSchema } from '../config/config.validation';
     // Rate limiting: 20 requests per 60 seconds per IP
     ThrottlerModule.forRoot([
       {
-        ttl: 60000,   // window in milliseconds
-        limit: 20,    // max requests per window per IP
+        ttl: 60000, // window in milliseconds
+        limit: 20, // max requests per window per IP
       },
     ]),
 
@@ -533,24 +532,24 @@ The `ThrottlerGuard` can be applied globally, per-resolver class, or per-method.
 
 ```typescript
 // apps/api/src/modules/auth/auth.resolver.ts  (example)
-import { UseGuards } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
-import { Args, Mutation, Resolver } from '@nestjs/graphql';
-import { AuthTokensDto } from './dto/auth.dto';
-import { RegisterInput, SignInInput } from './dto/auth.input';
+import { UseGuards } from "@nestjs/common";
+import { ThrottlerGuard } from "@nestjs/throttler";
+import { Args, Mutation, Resolver } from "@nestjs/graphql";
+import { AuthTokensDto } from "./dto/auth.dto";
+import { RegisterInput, SignInInput } from "./dto/auth.input";
 
 @Resolver()
 export class AuthResolver {
   // ThrottlerGuard here: login brute-force protection
   @UseGuards(ThrottlerGuard)
   @Mutation(() => AuthTokensDto)
-  async signIn(@Args('input') input: SignInInput): Promise<AuthTokensDto> {
+  async signIn(@Args("input") input: SignInInput): Promise<AuthTokensDto> {
     // ...
   }
 
   @UseGuards(ThrottlerGuard)
   @Mutation(() => AuthTokensDto)
-  async register(@Args('input') input: RegisterInput): Promise<AuthTokensDto> {
+  async register(@Args("input") input: RegisterInput): Promise<AuthTokensDto> {
     // ...
   }
 }
@@ -576,15 +575,15 @@ Health checks and read-heavy public queries should not be throttled. Use `@SkipT
 
 ```typescript
 // apps/api/src/modules/health/health.resolver.ts
-import { SkipThrottle } from '@nestjs/throttler';
-import { Query, Resolver } from '@nestjs/graphql';
+import { SkipThrottle } from "@nestjs/throttler";
+import { Query, Resolver } from "@nestjs/graphql";
 
 @SkipThrottle()
 @Resolver()
 export class HealthResolver {
   @Query(() => String)
   health(): string {
-    return 'ok';
+    return "ok";
   }
 }
 ```
@@ -640,8 +639,8 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-} from '@nestjs/common';
-import { GqlArgumentsHost } from '@nestjs/graphql';
+} from "@nestjs/common";
+import { GqlArgumentsHost } from "@nestjs/graphql";
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -656,7 +655,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const message =
       exception instanceof HttpException
         ? exception.message
-        : 'Internal server error';
+        : "Internal server error";
 
     const stack =
       exception instanceof Error ? exception.stack : String(exception);
@@ -666,14 +665,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // For GraphQL requests: re-throw so Apollo can serialise the error
     // into the standard { errors: [...] } response format.
     // Swallowing it here would return null data with no errors array.
-    if (host.getType<string>() === 'graphql') {
+    if (host.getType<string>() === "graphql") {
       throw exception;
     }
 
     // For REST requests (health endpoint, future REST routes):
     // Return a structured error response instead of crashing.
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<{ status: (code: number) => { json: (body: unknown) => void } }>();
+    const response = ctx.getResponse<{
+      status: (code: number) => { json: (body: unknown) => void };
+    }>();
     response.status(status).json({
       statusCode: status,
       message,
@@ -687,7 +688,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
 ```typescript
 // apps/api/src/main.ts
-import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { AllExceptionsFilter } from "./filters/all-exceptions.filter";
 // ... other imports
 
 async function bootstrap() {
@@ -698,8 +699,8 @@ async function bootstrap() {
     helmet({
       crossOriginEmbedderPolicy: false,
       contentSecurityPolicy:
-        config.get<string>('env') === 'production' ? undefined : false,
-    }),
+        config.get<string>("env") === "production" ? undefined : false,
+    })
   );
 
   app.useGlobalPipes(
@@ -707,20 +708,20 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
-  app.useGlobalFilters(new AllExceptionsFilter());      // ← add this
+  app.useGlobalFilters(new AllExceptionsFilter()); // ← add this
   app.useGlobalInterceptors(new LoggingInterceptor());
 
   app.enableCors({
     origin:
-      config.get<string>('env') === 'development'
-        ? '*'
+      config.get<string>("env") === "development"
+        ? "*"
         : process.env.ALLOWED_ORIGINS,
   });
 
-  const port = config.get<number>('port') ?? 3333;
+  const port = config.get<number>("port") ?? 3333;
   await app.listen(port);
 
   console.log(`API running at http://localhost:${port}`);
@@ -778,7 +779,7 @@ Docker images built for `linux/amd64` run under Rosetta 2 emulation on Apple Sil
 
 ```yaml
 # docker-compose.dev.arm.yml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -791,7 +792,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: enterprise_todo
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - db_volume:/var/lib/postgresql/data
     networks:
@@ -803,7 +804,7 @@ services:
     container_name: enterprise_todo_redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_volume:/data
     networks:
@@ -814,7 +815,7 @@ services:
     container_name: enterprise_todo_adminer
     restart: unless-stopped
     ports:
-      - '8080:8080'
+      - "8080:8080"
     networks:
       - app-network
 
@@ -935,6 +936,7 @@ query {
 ```
 
 If `NotFoundException` is thrown, confirm:
+
 - Terminal shows `[AllExceptionsFilter] [404] Todo not found` with a stack trace.
 - The GraphQL client receives `{ "data": { "todo": null } }` (null return, not an error, because the resolver returns `nullable: true`).
 
@@ -957,6 +959,7 @@ yarn api:dev
 ```
 
 Confirm all of the following in order:
+
 - No Joi validation errors (all required vars present)
 - `API running at http://localhost:3333` printed
 - `GraphQL Playground: http://localhost:3333/graphql` printed
@@ -968,15 +971,15 @@ Confirm all of the following in order:
 
 ## Summary Table
 
-| Concern | What was missing | What we added |
-|---------|-----------------|---------------|
-| Missing env vars | Silent `undefined` at runtime | Joi `validationSchema` — process exits at boot |
-| ConfigService types | `string \| undefined` everywhere | `configuration()` mapper — typed nested object |
-| Request visibility | No logging by default | `LoggingInterceptor` — every request logged |
-| HTTP header security | No secure headers | `helmet()` — 6+ security headers in one line |
-| Abuse prevention | No rate limits | `ThrottlerModule` + `ThrottlerGuard` — 429 after threshold |
-| Error observability | Silent failures, no stack traces | `AllExceptionsFilter` — centralised logging |
-| Apple Silicon perf | `amd64` images under Rosetta | `docker-compose.dev.arm.yml` — native `arm64` images |
+| Concern              | What was missing                 | What we added                                              |
+| -------------------- | -------------------------------- | ---------------------------------------------------------- |
+| Missing env vars     | Silent `undefined` at runtime    | Joi `validationSchema` — process exits at boot             |
+| ConfigService types  | `string \| undefined` everywhere | `configuration()` mapper — typed nested object             |
+| Request visibility   | No logging by default            | `LoggingInterceptor` — every request logged                |
+| HTTP header security | No secure headers                | `helmet()` — 6+ security headers in one line               |
+| Abuse prevention     | No rate limits                   | `ThrottlerModule` + `ThrottlerGuard` — 429 after threshold |
+| Error observability  | Silent failures, no stack traces | `AllExceptionsFilter` — centralised logging                |
+| Apple Silicon perf   | `amd64` images under Rosetta     | `docker-compose.dev.arm.yml` — native `arm64` images       |
 
 ---
 

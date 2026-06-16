@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-06-22T09:00:00+08:00
+pubDatetime: 2026-05-21T09:00:00+08:00
 title: Dual-App Monorepo — Portal API & Platform Interceptor
 featured: false
 draft: false
@@ -35,13 +35,13 @@ The previous tutorial extracted `libs/core` specifically to prepare for this mom
 
 ## Meteor Equivalents
 
-| Concept | Meteor | NestJS dual-app |
-|---------|--------|-----------------|
-| Admin portal | Same Meteor app, different publication/method | Separate NestJS app, separate port, separate RS256 key pair |
-| Platform separation | No native support — relies entirely on role checks | JWT `platform` claim + interceptor — structural enforcement |
-| Shared types | Same codebase — no boundary | `libs/contracts` imported by both apps |
-| Shared config | Same `settings.json` | `libs/core` `CoreConfigModule`, both apps import it |
-| Admin authentication | Same `accounts` package, `isAdmin` role check | `PortalJwtStrategy` using a completely different key pair |
+| Concept              | Meteor                                             | NestJS dual-app                                             |
+| -------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| Admin portal         | Same Meteor app, different publication/method      | Separate NestJS app, separate port, separate RS256 key pair |
+| Platform separation  | No native support — relies entirely on role checks | JWT `platform` claim + interceptor — structural enforcement |
+| Shared types         | Same codebase — no boundary                        | `libs/contracts` imported by both apps                      |
+| Shared config        | Same `settings.json`                               | `libs/core` `CoreConfigModule`, both apps import it         |
+| Admin authentication | Same `accounts` package, `isAdmin` role check      | `PortalJwtStrategy` using a completely different key pair   |
 
 Meteor's single-app model meant that a role check was the only thing standing between a regular user and an admin operation. If a developer called the wrong method from the client, or if a method forgot its `check(this.userId, Roles.userIsInRole(...))` call, the operation succeeded. The NestJS dual-app model makes that class of mistake structurally impossible: the wrong key pair is rejected at the cryptographic level before any application code runs.
 
@@ -144,11 +144,11 @@ Replace the generated `apps/portal-api/src/main.ts`:
 
 ```typescript
 // apps/portal-api/src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createPlatformInterceptor } from '@enterprise-todo/core';
-import { PortalAppModule } from './app/app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createPlatformInterceptor } from "@enterprise-todo/core";
+import { PortalAppModule } from "./app/app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(PortalAppModule);
@@ -159,23 +159,21 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
   app.enableCors({
     origin:
-      config.get('NODE_ENV') === 'development'
-        ? '*'
+      config.get("NODE_ENV") === "development"
+        ? "*"
         : process.env.PORTAL_ALLOWED_ORIGINS,
   });
 
   // Rejects any request whose JWT carries platform !== 'portal'
   // Runs after Passport validates the JWT signature
-  app.useGlobalInterceptors(
-    new (createPlatformInterceptor('portal'))(),
-  );
+  app.useGlobalInterceptors(new (createPlatformInterceptor("portal"))());
 
-  const port = config.get<number>('PROJECT_PORTAL_PORT') ?? 3334;
+  const port = config.get<number>("PROJECT_PORTAL_PORT") ?? 3334;
   await app.listen(port);
 
   console.log(`Portal API running at http://localhost:${port}`);
@@ -212,12 +210,12 @@ export type AppConfig = {
 
 export const configuration = (): AppConfig => ({
   // ... existing mappings ...
-  portalPort: parseInt(process.env['PROJECT_PORTAL_PORT'] ?? '3334', 10),
+  portalPort: parseInt(process.env["PROJECT_PORTAL_PORT"] ?? "3334", 10),
 
   adminJwt: {
-    privateKey: process.env['ADMIN_JWT_PRIVATE_KEY'] ?? '',
-    publicKey: process.env['ADMIN_JWT_PUBLIC_KEY'] ?? '',
-    expiresIn: process.env['ADMIN_JWT_EXPIRATION_TIME'] ?? '8h',
+    privateKey: process.env["ADMIN_JWT_PRIVATE_KEY"] ?? "",
+    publicKey: process.env["ADMIN_JWT_PUBLIC_KEY"] ?? "",
+    expiresIn: process.env["ADMIN_JWT_EXPIRATION_TIME"] ?? "8h",
   },
 });
 ```
@@ -258,17 +256,17 @@ Replace the generated `apps/portal-api/src/app/app.module.ts`:
 
 ```typescript
 // apps/portal-api/src/app/app.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { CqrsModule } from '@nestjs/cqrs';
+import { Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { GraphQLModule } from "@nestjs/graphql";
+import { ApolloDriver, ApolloDriverConfig } from "@nestjs/apollo";
+import { CqrsModule } from "@nestjs/cqrs";
 
 // Imported from libs/core — identical config, zero duplication
-import { CoreConfigModule, AppConfig } from '@enterprise-todo/core';
+import { CoreConfigModule, AppConfig } from "@enterprise-todo/core";
 
-import { PortalHealthModule } from '../modules/portal-health/portal-health.module';
-import { PortalAuthModule } from '../modules/portal-auth/portal-auth.module';
+import { PortalHealthModule } from "../modules/portal-health/portal-health.module";
+import { PortalAuthModule } from "../modules/portal-auth/portal-auth.module";
 
 @Module({
   imports: [
@@ -282,7 +280,8 @@ import { PortalAuthModule } from '../modules/portal-auth/portal-auth.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         autoSchemaFile: true,
-        playground: config.get<AppConfig['graphql']>('graphql')?.playground ?? false,
+        playground:
+          config.get<AppConfig["graphql"]>("graphql")?.playground ?? false,
         context: ({ req }: { req: Request }) => ({ req }),
       }),
     }),
@@ -303,21 +302,21 @@ Create a minimal health resolver so the portal has something to hit before auth 
 
 ```typescript
 // apps/portal-api/src/modules/portal-health/portal-health.resolver.ts
-import { Query, Resolver } from '@nestjs/graphql';
+import { Query, Resolver } from "@nestjs/graphql";
 
 @Resolver()
 export class PortalHealthResolver {
   @Query(() => String)
   portalHealth(): string {
-    return 'ok';
+    return "ok";
   }
 }
 ```
 
 ```typescript
 // apps/portal-api/src/modules/portal-health/portal-health.module.ts
-import { Module } from '@nestjs/common';
-import { PortalHealthResolver } from './portal-health.resolver';
+import { Module } from "@nestjs/common";
+import { PortalHealthResolver } from "./portal-health.resolver";
 
 @Module({
   providers: [PortalHealthResolver],
@@ -359,12 +358,12 @@ The `platform` claim is the key that ties everything together. Add it to the sha
 
 ```typescript
 // libs/contracts/src/auth/jwt-payload.type.ts
-export type Platform = 'user' | 'portal';
+export type Platform = "user" | "portal";
 
 export type JwtPayload = {
-  sub: number;       // userId or portalUserId
+  sub: number; // userId or portalUserId
   email: string;
-  platform: Platform;  // enforced by RequestPlatformInterceptor
+  platform: Platform; // enforced by RequestPlatformInterceptor
   iat?: number;
   exp?: number;
 };
@@ -374,7 +373,7 @@ Export the new `Platform` type from the contracts index:
 
 ```typescript
 // libs/contracts/src/index.ts  (add to existing exports)
-export type { JwtPayload, Platform } from './auth/jwt-payload.type';
+export type { JwtPayload, Platform } from "./auth/jwt-payload.type";
 ```
 
 ### Stamp platform: 'user' in apps/api
@@ -383,10 +382,10 @@ The `AccessTokenFactory` (or equivalent service in `apps/api`'s `AuthModule`) mu
 
 ```typescript
 // apps/api/src/modules/auth/access-token.factory.ts
-import { Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { JwtPayload } from '@enterprise-todo/contracts';
-import { UserEntity } from '../user/user.entity';
+import { Injectable } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { JwtPayload } from "@enterprise-todo/contracts";
+import { UserEntity } from "../user/user.entity";
 
 @Injectable()
 export class AccessTokenFactory {
@@ -396,7 +395,7 @@ export class AccessTokenFactory {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      platform: 'user',  // ← always 'user' — cannot be overridden by input
+      platform: "user", // ← always 'user' — cannot be overridden by input
     };
     return this.jwtService.sign(payload);
   }
@@ -411,10 +410,10 @@ The `PortalAccessTokenFactory` in `portal-api` signs every admin token with `pla
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-access-token.factory.ts
-import { Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { JwtPayload } from '@enterprise-todo/contracts';
-import { PortalUserEntity } from './portal-user.entity';
+import { Injectable } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { JwtPayload } from "@enterprise-todo/contracts";
+import { PortalUserEntity } from "./portal-user.entity";
 
 @Injectable()
 export class PortalAccessTokenFactory {
@@ -424,7 +423,7 @@ export class PortalAccessTokenFactory {
     const payload: JwtPayload = {
       sub: portalUser.id,
       email: portalUser.email,
-      platform: 'portal',  // ← always 'portal' — hardcoded in server code
+      platform: "portal", // ← always 'portal' — hardcoded in server code
     };
     return this.jwtService.sign(payload);
   }
@@ -451,10 +450,10 @@ import {
   ForbiddenException,
   Injectable,
   NestInterceptor,
-} from '@nestjs/common';
-import { GqlExecutionContext } from '@nestjs/graphql';
-import { Observable } from 'rxjs';
-import { Platform } from '@enterprise-todo/contracts';
+} from "@nestjs/common";
+import { GqlExecutionContext } from "@nestjs/graphql";
+import { Observable } from "rxjs";
+import { Platform } from "@enterprise-todo/contracts";
 
 /**
  * Factory function that returns a NestInterceptor class bound to a specific platform.
@@ -469,9 +468,13 @@ import { Platform } from '@enterprise-todo/contracts';
 export function createPlatformInterceptor(expectedPlatform: Platform) {
   @Injectable()
   class RequestPlatformInterceptor implements NestInterceptor {
-    intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    intercept(
+      context: ExecutionContext,
+      next: CallHandler
+    ): Observable<unknown> {
       const gqlCtx = GqlExecutionContext.create(context);
-      const req = gqlCtx.getContext<{ req: { user?: { platform?: string } } }>().req;
+      const req = gqlCtx.getContext<{ req: { user?: { platform?: string } } }>()
+        .req;
       const user = req?.user;
 
       // No user on the request — unauthenticated path, let auth guards handle it
@@ -482,7 +485,7 @@ export function createPlatformInterceptor(expectedPlatform: Platform) {
       if (user.platform !== expectedPlatform) {
         throw new ForbiddenException(
           `This endpoint requires a '${expectedPlatform}' token. ` +
-          `Received '${user.platform ?? 'unknown'}' token.`,
+            `Received '${user.platform ?? "unknown"}' token.`
         );
       }
 
@@ -498,18 +501,18 @@ export function createPlatformInterceptor(expectedPlatform: Platform) {
 
 ```typescript
 // libs/core/src/index.ts  (add to existing exports)
-export { createPlatformInterceptor } from './interceptors/request-platform.interceptor';
+export { createPlatformInterceptor } from "./interceptors/request-platform.interceptor";
 ```
 
 ### Wire into apps/api main.ts
 
 ```typescript
 // apps/api/src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createPlatformInterceptor } from '@enterprise-todo/core';
-import { AppModule } from './app/app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createPlatformInterceptor } from "@enterprise-todo/core";
+import { AppModule } from "./app/app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -520,23 +523,21 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    }),
+    })
   );
 
   app.enableCors({
     origin:
-      config.get('NODE_ENV') === 'development'
-        ? '*'
+      config.get("NODE_ENV") === "development"
+        ? "*"
         : process.env.ALLOWED_ORIGINS,
   });
 
   // Rejects any authenticated request whose JWT carries platform !== 'user'
   // A portal admin token (platform: 'portal') gets 403 Forbidden here
-  app.useGlobalInterceptors(
-    new (createPlatformInterceptor('user'))(),
-  );
+  app.useGlobalInterceptors(new (createPlatformInterceptor("user"))());
 
-  const port = config.get<number>('PROJECT_PORT') ?? 3333;
+  const port = config.get<number>("PROJECT_PORT") ?? 3333;
   await app.listen(port);
 
   console.log(`API running at http://localhost:${port}`);
@@ -611,16 +612,16 @@ The portal user is a separate entity from the user-facing `UserEntity`. Portal u
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-user.entity.ts
-import { Column, Entity, Index } from 'typeorm';
-import { AbstractEntity } from 'nestjs-dev-utilities';
+import { Column, Entity, Index } from "typeorm";
+import { AbstractEntity } from "nestjs-dev-utilities";
 
 export enum PortalUserRole {
-  SUPPORT = 'support',
-  OPERATIONS = 'operations',
-  SUPER_ADMIN = 'super_admin',
+  SUPPORT = "support",
+  OPERATIONS = "operations",
+  SUPER_ADMIN = "super_admin",
 }
 
-@Entity({ name: 'portal_user' })
+@Entity({ name: "portal_user" })
 export class PortalUserEntity extends AbstractEntity {
   @Column()
   fullname: string;
@@ -633,7 +634,7 @@ export class PortalUserEntity extends AbstractEntity {
   password: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: PortalUserRole,
     default: PortalUserRole.SUPPORT,
   })
@@ -648,29 +649,33 @@ export class PortalUserEntity extends AbstractEntity {
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-jwt.strategy.ts
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PassportStrategy } from '@nestjs/passport';
-import { InjectRepository } from '@nestjs/typeorm';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { Repository } from 'typeorm';
-import { AppConfig } from '@enterprise-todo/core';
-import { JwtPayload } from '@enterprise-todo/contracts';
-import { PortalUserEntity } from './portal-user.entity';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PassportStrategy } from "@nestjs/passport";
+import { InjectRepository } from "@nestjs/typeorm";
+import { ExtractJwt, Strategy } from "passport-jwt";
+import { Repository } from "typeorm";
+import { AppConfig } from "@enterprise-todo/core";
+import { JwtPayload } from "@enterprise-todo/contracts";
+import { PortalUserEntity } from "./portal-user.entity";
 
 @Injectable()
-export class PortalJwtStrategy extends PassportStrategy(Strategy, 'portal-jwt') {
+export class PortalJwtStrategy extends PassportStrategy(
+  Strategy,
+  "portal-jwt"
+) {
   constructor(
     private readonly configService: ConfigService,
     @InjectRepository(PortalUserEntity)
-    private readonly portalUserRepo: Repository<PortalUserEntity>,
+    private readonly portalUserRepo: Repository<PortalUserEntity>
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       // Uses ADMIN public key — completely separate from the user JWT public key
-      secretOrKey: configService.getOrThrow<AppConfig['adminJwt']>('adminJwt').publicKey,
-      algorithms: ['RS256'],
+      secretOrKey:
+        configService.getOrThrow<AppConfig["adminJwt"]>("adminJwt").publicKey,
+      algorithms: ["RS256"],
     });
   }
 
@@ -680,7 +685,7 @@ export class PortalJwtStrategy extends PassportStrategy(Strategy, 'portal-jwt') 
     });
 
     if (!portalUser) {
-      throw new UnauthorizedException('Portal user not found or inactive');
+      throw new UnauthorizedException("Portal user not found or inactive");
     }
 
     // Attach platform claim to the user object for RequestPlatformInterceptor
@@ -695,12 +700,12 @@ The strategy name `'portal-jwt'` is important — it must match the `defaultStra
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-auth-jwt.guard.ts
-import { ExecutionContext, Injectable } from '@nestjs/common';
-import { GqlExecutionContext } from '@nestjs/graphql';
-import { AuthGuard } from '@nestjs/passport';
+import { ExecutionContext, Injectable } from "@nestjs/common";
+import { GqlExecutionContext } from "@nestjs/graphql";
+import { AuthGuard } from "@nestjs/passport";
 
 @Injectable()
-export class PortalAuthJwtGuard extends AuthGuard('portal-jwt') {
+export class PortalAuthJwtGuard extends AuthGuard("portal-jwt") {
   getRequest(context: ExecutionContext) {
     const ctx = GqlExecutionContext.create(context);
     return ctx.getContext<{ req: Request }>().req;
@@ -712,34 +717,34 @@ export class PortalAuthJwtGuard extends AuthGuard('portal-jwt') {
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-auth.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AppConfig } from '@enterprise-todo/core';
-import { PortalUserEntity } from './portal-user.entity';
-import { PortalJwtStrategy } from './portal-jwt.strategy';
-import { PortalAuthJwtGuard } from './portal-auth-jwt.guard';
-import { PortalAccessTokenFactory } from './portal-access-token.factory';
-import { PortalAuthResolver } from './portal-auth.resolver';
-import { PortalAuthService } from './portal-auth.service';
+import { Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { JwtModule } from "@nestjs/jwt";
+import { PassportModule } from "@nestjs/passport";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { AppConfig } from "@enterprise-todo/core";
+import { PortalUserEntity } from "./portal-user.entity";
+import { PortalJwtStrategy } from "./portal-jwt.strategy";
+import { PortalAuthJwtGuard } from "./portal-auth-jwt.guard";
+import { PortalAccessTokenFactory } from "./portal-access-token.factory";
+import { PortalAuthResolver } from "./portal-auth.resolver";
+import { PortalAuthService } from "./portal-auth.service";
 
 @Module({
   imports: [
-    PassportModule.register({ defaultStrategy: 'portal-jwt' }),
+    PassportModule.register({ defaultStrategy: "portal-jwt" }),
 
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const adminJwt = config.getOrThrow<AppConfig['adminJwt']>('adminJwt');
+        const adminJwt = config.getOrThrow<AppConfig["adminJwt"]>("adminJwt");
         return {
           privateKey: adminJwt.privateKey,
           publicKey: adminJwt.publicKey,
           signOptions: {
-            algorithm: 'RS256',
+            algorithm: "RS256",
             expiresIn: adminJwt.expiresIn,
-            issuer: 'portal',
+            issuer: "portal",
           },
         };
       },
@@ -765,33 +770,36 @@ Note the `issuer: 'portal'` in `signOptions`. When you add `issuer` validation t
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-auth.service.ts
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { PortalUserEntity } from './portal-user.entity';
-import { PortalAccessTokenFactory } from './portal-access-token.factory';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import * as bcrypt from "bcrypt";
+import { PortalUserEntity } from "./portal-user.entity";
+import { PortalAccessTokenFactory } from "./portal-access-token.factory";
 
 @Injectable()
 export class PortalAuthService {
   constructor(
     @InjectRepository(PortalUserEntity)
     private readonly portalUserRepo: Repository<PortalUserEntity>,
-    private readonly tokenFactory: PortalAccessTokenFactory,
+    private readonly tokenFactory: PortalAccessTokenFactory
   ) {}
 
-  async login(email: string, password: string): Promise<{ accessToken: string }> {
+  async login(
+    email: string,
+    password: string
+  ): Promise<{ accessToken: string }> {
     const portalUser = await this.portalUserRepo.findOne({
       where: { email: email.toLowerCase(), isActive: true },
     });
 
     if (!portalUser) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     const passwordValid = await bcrypt.compare(password, portalUser.password);
     if (!passwordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     return { accessToken: this.tokenFactory.sign(portalUser) };
@@ -803,10 +811,10 @@ export class PortalAuthService {
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-auth.resolver.ts
-import { Args, Mutation, Resolver } from '@nestjs/graphql';
-import { ObjectType, Field, InputType } from '@nestjs/graphql';
-import { IsEmail, IsString, MinLength } from 'class-validator';
-import { PortalAuthService } from './portal-auth.service';
+import { Args, Mutation, Resolver } from "@nestjs/graphql";
+import { ObjectType, Field, InputType } from "@nestjs/graphql";
+import { IsEmail, IsString, MinLength } from "class-validator";
+import { PortalAuthService } from "./portal-auth.service";
 
 @ObjectType()
 export class PortalLoginOutput {
@@ -831,7 +839,9 @@ export class PortalAuthResolver {
   constructor(private readonly portalAuthService: PortalAuthService) {}
 
   @Mutation(() => PortalLoginOutput)
-  async portalLogin(@Args('input') input: PortalLoginInput): Promise<PortalLoginOutput> {
+  async portalLogin(
+    @Args("input") input: PortalLoginInput
+  ): Promise<PortalLoginOutput> {
     return this.portalAuthService.login(input.email, input.password);
   }
 }
@@ -941,26 +951,31 @@ Create a one-off seeder to add an initial portal admin. Do not share users betwe
 
 ```typescript
 // apps/portal-api/src/seeders/1-portal-user.seeder.ts
-import { DataSource } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { PortalUserEntity, PortalUserRole } from '../modules/portal-auth/portal-user.entity';
+import { DataSource } from "typeorm";
+import * as bcrypt from "bcrypt";
+import {
+  PortalUserEntity,
+  PortalUserRole,
+} from "../modules/portal-auth/portal-user.entity";
 
 export async function seedPortalUsers(dataSource: DataSource): Promise<void> {
   const repo = dataSource.getRepository(PortalUserEntity);
 
-  const existing = await repo.findOne({ where: { email: 'admin@portal.example.com' } });
+  const existing = await repo.findOne({
+    where: { email: "admin@portal.example.com" },
+  });
   if (existing) return;
 
   const admin = repo.create({
-    fullname: 'Portal Admin',
-    email: 'admin@portal.example.com',
-    password: await bcrypt.hash('change-me-in-production', 12),
+    fullname: "Portal Admin",
+    email: "admin@portal.example.com",
+    password: await bcrypt.hash("change-me-in-production", 12),
     role: PortalUserRole.SUPER_ADMIN,
     isActive: true,
   });
 
   await repo.save(admin);
-  console.log('Portal admin seeded: admin@portal.example.com');
+  console.log("Portal admin seeded: admin@portal.example.com");
 }
 ```
 
@@ -1112,16 +1127,16 @@ All four cases pass. The platform boundary is enforced at the cryptographic leve
 
 ## Summary: Before vs After
 
-| Concern | Before (single app, guard-only) | After (dual app + platform interceptor) |
-|---|---|---|
-| Admin endpoint protection | `@UseGuards(AdminGuard)` on every resolver — disciplinary | Separate app, separate key pair — structural |
-| User token on admin endpoint | Possible if a guard is forgotten | Cryptographically impossible — wrong key pair |
-| Admin token on user endpoint | Possible if strategy is misconfigured | Cryptographically impossible + platform interceptor fallback |
-| Platform identity | Implicit — inferred from which module registered the user | Explicit `platform` claim in every JWT — self-describing |
-| Shared config | Copy-paste `ConfigModule.forRoot(...)` per app | `import { CoreConfigModule } from '@enterprise-todo/core'` |
-| Shared types | Duplicate type definitions or manual sync | `import { JwtPayload } from '@enterprise-todo/contracts'` |
-| Separate port | No — same port, path-based routing at best | Yes — `:3333` user API, `:3334` portal API |
-| Infrastructure separation | Not possible — same app, same process | DNS-level separation, separate TLS certs, separate WAF rules |
+| Concern                      | Before (single app, guard-only)                           | After (dual app + platform interceptor)                      |
+| ---------------------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| Admin endpoint protection    | `@UseGuards(AdminGuard)` on every resolver — disciplinary | Separate app, separate key pair — structural                 |
+| User token on admin endpoint | Possible if a guard is forgotten                          | Cryptographically impossible — wrong key pair                |
+| Admin token on user endpoint | Possible if strategy is misconfigured                     | Cryptographically impossible + platform interceptor fallback |
+| Platform identity            | Implicit — inferred from which module registered the user | Explicit `platform` claim in every JWT — self-describing     |
+| Shared config                | Copy-paste `ConfigModule.forRoot(...)` per app            | `import { CoreConfigModule } from '@enterprise-todo/core'`   |
+| Shared types                 | Duplicate type definitions or manual sync                 | `import { JwtPayload } from '@enterprise-todo/contracts'`    |
+| Separate port                | No — same port, path-based routing at best                | Yes — `:3333` user API, `:3334` portal API                   |
+| Infrastructure separation    | Not possible — same app, same process                     | DNS-level separation, separate TLS certs, separate WAF rules |
 
 ---
 

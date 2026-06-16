@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-06-08T09:00:00+08:00
+pubDatetime: 2026-05-19T09:00:00+08:00
 title: Extended Auth — Email Service, Secured Tokens & Two-Factor Authentication
 featured: false
 draft: false
@@ -18,7 +18,6 @@ tags:
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/19-extended-auth-email-secured-tokens-2fa.png"
 description: Add transactional email via Bull queues, a single-use SecuredToken module for password reset and email verification, and TOTP two-factor authentication with otplib and qrcode.
-
 ---
 
 ## What This Part Covers
@@ -35,13 +34,13 @@ description: Add transactional email via Bull queues, a single-use SecuredToken 
 
 ## Meteor Equivalents
 
-| Concern | Meteor way | Enterprise NestJS |
-|---------|-----------|-------------------|
-| Send email | `accounts-sendEmail`, blocking inline `Email.send()` | `nodemailer` inside a Bull job — non-blocking, retries on failure |
-| Password reset tokens | `Accounts.sendResetPasswordEmail()` — tokens stored in user document | `SecuredTokenEntity` — separate table, single-use, hard expiry |
-| Email verification | `Accounts.sendVerificationEmail()` | Same `SecuredTokenEntity` pattern, type `EMAIL_VERIFICATION` |
-| Two-factor auth | No native 2FA in Meteor — third-party packages only | `otplib` TOTP + QR code binding flow, stored secret on `UserEntity` |
-| Token expiry | Manual `expiresAt` field in user document | `expiresAt` on `SecuredTokenEntity`, enforced in every query |
+| Concern               | Meteor way                                                           | Enterprise NestJS                                                   |
+| --------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Send email            | `accounts-sendEmail`, blocking inline `Email.send()`                 | `nodemailer` inside a Bull job — non-blocking, retries on failure   |
+| Password reset tokens | `Accounts.sendResetPasswordEmail()` — tokens stored in user document | `SecuredTokenEntity` — separate table, single-use, hard expiry      |
+| Email verification    | `Accounts.sendVerificationEmail()`                                   | Same `SecuredTokenEntity` pattern, type `EMAIL_VERIFICATION`        |
+| Two-factor auth       | No native 2FA in Meteor — third-party packages only                  | `otplib` TOTP + QR code binding flow, stored secret on `UserEntity` |
+| Token expiry          | Manual `expiresAt` field in user document                            | `expiresAt` on `SecuredTokenEntity`, enforced in every query        |
 
 Meteor's `Accounts` package handled all of this in one opaque bundle you could not extend. The NestJS pattern breaks it into composable, testable pieces — each with a clear responsibility.
 
@@ -92,8 +91,8 @@ mailpit:
   container_name: enterprise-todo-mailpit
   restart: unless-stopped
   ports:
-    - "8025:8025"   # Web UI — open http://localhost:8025 to read emails
-    - "1025:1025"   # SMTP — point nodemailer here
+    - "8025:8025" # Web UI — open http://localhost:8025 to read emails
+    - "1025:1025" # SMTP — point nodemailer here
 ```
 
 Run it:
@@ -110,7 +109,7 @@ Extend your config mapper at `apps/api/src/config/config.mapper.ts`:
 
 ```typescript
 // apps/api/src/config/config.mapper.ts
-import { registerAs } from '@nestjs/config';
+import { registerAs } from "@nestjs/config";
 
 export interface AppConfig {
   port: number;
@@ -137,16 +136,17 @@ export interface AppConfig {
   webUrl: string;
 }
 
-export const emailConfig = registerAs('email', () => ({
-  host: process.env.SMTP_HOST || 'localhost',
-  port: parseInt(process.env.SMTP_PORT || '1025', 10),
+export const emailConfig = registerAs("email", () => ({
+  host: process.env.SMTP_HOST || "localhost",
+  port: parseInt(process.env.SMTP_PORT || "1025", 10),
   user: process.env.SMTP_USER || undefined,
   pass: process.env.SMTP_PASS || undefined,
-  from: process.env.SMTP_FROM || '"Enterprise Todo" <noreply@enterprise-todo.dev>',
+  from:
+    process.env.SMTP_FROM || '"Enterprise Todo" <noreply@enterprise-todo.dev>',
 }));
 
-export const appConfig = registerAs('app', () => ({
-  webUrl: process.env.WEB_URL || 'http://localhost:3000',
+export const appConfig = registerAs("app", () => ({
+  webUrl: process.env.WEB_URL || "http://localhost:3000",
 }));
 ```
 
@@ -165,9 +165,9 @@ WEB_URL=http://localhost:3000
 
 ```typescript
 // apps/api/src/modules/email/email.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as nodemailer from "nodemailer";
 
 @Injectable()
 export class EmailService {
@@ -176,11 +176,13 @@ export class EmailService {
   private readonly from: string;
 
   constructor(private readonly configService: ConfigService) {
-    const host = this.configService.get<string>('email.host') ?? 'localhost';
-    const port = this.configService.get<number>('email.port') ?? 1025;
-    const user = this.configService.get<string | undefined>('email.user');
-    const pass = this.configService.get<string | undefined>('email.pass');
-    this.from = this.configService.get<string>('email.from') ?? '"Enterprise Todo" <noreply@enterprise-todo.dev>';
+    const host = this.configService.get<string>("email.host") ?? "localhost";
+    const port = this.configService.get<number>("email.port") ?? 1025;
+    const user = this.configService.get<string | undefined>("email.user");
+    const pass = this.configService.get<string | undefined>("email.pass");
+    this.from =
+      this.configService.get<string>("email.from") ??
+      '"Enterprise Todo" <noreply@enterprise-todo.dev>';
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -194,7 +196,7 @@ export class EmailService {
     await this.transporter.sendMail({
       from: this.from,
       to,
-      subject: 'Reset your password',
+      subject: "Reset your password",
       html: `
         <p>You requested a password reset for your Enterprise Todo account.</p>
         <p><a href="${resetUrl}">Click here to reset your password</a></p>
@@ -208,7 +210,7 @@ export class EmailService {
     await this.transporter.sendMail({
       from: this.from,
       to,
-      subject: 'Verify your email address',
+      subject: "Verify your email address",
       html: `
         <p>Welcome to Enterprise Todo. Please verify your email address.</p>
         <p><a href="${verifyUrl}">Click here to verify your email</a></p>
@@ -224,12 +226,12 @@ export class EmailService {
 
 ```typescript
 // apps/api/src/modules/email/email.processor.ts
-import { Process, Processor } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
-import { EmailService } from './email.service';
+import { Process, Processor } from "@nestjs/bull";
+import { Logger } from "@nestjs/common";
+import { Job } from "bull";
+import { EmailService } from "./email.service";
 
-export const EMAIL_QUEUE = 'email';
+export const EMAIL_QUEUE = "email";
 
 export interface SendPasswordResetJobData {
   to: string;
@@ -247,16 +249,21 @@ export class EmailProcessor {
 
   constructor(private readonly emailService: EmailService) {}
 
-  @Process('send-password-reset')
+  @Process("send-password-reset")
   async handlePasswordReset(job: Job<SendPasswordResetJobData>): Promise<void> {
     this.logger.debug(`Processing password reset email for ${job.data.to}`);
     await this.emailService.sendPasswordReset(job.data.to, job.data.resetUrl);
   }
 
-  @Process('send-email-verification')
-  async handleEmailVerification(job: Job<SendEmailVerificationJobData>): Promise<void> {
+  @Process("send-email-verification")
+  async handleEmailVerification(
+    job: Job<SendEmailVerificationJobData>
+  ): Promise<void> {
     this.logger.debug(`Processing email verification for ${job.data.to}`);
-    await this.emailService.sendEmailVerification(job.data.to, job.data.verifyUrl);
+    await this.emailService.sendEmailVerification(
+      job.data.to,
+      job.data.verifyUrl
+    );
   }
 }
 ```
@@ -265,11 +272,11 @@ export class EmailProcessor {
 
 ```typescript
 // apps/api/src/modules/email/email.module.ts
-import { BullModule } from '@nestjs/bull';
-import { Module } from '@nestjs/common';
-import { EMAIL_QUEUE } from './email.processor';
-import { EmailProcessor } from './email.processor';
-import { EmailService } from './email.service';
+import { BullModule } from "@nestjs/bull";
+import { Module } from "@nestjs/common";
+import { EMAIL_QUEUE } from "./email.processor";
+import { EmailProcessor } from "./email.processor";
+import { EmailService } from "./email.service";
 
 @Module({
   imports: [
@@ -277,7 +284,7 @@ import { EmailService } from './email.service';
       name: EMAIL_QUEUE,
       defaultJobOptions: {
         attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
+        backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: 100,
         removeOnFail: 200,
       },
@@ -317,64 +324,72 @@ A `SecuredTokenEntity` is a single-use, time-limited token that authorises one s
 
 ```typescript
 // apps/api/src/modules/secured-token/secured-token.constant.ts
-import { registerEnumType } from '@nestjs/graphql';
+import { registerEnumType } from "@nestjs/graphql";
 
 export enum SecuredTokenType {
-  PASSWORD_RESET = 'PASSWORD_RESET',
-  EMAIL_VERIFICATION = 'EMAIL_VERIFICATION',
+  PASSWORD_RESET = "PASSWORD_RESET",
+  EMAIL_VERIFICATION = "EMAIL_VERIFICATION",
 }
 
 export enum SecuredTokenStatus {
-  ACTIVE = 'ACTIVE',
-  CLAIMED = 'CLAIMED',
-  EXPIRED = 'EXPIRED',
+  ACTIVE = "ACTIVE",
+  CLAIMED = "CLAIMED",
+  EXPIRED = "EXPIRED",
 }
 
 export enum SecuredTokenMedium {
-  EMAIL = 'EMAIL',
-  SMS = 'SMS',
+  EMAIL = "EMAIL",
+  SMS = "SMS",
 }
 
 export const SECURED_TOKEN_PASSWORD_RESET_EXPIRY_MINUTES = 60;
 export const SECURED_TOKEN_EMAIL_VERIFICATION_EXPIRY_MINUTES = 60 * 24; // 24 hours
 
-registerEnumType(SecuredTokenType, { name: 'SecuredTokenType' });
-registerEnumType(SecuredTokenStatus, { name: 'SecuredTokenStatus' });
-registerEnumType(SecuredTokenMedium, { name: 'SecuredTokenMedium' });
+registerEnumType(SecuredTokenType, { name: "SecuredTokenType" });
+registerEnumType(SecuredTokenStatus, { name: "SecuredTokenStatus" });
+registerEnumType(SecuredTokenMedium, { name: "SecuredTokenMedium" });
 ```
 
 ### 2.2 Entity
 
 ```typescript
 // apps/api/src/modules/secured-token/secured-token.entity.ts
-import { Column, Entity, Index, ManyToOne, RelationId } from 'typeorm';
-import { AbstractEntity } from 'nestjs-dev-utilities';
-import { UserEntity } from '../user/user.entity';
+import { Column, Entity, Index, ManyToOne, RelationId } from "typeorm";
+import { AbstractEntity } from "nestjs-dev-utilities";
+import { UserEntity } from "../user/user.entity";
 import {
   SecuredTokenMedium,
   SecuredTokenStatus,
   SecuredTokenType,
-} from './secured-token.constant';
+} from "./secured-token.constant";
 
-@Entity({ name: 'secured_token' })
+@Entity({ name: "secured_token" })
 export class SecuredTokenEntity extends AbstractEntity {
   @Index()
   @Column({ unique: true })
   token: string;
 
-  @Column({ type: 'enum', enum: SecuredTokenType })
+  @Column({ type: "enum", enum: SecuredTokenType })
   type: SecuredTokenType;
 
-  @Column({ type: 'enum', enum: SecuredTokenStatus, default: SecuredTokenStatus.ACTIVE })
+  @Column({
+    type: "enum",
+    enum: SecuredTokenStatus,
+    default: SecuredTokenStatus.ACTIVE,
+  })
   status: SecuredTokenStatus;
 
-  @Column({ type: 'enum', enum: SecuredTokenMedium, default: SecuredTokenMedium.EMAIL })
+  @Column({
+    type: "enum",
+    enum: SecuredTokenMedium,
+    default: SecuredTokenMedium.EMAIL,
+  })
   medium: SecuredTokenMedium;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ type: "timestamptz" })
   expiresAt: Date;
 
-  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE', nullable: false })
+  @ManyToOne(() => UserEntity, { onDelete: "CASCADE", nullable: false })
   user: UserEntity;
 
   @RelationId((st: SecuredTokenEntity) => st.user)
@@ -394,11 +409,15 @@ export class SecuredTokenEntity extends AbstractEntity {
 
 ```typescript
 // apps/api/src/modules/secured-token/dto/secured-token.dto.ts
-import { Field, ID, ObjectType } from '@nestjs/graphql';
-import { AbstractDto } from 'nestjs-dev-utilities';
-import { SecuredTokenMedium, SecuredTokenStatus, SecuredTokenType } from '../secured-token.constant';
+import { Field, ID, ObjectType } from "@nestjs/graphql";
+import { AbstractDto } from "nestjs-dev-utilities";
+import {
+  SecuredTokenMedium,
+  SecuredTokenStatus,
+  SecuredTokenType,
+} from "../secured-token.constant";
 
-@ObjectType('SecuredToken')
+@ObjectType("SecuredToken")
 export class SecuredTokenDto extends AbstractDto {
   @Field(() => SecuredTokenType)
   type: SecuredTokenType;
@@ -421,9 +440,12 @@ export class SecuredTokenDto extends AbstractDto {
 
 ```typescript
 // apps/api/src/modules/secured-token/dto/secured-token.input.ts
-import { InputType, Field } from '@nestjs/graphql';
-import { IsEnum, IsInt, IsPositive } from 'class-validator';
-import { SecuredTokenMedium, SecuredTokenType } from '../secured-token.constant';
+import { InputType, Field } from "@nestjs/graphql";
+import { IsEnum, IsInt, IsPositive } from "class-validator";
+import {
+  SecuredTokenMedium,
+  SecuredTokenType,
+} from "../secured-token.constant";
 
 @InputType()
 export class CreateSecuredTokenInput {
@@ -446,10 +468,10 @@ export class CreateSecuredTokenInput {
 
 ```typescript
 // apps/api/src/modules/secured-token/cqrs/secured-token.cqrs.input.ts
-import { TypedCommand, TypedQuery } from 'nestjs-typed-cqrs';
-import { CreateSecuredTokenInput } from '../dto/secured-token.input';
-import { SecuredTokenEntity } from '../secured-token.entity';
-import { SecuredTokenType } from '../secured-token.constant';
+import { TypedCommand, TypedQuery } from "nestjs-typed-cqrs";
+import { CreateSecuredTokenInput } from "../dto/secured-token.input";
+import { SecuredTokenEntity } from "../secured-token.entity";
+import { SecuredTokenType } from "../secured-token.constant";
 
 // ── Commands ───────────────────────────────────────────────────────────────
 
@@ -478,18 +500,21 @@ export class FindOneActiveSecuredTokenQuery extends TypedQuery<SecuredTokenEntit
 
 ```typescript
 // apps/api/src/modules/secured-token/cqrs/secured-token.cqrs.handler.ts
-import { CommandHandler, ICommandHandler, QueryHandler, IQueryHandler } from '@nestjs/cqrs';
-import { SecuredTokenService } from '../secured-token.service';
+import {
+  CommandHandler,
+  ICommandHandler,
+  QueryHandler,
+  IQueryHandler,
+} from "@nestjs/cqrs";
+import { SecuredTokenService } from "../secured-token.service";
 import {
   ClaimSecuredTokenCommand,
   CreateOneSecuredTokenCommand,
   FindOneActiveSecuredTokenQuery,
-} from './secured-token.cqrs.input';
+} from "./secured-token.cqrs.input";
 
 @CommandHandler(CreateOneSecuredTokenCommand)
-export class CreateOneSecuredTokenCommandHandler
-  implements ICommandHandler<CreateOneSecuredTokenCommand>
-{
+export class CreateOneSecuredTokenCommandHandler implements ICommandHandler<CreateOneSecuredTokenCommand> {
   constructor(private readonly securedTokenService: SecuredTokenService) {}
 
   execute(message: CreateOneSecuredTokenCommand) {
@@ -498,9 +523,7 @@ export class CreateOneSecuredTokenCommandHandler
 }
 
 @CommandHandler(ClaimSecuredTokenCommand)
-export class ClaimSecuredTokenCommandHandler
-  implements ICommandHandler<ClaimSecuredTokenCommand>
-{
+export class ClaimSecuredTokenCommandHandler implements ICommandHandler<ClaimSecuredTokenCommand> {
   constructor(private readonly securedTokenService: SecuredTokenService) {}
 
   execute(message: ClaimSecuredTokenCommand) {
@@ -509,15 +532,13 @@ export class ClaimSecuredTokenCommandHandler
 }
 
 @QueryHandler(FindOneActiveSecuredTokenQuery)
-export class FindOneActiveSecuredTokenQueryHandler
-  implements IQueryHandler<FindOneActiveSecuredTokenQuery>
-{
+export class FindOneActiveSecuredTokenQueryHandler implements IQueryHandler<FindOneActiveSecuredTokenQuery> {
   constructor(private readonly securedTokenService: SecuredTokenService) {}
 
   execute(message: FindOneActiveSecuredTokenQuery) {
     return this.securedTokenService.findOneActiveSecuredToken(
       message.args.token,
-      message.args.type,
+      message.args.type
     );
   }
 }
@@ -527,8 +548,8 @@ export class FindOneActiveSecuredTokenQueryHandler
 
 ```typescript
 // apps/api/src/modules/secured-token/cqrs/index.ts
-export * from './secured-token.cqrs.input';
-export * from './secured-token.cqrs.handler';
+export * from "./secured-token.cqrs.input";
+export * from "./secured-token.cqrs.handler";
 
 export const SecuredTokenCqrsHandlers = [
   CreateOneSecuredTokenCommandHandler,
@@ -543,27 +564,29 @@ The service does three things: create a token with an expiry, find an active une
 
 ```typescript
 // apps/api/src/modules/secured-token/secured-token.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, MoreThan, Repository } from 'typeorm';
-import * as crypto from 'crypto';
-import { SecuredTokenEntity } from './secured-token.entity';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { LessThan, MoreThan, Repository } from "typeorm";
+import * as crypto from "crypto";
+import { SecuredTokenEntity } from "./secured-token.entity";
 import {
   SECURED_TOKEN_EMAIL_VERIFICATION_EXPIRY_MINUTES,
   SECURED_TOKEN_PASSWORD_RESET_EXPIRY_MINUTES,
   SecuredTokenStatus,
   SecuredTokenType,
-} from './secured-token.constant';
-import { CreateSecuredTokenInput } from './dto/secured-token.input';
+} from "./secured-token.constant";
+import { CreateSecuredTokenInput } from "./dto/secured-token.input";
 
 @Injectable()
 export class SecuredTokenService {
   constructor(
     @InjectRepository(SecuredTokenEntity)
-    private readonly securedTokenRepo: Repository<SecuredTokenEntity>,
+    private readonly securedTokenRepo: Repository<SecuredTokenEntity>
   ) {}
 
-  async createOneSecuredToken(input: CreateSecuredTokenInput): Promise<SecuredTokenEntity> {
+  async createOneSecuredToken(
+    input: CreateSecuredTokenInput
+  ): Promise<SecuredTokenEntity> {
     const expiryMinutes =
       input.type === SecuredTokenType.PASSWORD_RESET
         ? SECURED_TOKEN_PASSWORD_RESET_EXPIRY_MINUTES
@@ -586,7 +609,7 @@ export class SecuredTokenService {
 
   async findOneActiveSecuredToken(
     token: string,
-    type: SecuredTokenType,
+    type: SecuredTokenType
   ): Promise<SecuredTokenEntity | null> {
     return this.securedTokenRepo.findOne({
       where: {
@@ -595,18 +618,18 @@ export class SecuredTokenService {
         status: SecuredTokenStatus.ACTIVE,
         expiresAt: MoreThan(new Date()),
       },
-      relations: ['user'],
+      relations: ["user"],
     });
   }
 
   async claimSecuredToken(token: string): Promise<void> {
     const result = await this.securedTokenRepo.update(
       { token },
-      { status: SecuredTokenStatus.CLAIMED },
+      { status: SecuredTokenStatus.CLAIMED }
     );
 
     if (result.affected === 0) {
-      throw new NotFoundException('Token not found');
+      throw new NotFoundException("Token not found");
     }
   }
 }
@@ -616,11 +639,11 @@ export class SecuredTokenService {
 
 ```typescript
 // apps/api/src/modules/secured-token/secured-token.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { SecuredTokenEntity } from './secured-token.entity';
-import { SecuredTokenService } from './secured-token.service';
-import { SecuredTokenCqrsHandlers } from './cqrs';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { SecuredTokenEntity } from "./secured-token.entity";
+import { SecuredTokenService } from "./secured-token.service";
+import { SecuredTokenCqrsHandlers } from "./cqrs";
 
 @Module({
   imports: [TypeOrmModule.forFeature([SecuredTokenEntity])],
@@ -762,27 +785,33 @@ The token is claimed (not deleted) after use. Attempting to reuse it will fail b
 Open GraphQL Playground at `http://localhost:3333/graphql`.
 
 **Step 1 — Request reset:**
+
 ```graphql
 mutation {
   requestPasswordReset(email: "user@example.com")
 }
 ```
+
 Open `http://localhost:8025`. The password reset email should appear. Copy the token from the reset URL in the email body.
 
 **Step 2 — Verify token:**
+
 ```graphql
 query {
   verifyPasswordResetToken(token: "your-token-here")
 }
 ```
+
 Should return `true`.
 
 **Step 3 — Reset password:**
+
 ```graphql
 mutation {
   resetPassword(token: "your-token-here", newPassword: "NewSecurePassword123!")
 }
 ```
+
 Should return `true`. Attempt to log in with the new password to confirm.
 
 **Step 4 — Verify token is spent:**
@@ -908,44 +937,57 @@ async verifyEmail(token: string): Promise<void> {
 ### 5.5 Smoke Test — Email Verification
 
 **Step 1 — Register:**
+
 ```graphql
 mutation {
-  register(input: {
-    email: "newuser@example.com"
-    username: "newuser"
-    fullname: "New User"
-    password: "SecurePassword123!"
-  }) {
+  register(
+    input: {
+      email: "newuser@example.com"
+      username: "newuser"
+      fullname: "New User"
+      password: "SecurePassword123!"
+    }
+  ) {
     id
     email
     status
   }
 }
 ```
+
 `status` should be `INACTIVE`.
 
 **Step 2 — Attempt login before verification:**
+
 ```graphql
 mutation {
-  login(input: { email: "newuser@example.com", password: "SecurePassword123!" }) {
+  login(
+    input: { email: "newuser@example.com", password: "SecurePassword123!" }
+  ) {
     accessToken
   }
 }
 ```
+
 Should throw `"Please verify your email address before logging in"`.
 
 **Step 3 — Get token from Mailpit, verify:**
+
 ```graphql
 mutation {
   verifyEmail(token: "your-token-here")
 }
 ```
+
 Should return `true`.
 
 **Step 4 — Login now succeeds:**
+
 ```graphql
 mutation {
-  login(input: { email: "newuser@example.com", password: "SecurePassword123!" }) {
+  login(
+    input: { email: "newuser@example.com", password: "SecurePassword123!" }
+  ) {
     accessToken
     refreshToken
   }
@@ -1015,9 +1057,9 @@ async generateTwoFactorSecret(
 
 ```typescript
 // apps/api/src/modules/auth/dto/two-factor.dto.ts
-import { Field, ObjectType } from '@nestjs/graphql';
+import { Field, ObjectType } from "@nestjs/graphql";
 
-@ObjectType('TwoFactorSetup')
+@ObjectType("TwoFactorSetup")
 export class TwoFactorSetupDto {
   @Field()
   secret: string;
@@ -1116,9 +1158,9 @@ When `twoFactorSecret` is set, the login flow must not issue a full access token
 
 ```typescript
 // apps/api/src/modules/auth/dto/auth-tokens.dto.ts — extend:
-import { Field, ObjectType } from '@nestjs/graphql';
+import { Field, ObjectType } from "@nestjs/graphql";
 
-@ObjectType('AuthTokens')
+@ObjectType("AuthTokens")
 export class AuthTokensDto {
   @Field({ nullable: true })
   accessToken?: string;
@@ -1230,6 +1272,7 @@ This is a static code that, when presented as the TOTP code, bypasses the TOTP c
 ### 6.8 Smoke Test — Two-Factor Authentication
 
 **Step 1 — Log in as a verified user (get accessToken first):**
+
 ```graphql
 mutation {
   login(input: { email: "user@example.com", password: "password" }) {
@@ -1238,9 +1281,11 @@ mutation {
   }
 }
 ```
+
 `requiresTwoFactor` should be `false` (2FA not yet bound). Copy `accessToken`.
 
 **Step 2 — Generate 2FA setup (requires auth header `Authorization: Bearer <token>`):**
+
 ```graphql
 query {
   generateTwoFactor {
@@ -1249,17 +1294,21 @@ query {
   }
 }
 ```
+
 Copy the `secret`. The `qrCodeUrl` is a base64-encoded PNG data URL — paste it into a browser address bar to view the QR code. Scan it with Google Authenticator or Authy.
 
 **Step 3 — Bind 2FA:**
+
 ```graphql
 mutation {
   bindTwoFactor(secret: "YOUR_SECRET", code: "123456")
 }
 ```
+
 Use the 6-digit code from your authenticator app. Should return `true`.
 
 **Step 4 — Login now returns twoFactorToken:**
+
 ```graphql
 mutation {
   login(input: { email: "user@example.com", password: "password" }) {
@@ -1268,22 +1317,30 @@ mutation {
   }
 }
 ```
+
 `requiresTwoFactor` should be `true`. Copy `twoFactorToken`.
 
 **Step 5 — Complete login with TOTP code:**
+
 ```graphql
 mutation {
   verifyTwoFactor(twoFactorToken: "YOUR_TWO_FACTOR_TOKEN", code: "654321")
 }
 ```
+
 Returns `accessToken` and `refreshToken` on success.
 
 **Step 6 — Test bypass (development only):**
+
 ```graphql
 mutation {
-  verifyTwoFactor(twoFactorToken: "YOUR_TWO_FACTOR_TOKEN", code: "dev-bypass-123")
+  verifyTwoFactor(
+    twoFactorToken: "YOUR_TWO_FACTOR_TOKEN"
+    code: "dev-bypass-123"
+  )
 }
 ```
+
 Returns full tokens without needing the authenticator app.
 
 ---
@@ -1306,15 +1363,15 @@ Returns full tokens without needing the authenticator app.
 
 ### Meteor vs Enterprise NestJS
 
-| Concern | Meteor | Enterprise NestJS |
-|---------|--------|-------------------|
-| Transactional email | `Email.send()` blocking the method | `nodemailer` inside a Bull job — async, retried |
-| Password reset tokens | Stored in user document, no type system | `SecuredTokenEntity` — typed, single-use, expires, claimed |
-| Email verification | `Accounts.sendVerificationEmail()` | Same `SecuredTokenEntity` pattern, `type: EMAIL_VERIFICATION` |
-| Token expiry enforcement | Manual check at point of use | `expiresAt: MoreThan(new Date())` in every token query |
-| Two-factor auth | Not available natively | `otplib` TOTP, QR code binding, pre-auth JWT flow |
-| 2FA dev bypass | N/A | `TWOFA_BYPASS_PASSWORD` env var, production-safe |
-| Security: email enumeration | Varies — often reveals existence | `requestPasswordReset` always returns `true` |
+| Concern                     | Meteor                                  | Enterprise NestJS                                             |
+| --------------------------- | --------------------------------------- | ------------------------------------------------------------- |
+| Transactional email         | `Email.send()` blocking the method      | `nodemailer` inside a Bull job — async, retried               |
+| Password reset tokens       | Stored in user document, no type system | `SecuredTokenEntity` — typed, single-use, expires, claimed    |
+| Email verification          | `Accounts.sendVerificationEmail()`      | Same `SecuredTokenEntity` pattern, `type: EMAIL_VERIFICATION` |
+| Token expiry enforcement    | Manual check at point of use            | `expiresAt: MoreThan(new Date())` in every token query        |
+| Two-factor auth             | Not available natively                  | `otplib` TOTP, QR code binding, pre-auth JWT flow             |
+| 2FA dev bypass              | N/A                                     | `TWOFA_BYPASS_PASSWORD` env var, production-safe              |
+| Security: email enumeration | Varies — often reveals existence        | `requestPasswordReset` always returns `true`                  |
 
 ### The Compose
 

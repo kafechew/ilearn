@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-06-15T09:00:00+08:00
+pubDatetime: 2026-05-20T09:00:00+08:00
 title: Advanced Data Patterns — Column Transformers, Audit Columns & Shared Libraries
 featured: false
 draft: false
@@ -32,14 +32,14 @@ This tutorial addresses four architectural refinements that separate toy project
 
 ## Meteor Equivalents
 
-| Pattern | Meteor | NestJS (this tutorial) |
-|---|---|---|
-| Audit timestamps | `createdAt` / `updatedAt` auto-added by `collection2` | `AbstractEntity` provides `created_at` / `updated_at` |
-| Record creator | `userId` stored manually in method or publication | `createdBy` via `AuditSubscriber`, automatic |
-| Email normalization | App code, or `aldeed:simple-schema` `trim`/`lowercase` | `LowerCaseTransformer` at the entity `@Column` level |
-| Slug fields | `percolate:synced-cron` + custom transform | `SlugTransformer` at `@Column`, enforced by TypeORM |
-| Human-readable IDs | Custom Meteor method with `findOne` + increment | `RunningNumberService` with `SELECT FOR UPDATE` |
-| Shared config across apps | Not applicable (single-app model) | `libs/core` library, imported by any NestJS app in the monorepo |
+| Pattern                   | Meteor                                                 | NestJS (this tutorial)                                          |
+| ------------------------- | ------------------------------------------------------ | --------------------------------------------------------------- |
+| Audit timestamps          | `createdAt` / `updatedAt` auto-added by `collection2`  | `AbstractEntity` provides `created_at` / `updated_at`           |
+| Record creator            | `userId` stored manually in method or publication      | `createdBy` via `AuditSubscriber`, automatic                    |
+| Email normalization       | App code, or `aldeed:simple-schema` `trim`/`lowercase` | `LowerCaseTransformer` at the entity `@Column` level            |
+| Slug fields               | `percolate:synced-cron` + custom transform             | `SlugTransformer` at `@Column`, enforced by TypeORM             |
+| Human-readable IDs        | Custom Meteor method with `findOne` + increment        | `RunningNumberService` with `SELECT FOR UPDATE`                 |
+| Shared config across apps | Not applicable (single-app model)                      | `libs/core` library, imported by any NestJS app in the monorepo |
 
 Meteor's `accounts` package automatically tracked `createdAt` and `userId` on documents inserted via `Accounts.createUser`. The NestJS equivalent requires explicit wiring — but it works across all entities, not just user documents.
 
@@ -57,7 +57,7 @@ A TypeORM `ValueTransformer` moves the normalization to the entity's `@Column` d
 
 ```typescript
 // apps/api/src/helpers/transformer.ts
-import { ValueTransformer } from 'typeorm';
+import { ValueTransformer } from "typeorm";
 
 /**
  * Stores strings as lowercase. Applies to: email, username.
@@ -81,8 +81,8 @@ export class SlugTransformer implements ValueTransformer {
     if (!value) return null;
     return value
       .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-]/g, '');
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
   }
   from(value: string | null): string | null {
     return value;
@@ -109,12 +109,12 @@ The `from()` method on `LowerCaseTransformer` returns the value as-is. There is 
 
 ```typescript
 // apps/api/src/modules/user/user.entity.ts
-import { Column, Entity, Index } from 'typeorm';
-import { AbstractEntity } from 'nestjs-dev-utilities';
-import { UserStatus } from './user.constant';
-import { LowerCaseTransformer } from '../../helpers/transformer';
+import { Column, Entity, Index } from "typeorm";
+import { AbstractEntity } from "nestjs-dev-utilities";
+import { UserStatus } from "./user.constant";
+import { LowerCaseTransformer } from "../../helpers/transformer";
 
-@Entity({ name: 'user' })
+@Entity({ name: "user" })
 export class UserEntity extends AbstractEntity {
   @Column()
   fullname: string;
@@ -130,7 +130,7 @@ export class UserEntity extends AbstractEntity {
   @Column()
   password: string;
 
-  @Column({ type: 'enum', enum: UserStatus, default: UserStatus.ACTIVE })
+  @Column({ type: "enum", enum: UserStatus, default: UserStatus.ACTIVE })
   status: UserStatus;
 
   @Column({ nullable: true })
@@ -189,7 +189,7 @@ yarn api:migration:create apps/api/src/migrations/NormalizeEmailCase
 
 ```typescript
 // apps/api/src/migrations/1718000000000-NormalizeEmailCase.ts
-import { MigrationInterface, QueryRunner } from 'typeorm';
+import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class NormalizeEmailCase1718000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -274,7 +274,7 @@ HTTP Request
 
 ```typescript
 // apps/api/src/interceptors/user-context.ts
-import { Injectable, Scope } from '@nestjs/common';
+import { Injectable, Scope } from "@nestjs/common";
 
 /**
  * Request-scoped holder for the authenticated user's ID.
@@ -298,10 +298,10 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
-} from '@nestjs/common';
-import { GqlExecutionContext } from '@nestjs/graphql';
-import { Observable } from 'rxjs';
-import { UserContext } from './user-context';
+} from "@nestjs/common";
+import { GqlExecutionContext } from "@nestjs/graphql";
+import { Observable } from "rxjs";
+import { UserContext } from "./user-context";
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -333,10 +333,10 @@ import {
   EntitySubscriberInterface,
   InsertEvent,
   UpdateEvent,
-} from 'typeorm';
-import { Injectable } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { UserContext } from '../interceptors/user-context';
+} from "typeorm";
+import { Injectable } from "@nestjs/common";
+import { InjectDataSource } from "@nestjs/typeorm";
+import { UserContext } from "../interceptors/user-context";
 
 /**
  * TypeORM subscriber that automatically sets createdBy / updatedBy
@@ -350,7 +350,7 @@ import { UserContext } from '../interceptors/user-context';
 export class AuditSubscriber implements EntitySubscriberInterface {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly userContext: UserContext,
+    private readonly userContext: UserContext
   ) {
     // Self-register — TypeORM looks at dataSource.subscribers at runtime
     this.dataSource.subscribers.push(this);
@@ -390,12 +390,19 @@ If not present, add to `TodoEntity`:
 
 ```typescript
 // apps/api/src/modules/todo/todo.entity.ts  (add these columns)
-import { Column, Entity, Index, JoinColumn, ManyToOne, RelationId } from 'typeorm';
-import { AbstractEntity } from 'nestjs-dev-utilities';
-import { UserEntity } from '../user/user.entity';
-import { TodoStatus } from './todo.constant';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  RelationId,
+} from "typeorm";
+import { AbstractEntity } from "nestjs-dev-utilities";
+import { UserEntity } from "../user/user.entity";
+import { TodoStatus } from "./todo.constant";
 
-@Entity({ name: 'todo' })
+@Entity({ name: "todo" })
 export class TodoEntity extends AbstractEntity {
   @Column()
   text: string;
@@ -403,7 +410,7 @@ export class TodoEntity extends AbstractEntity {
   @Column({ default: false })
   isChecked: boolean;
 
-  @Column({ type: 'enum', enum: TodoStatus, default: TodoStatus.ACTIVE })
+  @Column({ type: "enum", enum: TodoStatus, default: TodoStatus.ACTIVE })
   status: TodoStatus;
 
   @Index()
@@ -411,7 +418,7 @@ export class TodoEntity extends AbstractEntity {
   @RelationId((todo: TodoEntity) => todo.user)
   userId: number;
 
-  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
+  @ManyToOne(() => UserEntity, { onDelete: "CASCADE" })
   @JoinColumn()
   user: UserEntity;
 
@@ -452,12 +459,12 @@ yarn api:migration:run
 
 ```typescript
 // apps/api/src/app/app.module.ts
-import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { Module } from "@nestjs/common";
+import { APP_INTERCEPTOR } from "@nestjs/core";
 // ... existing imports ...
-import { AuditInterceptor } from '../interceptors/audit.interceptor';
-import { UserContext } from '../interceptors/user-context';
-import { AuditSubscriber } from '../subscribers/audit.subscriber';
+import { AuditInterceptor } from "../interceptors/audit.interceptor";
+import { UserContext } from "../interceptors/user-context";
+import { AuditSubscriber } from "../subscribers/audit.subscriber";
 
 @Module({
   imports: [
@@ -529,9 +536,9 @@ A `running_number` table stores the current counter per module name and incremen
 
 ```typescript
 // apps/api/src/modules/running-number/running-number.entity.ts
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
-@Entity({ name: 'running_number' })
+@Entity({ name: "running_number" })
 export class RunningNumberEntity {
   @PrimaryGeneratedColumn()
   id: number;
@@ -557,16 +564,16 @@ export class RunningNumberEntity {
 
 ```typescript
 // apps/api/src/modules/running-number/running-number.service.ts
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { RunningNumberEntity } from './running-number.entity';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { RunningNumberEntity } from "./running-number.entity";
 
 @Injectable()
 export class RunningNumberService {
   constructor(
     @InjectRepository(RunningNumberEntity)
-    private readonly repo: Repository<RunningNumberEntity>,
+    private readonly repo: Repository<RunningNumberEntity>
   ) {}
 
   /**
@@ -580,11 +587,11 @@ export class RunningNumberService {
    * @returns Formatted string, e.g. 'TODO-0001'
    */
   async getNext(module: string, padLength = 4): Promise<string> {
-    return this.repo.manager.transaction(async (em) => {
+    return this.repo.manager.transaction(async em => {
       // Lock the row for this module — other transactions wait until we commit
       let record = await em.findOne(RunningNumberEntity, {
         where: { module },
-        lock: { mode: 'pessimistic_write' },
+        lock: { mode: "pessimistic_write" },
       });
 
       if (!record) {
@@ -599,7 +606,7 @@ export class RunningNumberService {
       record.current += record.increment;
       await em.save(record);
 
-      return `${module}-${String(record.current).padStart(padLength, '0')}`;
+      return `${module}-${String(record.current).padStart(padLength, "0")}`;
     });
   }
 }
@@ -611,10 +618,10 @@ The `pessimistic_write` lock mode maps to `SELECT ... FOR UPDATE` in PostgreSQL.
 
 ```typescript
 // apps/api/src/modules/running-number/running-number.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { RunningNumberEntity } from './running-number.entity';
-import { RunningNumberService } from './running-number.service';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { RunningNumberEntity } from "./running-number.entity";
+import { RunningNumberService } from "./running-number.service";
 
 @Module({
   imports: [TypeOrmModule.forFeature([RunningNumberEntity])],
@@ -640,22 +647,22 @@ First, import `RunningNumberModule` in `TodoModule`:
 
 ```typescript
 // apps/api/src/modules/todo/todo.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { RunningNumberModule } from '../running-number/running-number.module';
-import { TodoEntity } from './todo.entity';
-import { TodoResolver } from './todo.resolver';
-import { TodoService } from './todo.service';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { RunningNumberModule } from "../running-number/running-number.module";
+import { TodoEntity } from "./todo.entity";
+import { TodoResolver } from "./todo.resolver";
+import { TodoService } from "./todo.service";
 import {
   TodoCommandHandlers,
   TodoEventHandlers,
   TodoQueryHandlers,
-} from './cqrs';
+} from "./cqrs";
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([TodoEntity]),
-    RunningNumberModule,  // ← inject RunningNumberService
+    RunningNumberModule, // ← inject RunningNumberService
   ],
   providers: [
     TodoResolver,
@@ -677,11 +684,11 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { TypeOrmQueryService } from '@ptc-org/nestjs-query-typeorm';
-import { CqrsCommandFunc, CqrsQueryFunc } from 'nestjs-typed-cqrs';
-import { Repository } from 'typeorm';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { TypeOrmQueryService } from "@ptc-org/nestjs-query-typeorm";
+import { CqrsCommandFunc, CqrsQueryFunc } from "nestjs-typed-cqrs";
+import { Repository } from "typeorm";
 
 import {
   CountTodoQuery,
@@ -690,16 +697,16 @@ import {
   FindManyTodoQuery,
   FindOneTodoQuery,
   UpdateOneTodoCommand,
-} from './cqrs/todo.cqrs.input';
-import { TodoEntity } from './todo.entity';
-import { RunningNumberService } from '../running-number/running-number.service';
+} from "./cqrs/todo.cqrs.input";
+import { TodoEntity } from "./todo.entity";
+import { RunningNumberService } from "../running-number/running-number.service";
 
 @Injectable()
 export class TodoService extends TypeOrmQueryService<TodoEntity> {
   constructor(
     @InjectRepository(TodoEntity)
     repo: Repository<TodoEntity>,
-    private readonly runningNumberService: RunningNumberService,
+    private readonly runningNumberService: RunningNumberService
   ) {
     super(repo);
   }
@@ -708,18 +715,18 @@ export class TodoService extends TypeOrmQueryService<TodoEntity> {
 
   createOneTodo: CqrsCommandFunc<
     CreateOneTodoCommand,
-    CreateOneTodoCommand['args']
+    CreateOneTodoCommand["args"]
   > = async ({ input }) => {
     try {
       const existing = await this.repo.findOne({
         where: { text: input.text, userId: input.userId },
       });
       if (existing) {
-        throw new Error('You already have a todo with that text');
+        throw new Error("You already have a todo with that text");
       }
 
       // Generate reference number before saving
-      const referenceNumber = await this.runningNumberService.getNext('TODO');
+      const referenceNumber = await this.runningNumberService.getNext("TODO");
 
       const todo = this.repo.create({ ...input, referenceNumber });
       const data = await this.repo.save(todo);
@@ -875,27 +882,27 @@ export interface AppConfig {
  * Called by ConfigModule.forRoot({ load: [configuration] }).
  */
 export const configuration = (): AppConfig => ({
-  port: parseInt(process.env.PROJECT_PORT ?? '3333', 10),
-  nodeEnv: process.env.NODE_ENV ?? 'development',
+  port: parseInt(process.env.PROJECT_PORT ?? "3333", 10),
+  nodeEnv: process.env.NODE_ENV ?? "development",
   db: {
-    host: process.env.PROJECT_DB_HOST ?? 'localhost',
-    port: parseInt(process.env.PROJECT_DB_PORT ?? '5432', 10),
-    username: process.env.PROJECT_DB_USERNAME ?? 'postgres',
-    password: process.env.PROJECT_DB_PASSWORD ?? '',
-    database: process.env.PROJECT_DB_DATABASE ?? 'enterprise_todo',
-    debug: process.env.PROJECT_DB_DEBUG === 'true',
+    host: process.env.PROJECT_DB_HOST ?? "localhost",
+    port: parseInt(process.env.PROJECT_DB_PORT ?? "5432", 10),
+    username: process.env.PROJECT_DB_USERNAME ?? "postgres",
+    password: process.env.PROJECT_DB_PASSWORD ?? "",
+    database: process.env.PROJECT_DB_DATABASE ?? "enterprise_todo",
+    debug: process.env.PROJECT_DB_DEBUG === "true",
   },
   redis: {
-    host: process.env.PROJECT_REDIS_HOST ?? 'localhost',
-    port: parseInt(process.env.PROJECT_REDIS_PORT ?? '6379', 10),
+    host: process.env.PROJECT_REDIS_HOST ?? "localhost",
+    port: parseInt(process.env.PROJECT_REDIS_PORT ?? "6379", 10),
   },
   jwt: {
-    publicKey: process.env.JWT_PUBLIC_KEY ?? '',
-    privateKey: process.env.JWT_PRIVATE_KEY ?? '',
-    expiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+    publicKey: process.env.JWT_PUBLIC_KEY ?? "",
+    privateKey: process.env.JWT_PRIVATE_KEY ?? "",
+    expiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
   },
   graphql: {
-    playground: process.env.PROJECT_GRAPHQL_PLAYGROUND === 'true',
+    playground: process.env.PROJECT_GRAPHQL_PLAYGROUND === "true",
   },
 });
 ```
@@ -904,12 +911,12 @@ export const configuration = (): AppConfig => ({
 
 ```typescript
 // libs/core/src/config/config.validation.ts
-import * as Joi from 'joi';
+import * as Joi from "joi";
 
 export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
-    .valid('development', 'staging', 'production', 'test')
-    .default('development'),
+    .valid("development", "staging", "production", "test")
+    .default("development"),
   PROJECT_PORT: Joi.number().default(3333),
 
   PROJECT_DB_HOST: Joi.string().required(),
@@ -919,12 +926,12 @@ export const validationSchema = Joi.object({
   PROJECT_DB_DATABASE: Joi.string().required(),
   PROJECT_DB_DEBUG: Joi.boolean().default(false),
 
-  PROJECT_REDIS_HOST: Joi.string().default('localhost'),
+  PROJECT_REDIS_HOST: Joi.string().default("localhost"),
   PROJECT_REDIS_PORT: Joi.number().default(6379),
 
   JWT_PUBLIC_KEY: Joi.string().required(),
   JWT_PRIVATE_KEY: Joi.string().required(),
-  JWT_EXPIRES_IN: Joi.string().default('7d'),
+  JWT_EXPIRES_IN: Joi.string().default("7d"),
 
   PROJECT_GRAPHQL_PLAYGROUND: Joi.boolean().default(false),
 });
@@ -934,10 +941,10 @@ export const validationSchema = Joi.object({
 
 ```typescript
 // libs/core/src/config/config.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { configuration } from './config.mapper';
-import { validationSchema } from './config.validation';
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { configuration } from "./config.mapper";
+import { validationSchema } from "./config.validation";
 
 /**
  * Drop-in replacement for ConfigModule.forRoot(...) in any NestJS app.
@@ -950,7 +957,7 @@ import { validationSchema } from './config.validation';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ".env",
       load: [configuration],
       validationSchema,
     }),
@@ -966,12 +973,12 @@ export class CoreConfigModule {}
 // libs/core/src/constants/index.ts
 
 export const QUEUE_NAMES = {
-  EMAIL: 'email',
-  NOTIFICATION: 'notification',
-  AUDIT_LOG: 'audit-log',
+  EMAIL: "email",
+  NOTIFICATION: "notification",
+  AUDIT_LOG: "audit-log",
 } as const;
 
-export const TOKEN_ISSUER = 'enterprise-todo';
+export const TOKEN_ISSUER = "enterprise-todo";
 
 export const REDIS_KEYS = {
   USER_SESSION: (userId: number) => `session:user:${userId}`,
@@ -983,11 +990,11 @@ export const REDIS_KEYS = {
 
 ```typescript
 // libs/core/src/index.ts
-export { CoreConfigModule } from './config/config.module';
-export type { AppConfig } from './config/config.mapper';
-export { configuration } from './config/config.mapper';
-export { validationSchema } from './config/config.validation';
-export * from './constants';
+export { CoreConfigModule } from "./config/config.module";
+export type { AppConfig } from "./config/config.mapper";
+export { configuration } from "./config/config.mapper";
+export { validationSchema } from "./config/config.validation";
+export * from "./constants";
 ```
 
 ### Update tsconfig.base.json
@@ -1012,27 +1019,27 @@ The Nx generator may have already added this. Verify with `cat tsconfig.base.jso
 
 ```typescript
 // apps/api/src/app/app.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { CqrsModule } from '@nestjs/cqrs';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { GraphQLModule } from "@nestjs/graphql";
+import { ApolloDriver, ApolloDriverConfig } from "@nestjs/apollo";
+import { CqrsModule } from "@nestjs/cqrs";
+import { APP_INTERCEPTOR } from "@nestjs/core";
+import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
 // Imported from libs/core — shared across all apps in the monorepo
-import { CoreConfigModule } from '@enterprise-todo/core';
+import { CoreConfigModule } from "@enterprise-todo/core";
 
-import { AppResolver } from './app.resolver';
-import { HealthModule } from '../modules/health/health.module';
-import { TodoModule } from '../modules/todo/todo.module';
-import { TodoEntity } from '../modules/todo/todo.entity';
-import { UserEntity } from '../modules/user/user.entity';
-import { RunningNumberEntity } from '../modules/running-number/running-number.entity';
-import { AuditInterceptor } from '../interceptors/audit.interceptor';
-import { UserContext } from '../interceptors/user-context';
-import { AuditSubscriber } from '../subscribers/audit.subscriber';
+import { AppResolver } from "./app.resolver";
+import { HealthModule } from "../modules/health/health.module";
+import { TodoModule } from "../modules/todo/todo.module";
+import { TodoEntity } from "../modules/todo/todo.entity";
+import { UserEntity } from "../modules/user/user.entity";
+import { RunningNumberEntity } from "../modules/running-number/running-number.entity";
+import { AuditInterceptor } from "../interceptors/audit.interceptor";
+import { UserContext } from "../interceptors/user-context";
+import { AuditSubscriber } from "../subscribers/audit.subscriber";
 
 @Module({
   imports: [
@@ -1042,15 +1049,15 @@ import { AuditSubscriber } from '../subscribers/audit.subscriber';
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('PROJECT_DB_HOST'),
-        port: config.get<number>('PROJECT_DB_PORT'),
-        username: config.get('PROJECT_DB_USERNAME'),
-        password: config.get('PROJECT_DB_PASSWORD'),
-        database: config.get('PROJECT_DB_DATABASE'),
+        type: "postgres",
+        host: config.get("PROJECT_DB_HOST"),
+        port: config.get<number>("PROJECT_DB_PORT"),
+        username: config.get("PROJECT_DB_USERNAME"),
+        password: config.get("PROJECT_DB_PASSWORD"),
+        database: config.get("PROJECT_DB_DATABASE"),
         entities: [TodoEntity, UserEntity, RunningNumberEntity],
         synchronize: false,
-        logging: config.get('PROJECT_DB_DEBUG') === 'true',
+        logging: config.get("PROJECT_DB_DEBUG") === "true",
         namingStrategy: new SnakeNamingStrategy(),
       }),
     }),
@@ -1060,7 +1067,7 @@ import { AuditSubscriber } from '../subscribers/audit.subscriber';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         autoSchemaFile: true,
-        playground: config.get('PROJECT_GRAPHQL_PLAYGROUND') === 'true',
+        playground: config.get("PROJECT_GRAPHQL_PLAYGROUND") === "true",
         context: ({ req }) => ({ req }),
       }),
     }),
@@ -1088,12 +1095,12 @@ To illustrate the value: a hypothetical `apps/portal-api/src/app/app.module.ts` 
 
 ```typescript
 // apps/portal-api/src/app/app.module.ts  (hypothetical — not created in this tutorial)
-import { CoreConfigModule } from '@enterprise-todo/core';
-import { QUEUE_NAMES } from '@enterprise-todo/core';
+import { CoreConfigModule } from "@enterprise-todo/core";
+import { QUEUE_NAMES } from "@enterprise-todo/core";
 
 @Module({
   imports: [
-    CoreConfigModule,  // ← identical config setup, zero duplication
+    CoreConfigModule, // ← identical config setup, zero duplication
     // ... portal-specific modules ...
   ],
 })
@@ -1134,11 +1141,14 @@ Adding a nullable column to a table with existing data is always backward compat
 
 ```typescript
 // Always add new columns as nullable first
-await queryRunner.addColumn('todo', new TableColumn({
-  name: 'reference_number',
-  type: 'varchar',
-  isNullable: true,  // ← safe for existing rows
-}));
+await queryRunner.addColumn(
+  "todo",
+  new TableColumn({
+    name: "reference_number",
+    type: "varchar",
+    isNullable: true, // ← safe for existing rows
+  })
+);
 ```
 
 ### Rule 2: Backfill Before Adding NOT NULL Constraints
@@ -1287,13 +1297,13 @@ curl http://localhost:3333/graphql -X POST \
 
 ## Summary: Before vs After
 
-| Concern | Before (manual patterns) | After (automated patterns) |
-|---|---|---|
-| Email casing | `input.email.toLowerCase()` in every service method | `LowerCaseTransformer` on `@Column` — structural guarantee |
-| Who created a record | Set `input.createdBy = user.id` manually per mutation | `AuditSubscriber` — fires automatically on all entities |
-| Human-readable IDs | Ad-hoc string concat in service, race condition risk | `RunningNumberService` with `SELECT FOR UPDATE` transaction |
-| Config for second app | Copy-paste `ConfigModule.forRoot(...)` | `import { CoreConfigModule } from '@enterprise-todo/core'` |
-| Adding nullable columns | No strategy | Add nullable → backfill → optional NOT NULL in separate migrations |
+| Concern                 | Before (manual patterns)                              | After (automated patterns)                                         |
+| ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| Email casing            | `input.email.toLowerCase()` in every service method   | `LowerCaseTransformer` on `@Column` — structural guarantee         |
+| Who created a record    | Set `input.createdBy = user.id` manually per mutation | `AuditSubscriber` — fires automatically on all entities            |
+| Human-readable IDs      | Ad-hoc string concat in service, race condition risk  | `RunningNumberService` with `SELECT FOR UPDATE` transaction        |
+| Config for second app   | Copy-paste `ConfigModule.forRoot(...)`                | `import { CoreConfigModule } from '@enterprise-todo/core'`         |
+| Adding nullable columns | No strategy                                           | Add nullable → backfill → optional NOT NULL in separate migrations |
 
 ---
 

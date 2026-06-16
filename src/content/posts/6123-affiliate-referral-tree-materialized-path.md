@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-07-06T09:00:00+08:00
+pubDatetime: 2026-05-23T09:00:00+08:00
 title: Affiliate & Referral Tree — Materialized Path Hierarchy on UserEntity
 featured: false
 draft: false
@@ -35,15 +35,15 @@ description: Add a self-referential affiliate tree to UserEntity using the mater
 
 Meteor had no native tree or hierarchy support. Developers typically stored a flat `referredBy: userId` field on the user document and wrote recursive application-level loops when they needed to traverse the tree.
 
-| Concern | Meteor approach | NestJS / materialized path |
-|---------|----------------|---------------------------|
-| Store referrer | `referredBy: userId` on user document | `referredByCode: string` (code, not raw ID) on `UserEntity` |
-| Find descendants | Recursive `Meteor.users.find()` loop in application code — N+1 round trips | `WHERE path LIKE 'prefix%'` — single indexed query |
-| Find ancestors | Walk up manually: fetch user, fetch their referrer, repeat | Parse `path` string client-side — zero DB queries |
-| Depth of a user | Count recursive hops | `path.split('.').filter(Boolean).length - 1` — O(1), no query |
-| Circular reference check | Manual application check before saving | `wouldCreateCircle()` — check if userId appears in the candidate parent's path |
-| Commission calculation | Application-level loop fetching each ancestor | Fetch ancestor IDs from `path` string, batch-load users in one query |
-| Referral code | Custom field — no standard pattern | `referralCode` unique indexed column, generated via `crypto.randomBytes` |
+| Concern                  | Meteor approach                                                            | NestJS / materialized path                                                     |
+| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Store referrer           | `referredBy: userId` on user document                                      | `referredByCode: string` (code, not raw ID) on `UserEntity`                    |
+| Find descendants         | Recursive `Meteor.users.find()` loop in application code — N+1 round trips | `WHERE path LIKE 'prefix%'` — single indexed query                             |
+| Find ancestors           | Walk up manually: fetch user, fetch their referrer, repeat                 | Parse `path` string client-side — zero DB queries                              |
+| Depth of a user          | Count recursive hops                                                       | `path.split('.').filter(Boolean).length - 1` — O(1), no query                  |
+| Circular reference check | Manual application check before saving                                     | `wouldCreateCircle()` — check if userId appears in the candidate parent's path |
+| Commission calculation   | Application-level loop fetching each ancestor                              | Fetch ancestor IDs from `path` string, batch-load users in one query           |
+| Referral code            | Custom field — no standard pattern                                         | `referralCode` unique indexed column, generated via `crypto.randomBytes`       |
 
 Meteor's single-document model worked for simple `referredBy` tracking but collapsed under any tree traversal requirement. Every "who referred whom" report became a multi-request waterfall. The materialized path pattern moves the tree topology into the data itself, making subtree queries as cheap as a string prefix match.
 
@@ -161,23 +161,17 @@ path: string;
 
 ```typescript
 // apps/api/src/modules/user/entities/user.entity.ts
-import {
-  Column,
-  Entity,
-  Index,
-  JoinTable,
-  ManyToMany,
-} from 'typeorm';
-import { AbstractEntity } from 'nestjs-dev-utilities';
-import { RoleEntity } from '../../role/entities/role.entity';
+import { Column, Entity, Index, JoinTable, ManyToMany } from "typeorm";
+import { AbstractEntity } from "nestjs-dev-utilities";
+import { RoleEntity } from "../../role/entities/role.entity";
 
 export enum UserStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  SUSPENDED = 'SUSPENDED',
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  SUSPENDED = "SUSPENDED",
 }
 
-@Entity('user')
+@Entity("user")
 export class UserEntity extends AbstractEntity {
   @Index({ unique: true })
   @Column({ unique: true })
@@ -190,7 +184,7 @@ export class UserEntity extends AbstractEntity {
   password: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: UserStatus,
     default: UserStatus.INACTIVE,
   })
@@ -200,7 +194,7 @@ export class UserEntity extends AbstractEntity {
   twoFactorSecret: string | null;
 
   @ManyToMany(() => RoleEntity, { eager: true })
-  @JoinTable({ name: 'user_role' })
+  @JoinTable({ name: "user_role" })
   roles: RoleEntity[];
 
   @Column()
@@ -216,7 +210,7 @@ export class UserEntity extends AbstractEntity {
   referredByCode: string | null;
 
   @Index()
-  @Column({ default: '' })
+  @Column({ default: "" })
   path: string;
 }
 ```
@@ -227,15 +221,15 @@ Create a small helper — keep it out of the service so it can be unit-tested in
 
 ```typescript
 // apps/api/src/helpers/referral-code.ts
-import { randomBytes } from 'crypto';
+import { randomBytes } from "crypto";
 
 /**
  * Generates a referral code like 'REF-A1B2C3'.
  * Uses 3 random bytes (6 hex chars) — 16.7 million combinations.
  * prefix can be customised per tenant if needed.
  */
-export function generateReferralCode(prefix = 'REF'): string {
-  const code = randomBytes(3).toString('hex').toUpperCase();
+export function generateReferralCode(prefix = "REF"): string {
+  const code = randomBytes(3).toString("hex").toUpperCase();
   return `${prefix}-${code}`;
 }
 ```
@@ -267,17 +261,17 @@ The service handles all tree operations. It is injected into `AuthService` for r
 
 ```typescript
 // apps/api/src/modules/referral/referral.service.ts
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserEntity } from '../user/entities/user.entity';
-import { generateReferralCode } from '../../helpers/referral-code';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { UserEntity } from "../user/entities/user.entity";
+import { generateReferralCode } from "../../helpers/referral-code";
 
 @Injectable()
 export class ReferralService {
   constructor(
     @InjectRepository(UserEntity)
-    private readonly userRepo: Repository<UserEntity>,
+    private readonly userRepo: Repository<UserEntity>
   ) {}
 
   /**
@@ -287,7 +281,7 @@ export class ReferralService {
    */
   async initializeReferral(
     userId: number,
-    referredByCode: string | null,
+    referredByCode: string | null
   ): Promise<void> {
     let path = `${userId}.`;
 
@@ -318,8 +312,8 @@ export class ReferralService {
     const childPath = `${user.path}${userId}.`;
 
     return this.userRepo
-      .createQueryBuilder('u')
-      .where('u.path = :path', { path: childPath })
+      .createQueryBuilder("u")
+      .where("u.path = :path", { path: childPath })
       .getMany();
   }
 
@@ -333,9 +327,9 @@ export class ReferralService {
     const prefix = `${user.path}${userId}.`;
 
     return this.userRepo
-      .createQueryBuilder('u')
-      .where('u.path LIKE :prefix', { prefix: `${prefix}%` })
-      .orderBy('u.path', 'ASC')
+      .createQueryBuilder("u")
+      .where("u.path LIKE :prefix", { prefix: `${prefix}%` })
+      .orderBy("u.path", "ASC")
       .getMany();
   }
 
@@ -348,8 +342,8 @@ export class ReferralService {
     const prefix = `${user.path}${userId}.`;
 
     return this.userRepo
-      .createQueryBuilder('u')
-      .where('u.path LIKE :prefix', { prefix: `${prefix}%` })
+      .createQueryBuilder("u")
+      .where("u.path LIKE :prefix", { prefix: `${prefix}%` })
       .getCount();
   }
 
@@ -364,7 +358,7 @@ export class ReferralService {
   getDepth(user: UserEntity): number {
     if (!user.path) return 0;
     // The last segment is the user's own id; exclude it to get depth
-    return user.path.split('.').filter(Boolean).length - 1;
+    return user.path.split(".").filter(Boolean).length - 1;
   }
 
   /**
@@ -375,7 +369,7 @@ export class ReferralService {
    */
   getAncestorIds(user: UserEntity): number[] {
     return user.path
-      .split('.')
+      .split(".")
       .filter(Boolean)
       .slice(0, -1) // drop the last segment (this user's own id)
       .map(Number);
@@ -392,7 +386,7 @@ export class ReferralService {
    */
   async wouldCreateCircle(
     userId: number,
-    potentialParentCode: string,
+    potentialParentCode: string
   ): Promise<boolean> {
     const potentialParent = await this.userRepo.findOne({
       where: { referralCode: potentialParentCode },
@@ -410,10 +404,10 @@ export class ReferralService {
 
 ```typescript
 // apps/api/src/modules/referral/referral.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserEntity } from '../user/entities/user.entity';
-import { ReferralService } from './referral.service';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { UserEntity } from "../user/entities/user.entity";
+import { ReferralService } from "./referral.service";
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserEntity])],
@@ -450,8 +444,8 @@ Add the optional `referredByCode` field to the registration input DTO.
 
 ```typescript
 // apps/api/src/modules/auth/inputs/register.input.ts
-import { Field, InputType } from '@nestjs/graphql';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { Field, InputType } from "@nestjs/graphql";
+import { IsEmail, IsOptional, IsString, MinLength } from "class-validator";
 
 @InputType()
 export class RegisterInput {
@@ -476,20 +470,20 @@ Inject `ReferralService` and call `initializeReferral` after the user is saved. 
 
 ```typescript
 // apps/api/src/modules/auth/auth.service.ts  (relevant excerpt)
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { UserEntity, UserStatus } from '../user/entities/user.entity';
-import { ReferralService } from '../referral/referral.service';
-import { RegisterInput } from './inputs/register.input';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import * as bcrypt from "bcrypt";
+import { UserEntity, UserStatus } from "../user/entities/user.entity";
+import { ReferralService } from "../referral/referral.service";
+import { RegisterInput } from "./inputs/register.input";
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
-    private readonly referralService: ReferralService,
+    private readonly referralService: ReferralService
   ) {}
 
   async register(input: RegisterInput): Promise<UserEntity> {
@@ -508,7 +502,7 @@ export class AuthService {
     // the user supplied a referredByCode or signed up organically.
     await this.referralService.initializeReferral(
       user.id,
-      input.referredByCode ?? null,
+      input.referredByCode ?? null
     );
 
     return user;
@@ -531,11 +525,13 @@ imports: [
 
 ```graphql
 mutation RegisterWithReferral {
-  register(input: {
-    email: "alice@example.com"
-    password: "securepass"
-    referredByCode: "REF-A1B2C3"
-  }) {
+  register(
+    input: {
+      email: "alice@example.com"
+      password: "securepass"
+      referredByCode: "REF-A1B2C3"
+    }
+  ) {
     id
     email
     referralCode
@@ -567,7 +563,7 @@ Define a lightweight response type for the stats query.
 
 ```typescript
 // apps/api/src/modules/referral/dto/referral-stats.dto.ts
-import { Field, Int, ObjectType } from '@nestjs/graphql';
+import { Field, Int, ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
 export class ReferralStats {
@@ -589,27 +585,27 @@ export class ReferralStats {
 
 ```typescript
 // apps/api/src/modules/referral/referral.resolver.ts
-import { UseGuards } from '@nestjs/common';
-import { Query, Resolver } from '@nestjs/graphql';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { plainToInstance } from 'class-transformer';
-import { AuthJwtGuard } from '../auth/guards/auth-jwt.guard';
-import { ACPermissionGuard } from '../auth/guards/ac-permission.guard';
-import { UseACGuard } from '../auth/decorators/use-ac-guard.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { AccessTokenInfo } from '../auth/interfaces/access-token-info.interface';
-import { UserEntity } from '../user/entities/user.entity';
-import { UserDto } from '../user/dto/user.dto';
-import { ReferralService } from './referral.service';
-import { ReferralStats } from './dto/referral-stats.dto';
+import { UseGuards } from "@nestjs/common";
+import { Query, Resolver } from "@nestjs/graphql";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { plainToInstance } from "class-transformer";
+import { AuthJwtGuard } from "../auth/guards/auth-jwt.guard";
+import { ACPermissionGuard } from "../auth/guards/ac-permission.guard";
+import { UseACGuard } from "../auth/decorators/use-ac-guard.decorator";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { AccessTokenInfo } from "../auth/interfaces/access-token-info.interface";
+import { UserEntity } from "../user/entities/user.entity";
+import { UserDto } from "../user/dto/user.dto";
+import { ReferralService } from "./referral.service";
+import { ReferralStats } from "./dto/referral-stats.dto";
 
 @Resolver()
 export class ReferralResolver {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
-    private readonly referralService: ReferralService,
+    private readonly referralService: ReferralService
   ) {}
 
   /**
@@ -617,10 +613,10 @@ export class ReferralResolver {
    * how many they referred directly, total downline, and their own tree depth.
    */
   @UseGuards(AuthJwtGuard, ACPermissionGuard)
-  @UseACGuard('REFERRAL', ['view-referrals'])
+  @UseACGuard("REFERRAL", ["view-referrals"])
   @Query(() => ReferralStats)
   async myReferralStats(
-    @CurrentUser() currentUser: AccessTokenInfo,
+    @CurrentUser() currentUser: AccessTokenInfo
   ): Promise<ReferralStats> {
     const user = await this.userRepo.findOneOrFail({
       where: { id: currentUser.user.id },
@@ -644,13 +640,13 @@ export class ReferralResolver {
    * ordered by path (top of tree first).
    */
   @UseGuards(AuthJwtGuard, ACPermissionGuard)
-  @UseACGuard('REFERRAL', ['view-referrals'])
+  @UseACGuard("REFERRAL", ["view-referrals"])
   @Query(() => [UserDto])
   async myDownline(
-    @CurrentUser() currentUser: AccessTokenInfo,
+    @CurrentUser() currentUser: AccessTokenInfo
   ): Promise<UserDto[]> {
     const descendants = await this.referralService.getAllDescendants(
-      currentUser.user.id,
+      currentUser.user.id
     );
     return descendants.map(u => plainToInstance(UserDto, u));
   }
@@ -706,11 +702,11 @@ Update `ReferralModule` to include the resolver:
 
 ```typescript
 // apps/api/src/modules/referral/referral.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserEntity } from '../user/entities/user.entity';
-import { ReferralService } from './referral.service';
-import { ReferralResolver } from './referral.resolver';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { UserEntity } from "../user/entities/user.entity";
+import { ReferralService } from "./referral.service";
+import { ReferralResolver } from "./referral.resolver";
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserEntity])],
@@ -736,31 +732,31 @@ The seeder builds a verifiable 3-level referral tree: 1 root, 3 level-1 users, 6
 
 ```typescript
 // apps/api/src/seeders/referral-tree.seeder.ts
-import { DataSource } from 'typeorm';
-import { Seeder } from '@jorgebodega/typeorm-seeding';
-import * as bcrypt from 'bcrypt';
-import { UserEntity, UserStatus } from '../modules/user/entities/user.entity';
-import { generateReferralCode } from '../helpers/referral-code';
+import { DataSource } from "typeorm";
+import { Seeder } from "@jorgebodega/typeorm-seeding";
+import * as bcrypt from "bcrypt";
+import { UserEntity, UserStatus } from "../modules/user/entities/user.entity";
+import { generateReferralCode } from "../helpers/referral-code";
 
 export default class ReferralTreeSeeder implements Seeder {
   async run(dataSource: DataSource): Promise<void> {
     const userRepo = dataSource.getRepository(UserEntity);
 
-    const hashed = await bcrypt.hash('Password1!', 10);
+    const hashed = await bcrypt.hash("Password1!", 10);
 
     // ----------------------------------------------------------------
     // Level 0: root user (no referrer)
     // ----------------------------------------------------------------
     const root = await userRepo.save(
       userRepo.create({
-        email: 'root@referral.test',
+        email: "root@referral.test",
         password: hashed,
         status: UserStatus.ACTIVE,
         tenantId: 1,
-        referralCode: generateReferralCode('ROOT'),
+        referralCode: generateReferralCode("ROOT"),
         referredByCode: null,
-        path: '',  // will be set below
-      }),
+        path: "", // will be set below
+      })
     );
     root.path = `${root.id}.`;
     await userRepo.save(root);
@@ -776,10 +772,10 @@ export default class ReferralTreeSeeder implements Seeder {
           password: hashed,
           status: UserStatus.ACTIVE,
           tenantId: 1,
-          referralCode: generateReferralCode('L1'),
+          referralCode: generateReferralCode("L1"),
           referredByCode: root.referralCode,
-          path: '',
-        }),
+          path: "",
+        })
       );
       u.path = `${root.path}${u.id}.`;
       await userRepo.save(u);
@@ -797,10 +793,10 @@ export default class ReferralTreeSeeder implements Seeder {
             password: hashed,
             status: UserStatus.ACTIVE,
             tenantId: 1,
-            referralCode: generateReferralCode('L2'),
+            referralCode: generateReferralCode("L2"),
             referredByCode: parent.referralCode,
-            path: '',
-          }),
+            path: "",
+          })
         );
         u.path = `${parent.path}${u.id}.`;
         await userRepo.save(u);
@@ -810,23 +806,28 @@ export default class ReferralTreeSeeder implements Seeder {
     // ----------------------------------------------------------------
     // Verify — assert path structure is correct
     // ----------------------------------------------------------------
-    const rootUser = await userRepo.findOneOrFail({ where: { email: 'root@referral.test' } });
-    console.log('[ReferralTreeSeeder] root path:', rootUser.path);
+    const rootUser = await userRepo.findOneOrFail({
+      where: { email: "root@referral.test" },
+    });
+    console.log("[ReferralTreeSeeder] root path:", rootUser.path);
     // Expected: '1.'  (or whatever the root's actual id is)
 
     const l1Users = await userRepo
-      .createQueryBuilder('u')
-      .where('u.path LIKE :p', { p: `${rootUser.path}%.` })
+      .createQueryBuilder("u")
+      .where("u.path LIKE :p", { p: `${rootUser.path}%.` })
       .andWhere(`LENGTH(u.path) - LENGTH(REPLACE(u.path, '.', '')) = 2`)
       .getMany();
-    console.log('[ReferralTreeSeeder] level-1 count:', l1Users.length);
+    console.log("[ReferralTreeSeeder] level-1 count:", l1Users.length);
     // Expected: 3
 
     const allDescendants = await userRepo
-      .createQueryBuilder('u')
-      .where('u.path LIKE :p', { p: `${rootUser.path}%` })
+      .createQueryBuilder("u")
+      .where("u.path LIKE :p", { p: `${rootUser.path}%` })
       .getMany();
-    console.log('[ReferralTreeSeeder] total descendants:', allDescendants.length);
+    console.log(
+      "[ReferralTreeSeeder] total descendants:",
+      allDescendants.length
+    );
     // Expected: 9
   }
 }
@@ -885,10 +886,10 @@ TypeORM diffs the entity against the current schema and generates a migration th
 
 ```typescript
 // apps/api/src/migrations/1751234567890-AddReferralColumns.ts
-import { MigrationInterface, QueryRunner } from 'typeorm';
+import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class AddReferralColumns1751234567890 implements MigrationInterface {
-  name = 'AddReferralColumns1751234567890';
+  name = "AddReferralColumns1751234567890";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add referral_code column (unique, nullable during migration)
@@ -944,7 +945,9 @@ export class AddReferralColumns1751234567890 implements MigrationInterface {
       ALTER TABLE "user" DROP CONSTRAINT "UQ_user_referral_code"
     `);
     await queryRunner.query(`ALTER TABLE "user" DROP COLUMN "path"`);
-    await queryRunner.query(`ALTER TABLE "user" DROP COLUMN "referred_by_code"`);
+    await queryRunner.query(
+      `ALTER TABLE "user" DROP COLUMN "referred_by_code"`
+    );
     await queryRunner.query(`ALTER TABLE "user" DROP COLUMN "referral_code"`);
   }
 }
@@ -1015,7 +1018,7 @@ const cached = await this.redis.get(cacheKey);
 if (cached) return JSON.parse(cached);
 
 const stats = await this.computeStats(userId);
-await this.redis.set(cacheKey, JSON.stringify(stats), 'EX', 300);
+await this.redis.set(cacheKey, JSON.stringify(stats), "EX", 300);
 return stats;
 ```
 
@@ -1029,18 +1032,18 @@ Each registration triggers one `SELECT` (look up referrer by code) and one `UPDA
 
 ## Summary: Flat referredBy vs Materialized Path
 
-| Concern | Flat adjacency list (`referredBy: userId`) | Materialized path (`path: string`) |
-|---------|-------------------------------------------|-----------------------------------|
-| Query complexity — descendants | O(depth) queries or recursive CTE | O(1) — single `LIKE prefix%` query |
-| Query complexity — ancestors | O(depth) queries | O(1) — parse `path` string in application |
-| Write complexity | O(1) — set one FK | O(1) — single UPDATE after INSERT |
-| Depth lookup | O(depth) recursive hops | O(1) — count segments in `path` string |
-| Descendant query | Recursive CTE or N+1 loop | `WHERE path LIKE 'prefix%'` |
-| Index type | btree on `referred_by_user_id` | btree on `path` (left-anchored LIKE) |
-| Circular reference check | Walk ancestors in a loop | Check if `userId.` appears in candidate's `path` |
-| Commission calc (multi-level) | Recursive loop, N queries | Parse `path`, batch `WHERE id IN (...)` |
-| Schema complexity | One FK column | Three columns (`referralCode`, `referredByCode`, `path`) |
-| Max practical depth | ~10 levels (CTE limit / performance) | Hundreds of levels (string length is the only limit) |
+| Concern                        | Flat adjacency list (`referredBy: userId`) | Materialized path (`path: string`)                       |
+| ------------------------------ | ------------------------------------------ | -------------------------------------------------------- |
+| Query complexity — descendants | O(depth) queries or recursive CTE          | O(1) — single `LIKE prefix%` query                       |
+| Query complexity — ancestors   | O(depth) queries                           | O(1) — parse `path` string in application                |
+| Write complexity               | O(1) — set one FK                          | O(1) — single UPDATE after INSERT                        |
+| Depth lookup                   | O(depth) recursive hops                    | O(1) — count segments in `path` string                   |
+| Descendant query               | Recursive CTE or N+1 loop                  | `WHERE path LIKE 'prefix%'`                              |
+| Index type                     | btree on `referred_by_user_id`             | btree on `path` (left-anchored LIKE)                     |
+| Circular reference check       | Walk ancestors in a loop                   | Check if `userId.` appears in candidate's `path`         |
+| Commission calc (multi-level)  | Recursive loop, N queries                  | Parse `path`, batch `WHERE id IN (...)`                  |
+| Schema complexity              | One FK column                              | Three columns (`referralCode`, `referredByCode`, `path`) |
+| Max practical depth            | ~10 levels (CTE limit / performance)       | Hundreds of levels (string length is the only limit)     |
 
 ---
 

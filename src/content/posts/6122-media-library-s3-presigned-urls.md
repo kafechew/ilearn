@@ -1,6 +1,6 @@
 ---
 author: Kai
-pubDatetime: 2026-06-29T09:00:00+08:00
+pubDatetime: 2026-05-22T09:00:00+08:00
 title: Media Library — S3 Presigned Uploads, Magic Byte Validation & CDN
 featured: false
 draft: false
@@ -36,15 +36,15 @@ File upload is one of the most common enterprise features and one of the most fr
 
 ## Meteor Equivalents
 
-| Concept | Meteor (ostrio:files / edgee:slingshot) | NestJS presigned URL |
-|---|---|---|
-| Upload to S3 | `edgee:slingshot` generates a policy, browser PUTs direct | Same 3-step flow — `requestUpload` → S3 PUT → `confirmUpload` |
-| File metadata | `FilesCollection` MongoDB document | `MediaEntity` TypeORM entity with status lifecycle |
-| File bytes through server | `ostrio:files` streams through Meteor server by default | Explicitly blocked — API only exchanges URLs, never bytes |
-| Post-processing | DDP method + synchronous call | Bull queue job: magic byte check, `sharp` thumbnail |
-| CDN delivery | Direct S3 URL or manual CloudFront config | `getCdnUrl()` on `S3Service` — CloudFront OAC enforced by bucket policy |
-| File type validation | Extension + MIME check on server | Magic byte check via `file-type` on first 4KB — extension and declared MIME are both untrusted |
-| Access control | `allow/deny` rules on `FilesCollection` | `ACPermissionGuard` with `upload-media` slug, per-tenant S3 key prefix |
+| Concept                   | Meteor (ostrio:files / edgee:slingshot)                   | NestJS presigned URL                                                                           |
+| ------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Upload to S3              | `edgee:slingshot` generates a policy, browser PUTs direct | Same 3-step flow — `requestUpload` → S3 PUT → `confirmUpload`                                  |
+| File metadata             | `FilesCollection` MongoDB document                        | `MediaEntity` TypeORM entity with status lifecycle                                             |
+| File bytes through server | `ostrio:files` streams through Meteor server by default   | Explicitly blocked — API only exchanges URLs, never bytes                                      |
+| Post-processing           | DDP method + synchronous call                             | Bull queue job: magic byte check, `sharp` thumbnail                                            |
+| CDN delivery              | Direct S3 URL or manual CloudFront config                 | `getCdnUrl()` on `S3Service` — CloudFront OAC enforced by bucket policy                        |
+| File type validation      | Extension + MIME check on server                          | Magic byte check via `file-type` on first 4KB — extension and declared MIME are both untrusted |
+| Access control            | `allow/deny` rules on `FilesCollection`                   | `ACPermissionGuard` with `upload-media` slug, per-tenant S3 key prefix                         |
 
 The critical difference from Meteor's `ostrio:files`: when you stream files through the Meteor server, every upload occupies a DDP connection for the entire transfer duration. With presigned URLs, the API exchanges two small JSON payloads — one to get the URL, one to confirm — and S3 handles all the bytes directly. The API worker is free for the entire upload duration.
 
@@ -124,7 +124,7 @@ yarn add file-type@16
 **Option B:** Use dynamic `import()` inline:
 
 ```typescript
-const { fileTypeFromBuffer } = await import('file-type');
+const { fileTypeFromBuffer } = await import("file-type");
 ```
 
 This tutorial uses Option A for simplicity. If you upgrade to NestJS with native ESM support later, switch to Option B.
@@ -151,11 +151,11 @@ export const configuration = (): AppConfig => ({
   // ... existing mappings ...
 
   s3: {
-    region: process.env['AWS_REGION'] ?? 'ap-southeast-1',
-    accessKeyId: process.env['AWS_ACCESS_KEY_ID'] ?? '',
-    secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] ?? '',
-    bucket: process.env['S3_BUCKET'] ?? '',
-    cdnBaseUrl: process.env['CDN_BASE_URL'] ?? '',
+    region: process.env["AWS_REGION"] ?? "ap-southeast-1",
+    accessKeyId: process.env["AWS_ACCESS_KEY_ID"] ?? "",
+    secretAccessKey: process.env["AWS_SECRET_ACCESS_KEY"] ?? "",
+    bucket: process.env["S3_BUCKET"] ?? "",
+    cdnBaseUrl: process.env["CDN_BASE_URL"] ?? "",
   },
 });
 ```
@@ -203,29 +203,29 @@ The entity models the full lifecycle of an uploaded file. Each row starts as `PE
 
 ```typescript
 // apps/api/src/modules/media/media.entity.ts
-import { Column, Entity, Index, ManyToOne, JoinColumn } from 'typeorm';
-import { AbstractEntity } from 'nestjs-dev-utilities';
-import { UserEntity } from '../user/user.entity';
+import { Column, Entity, Index, ManyToOne, JoinColumn } from "typeorm";
+import { AbstractEntity } from "nestjs-dev-utilities";
+import { UserEntity } from "../user/user.entity";
 
 export enum MediaStatus {
-  PENDING = 'PENDING',
-  UPLOADED = 'UPLOADED',
-  READY = 'READY',
-  FAILED = 'FAILED',
+  PENDING = "PENDING",
+  UPLOADED = "UPLOADED",
+  READY = "READY",
+  FAILED = "FAILED",
 }
 
-@Entity({ name: 'media' })
+@Entity({ name: "media" })
 export class MediaEntity extends AbstractEntity {
   @Index()
-  @Column({ type: 'int' })
+  @Column({ type: "int" })
   tenantId: number;
 
   @Index()
-  @Column({ type: 'int' })
+  @Column({ type: "int" })
   userId: number;
 
-  @ManyToOne(() => UserEntity, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
+  @ManyToOne(() => UserEntity, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "user_id" })
   user: UserEntity;
 
   // S3 object key — tenants/{tenantId}/media/{uuid}.{ext}
@@ -240,13 +240,13 @@ export class MediaEntity extends AbstractEntity {
 
   // bigint supports files > 2GB (video uploads)
   // stored as string in JS due to JS number precision limits
-  @Column({ type: 'bigint' })
+  @Column({ type: "bigint" })
   sizeBytes: string;
 
   // Indexed — queried in every processor job (WHERE status = 'UPLOADED')
   @Index()
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: MediaStatus,
     default: MediaStatus.PENDING,
   })
@@ -259,7 +259,7 @@ export class MediaEntity extends AbstractEntity {
   @Column({ nullable: true })
   thumbnailUrl: string | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   processedAt: Date | null;
 
   // Set by the Bull processor on FAILED status
@@ -298,11 +298,11 @@ The `S3Service` has two responsibilities: generate presigned upload URLs, and bu
 
 ```typescript
 // apps/api/src/modules/media/s3.service.ts
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { AppConfig } from '@enterprise-todo/core';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { AppConfig } from "@enterprise-todo/core";
 
 // 5 minutes — enough time for the browser to start the PUT.
 // The upload itself can take longer; the expiry only governs when the PUT
@@ -316,7 +316,7 @@ export class S3Service {
   private readonly cdnBaseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    const s3Config = configService.getOrThrow<AppConfig['s3']>('s3');
+    const s3Config = configService.getOrThrow<AppConfig["s3"]>("s3");
 
     this.client = new S3Client({
       region: s3Config.region,
@@ -341,7 +341,7 @@ export class S3Service {
   async generateUploadUrl(
     fileKey: string,
     mimeType: string,
-    maxSizeBytes: number,
+    maxSizeBytes: number
   ): Promise<string> {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
@@ -356,7 +356,7 @@ export class S3Service {
       expiresIn: PRESIGNED_URL_EXPIRY_SECONDS,
       // Enforce size at S3 level — prevents clients from uploading oversized files
       // even if they craft a raw PUT bypassing your API
-      signableHeaders: new Set(['content-type']),
+      signableHeaders: new Set(["content-type"]),
     });
 
     return uploadUrl;
@@ -379,7 +379,7 @@ export class S3Service {
    * Used by MediaProcessor to read magic bytes without downloading the full file.
    */
   async getFirstBytes(fileKey: string, numBytes: number): Promise<Buffer> {
-    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: fileKey,
@@ -391,9 +391,9 @@ export class S3Service {
 
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      stream.on('end', () => resolve(Buffer.concat(chunks)));
-      stream.on('error', reject);
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.on("end", () => resolve(Buffer.concat(chunks)));
+      stream.on("error", reject);
     });
   }
 }
@@ -411,16 +411,16 @@ The service validates the upload request, generates the per-tenant fileKey, save
 
 ```typescript
 // apps/api/src/modules/media/media.constants.ts
-export const MEDIA_QUEUE = 'media-processing';
+export const MEDIA_QUEUE = "media-processing";
 
 export const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'application/pdf',
-  'video/mp4',
-  'video/webm',
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "video/mp4",
+  "video/webm",
 ]);
 
 // 100MB — S3 validation is belt-and-suspenders; this check is in the API
@@ -428,13 +428,13 @@ export const MAX_SIZE_BYTES = 100 * 1024 * 1024;
 
 // Map MIME type to canonical file extension for the S3 key
 export const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-  'application/pdf': 'pdf',
-  'video/mp4': 'mp4',
-  'video/webm': 'webm',
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "application/pdf": "pdf",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
 };
 ```
 
@@ -442,10 +442,10 @@ export const MIME_TO_EXT: Record<string, string> = {
 
 ```typescript
 // apps/api/src/modules/media/dto/media.dto.ts
-import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
-import { MediaStatus } from '../media.entity';
+import { ObjectType, Field, ID, Int, registerEnumType } from "@nestjs/graphql";
+import { MediaStatus } from "../media.entity";
 
-registerEnumType(MediaStatus, { name: 'MediaStatus' });
+registerEnumType(MediaStatus, { name: "MediaStatus" });
 
 @ObjectType()
 export class MediaDto {
@@ -497,9 +497,9 @@ export class UploadUrlResult {
 
 ```typescript
 // apps/api/src/modules/media/cqrs/inputs/request-upload.input.ts
-import { InputType, Field, Int } from '@nestjs/graphql';
-import { IsString, IsMimeType, IsInt, Min, Max } from 'class-validator';
-import { MAX_SIZE_BYTES } from '../../media.constants';
+import { InputType, Field, Int } from "@nestjs/graphql";
+import { IsString, IsMimeType, IsInt, Min, Max } from "class-validator";
+import { MAX_SIZE_BYTES } from "../../media.constants";
 
 @InputType()
 export class RequestUploadInput {
@@ -523,8 +523,8 @@ export class RequestUploadInput {
 
 ```typescript
 // apps/api/src/modules/media/cqrs/inputs/confirm-upload.input.ts
-import { InputType, Field, ID } from '@nestjs/graphql';
-import { IsInt, Min } from 'class-validator';
+import { InputType, Field, ID } from "@nestjs/graphql";
+import { IsInt, Min } from "class-validator";
 
 @InputType()
 export class ConfirmUploadInput {
@@ -543,21 +543,21 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { randomUUID } from 'crypto';
-import { MediaEntity, MediaStatus } from './media.entity';
-import { S3Service } from './s3.service';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { InjectQueue } from "@nestjs/bull";
+import { Queue } from "bull";
+import { randomUUID } from "crypto";
+import { MediaEntity, MediaStatus } from "./media.entity";
+import { S3Service } from "./s3.service";
 import {
   ALLOWED_MIME_TYPES,
   MAX_SIZE_BYTES,
   MEDIA_QUEUE,
   MIME_TO_EXT,
-} from './media.constants';
-import { UploadUrlResult } from './dto/media.dto';
+} from "./media.constants";
+import { UploadUrlResult } from "./dto/media.dto";
 
 @Injectable()
 export class MediaService {
@@ -566,7 +566,7 @@ export class MediaService {
     private readonly mediaRepo: Repository<MediaEntity>,
     private readonly s3Service: S3Service,
     @InjectQueue(MEDIA_QUEUE)
-    private readonly mediaQueue: Queue,
+    private readonly mediaQueue: Queue
   ) {}
 
   /**
@@ -583,18 +583,18 @@ export class MediaService {
     tenantId: number,
     originalName: string,
     mimeType: string,
-    sizeBytes: number,
+    sizeBytes: number
   ): Promise<UploadUrlResult> {
     if (!ALLOWED_MIME_TYPES.has(mimeType)) {
       throw new BadRequestException(
         `MIME type '${mimeType}' is not allowed. ` +
-        `Allowed types: ${[...ALLOWED_MIME_TYPES].join(', ')}`,
+          `Allowed types: ${[...ALLOWED_MIME_TYPES].join(", ")}`
       );
     }
 
     if (sizeBytes > MAX_SIZE_BYTES) {
       throw new BadRequestException(
-        `File size ${sizeBytes} bytes exceeds the maximum of ${MAX_SIZE_BYTES} bytes (100MB).`,
+        `File size ${sizeBytes} bytes exceeds the maximum of ${MAX_SIZE_BYTES} bytes (100MB).`
       );
     }
 
@@ -620,7 +620,7 @@ export class MediaService {
     const uploadUrl = await this.s3Service.generateUploadUrl(
       fileKey,
       mimeType,
-      MAX_SIZE_BYTES,
+      MAX_SIZE_BYTES
     );
 
     return {
@@ -640,7 +640,7 @@ export class MediaService {
   async confirmUploadMedia(
     mediaId: number,
     userId: number,
-    tenantId: number,
+    tenantId: number
   ): Promise<MediaEntity> {
     const media = await this.mediaRepo.findOne({
       where: { id: mediaId, userId, tenantId, status: MediaStatus.PENDING },
@@ -648,7 +648,7 @@ export class MediaService {
 
     if (!media) {
       throw new NotFoundException(
-        `Media ${mediaId} not found, already confirmed, or does not belong to this user.`,
+        `Media ${mediaId} not found, already confirmed, or does not belong to this user.`
       );
     }
 
@@ -658,20 +658,23 @@ export class MediaService {
     // Enqueue the processing job — magic byte check, thumbnail generation
     // This runs asynchronously; the browser does not wait for it
     await this.mediaQueue.add(
-      'process-upload',
+      "process-upload",
       { mediaId: saved.id },
       {
         attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
+        backoff: { type: "exponential", delay: 5000 },
         removeOnComplete: true,
         removeOnFail: false, // Keep failed jobs for inspection in Bull Board
-      },
+      }
     );
 
     return saved;
   }
 
-  async findOneMedia(id: number, tenantId: number): Promise<MediaEntity | null> {
+  async findOneMedia(
+    id: number,
+    tenantId: number
+  ): Promise<MediaEntity | null> {
     return this.mediaRepo.findOne({ where: { id, tenantId } });
   }
 }
@@ -693,8 +696,8 @@ yarn api:dev
 
 ```typescript
 // apps/api/src/modules/media/cqrs/commands/request-upload.command.ts
-import { TypedCommand } from 'nestjs-typed-cqrs';
-import { UploadUrlResult } from '../../dto/media.dto';
+import { TypedCommand } from "nestjs-typed-cqrs";
+import { UploadUrlResult } from "../../dto/media.dto";
 
 export class RequestUploadCommand extends TypedCommand<UploadUrlResult> {
   constructor(
@@ -702,7 +705,7 @@ export class RequestUploadCommand extends TypedCommand<UploadUrlResult> {
     public readonly tenantId: number,
     public readonly originalName: string,
     public readonly mimeType: string,
-    public readonly sizeBytes: number,
+    public readonly sizeBytes: number
   ) {
     super();
   }
@@ -711,14 +714,14 @@ export class RequestUploadCommand extends TypedCommand<UploadUrlResult> {
 
 ```typescript
 // apps/api/src/modules/media/cqrs/commands/confirm-upload.command.ts
-import { TypedCommand } from 'nestjs-typed-cqrs';
-import { MediaEntity } from '../../media.entity';
+import { TypedCommand } from "nestjs-typed-cqrs";
+import { MediaEntity } from "../../media.entity";
 
 export class ConfirmUploadCommand extends TypedCommand<MediaEntity> {
   constructor(
     public readonly mediaId: number,
     public readonly userId: number,
-    public readonly tenantId: number,
+    public readonly tenantId: number
   ) {
     super();
   }
@@ -731,13 +734,16 @@ Handlers are strict one-liners. No business logic — they exist only to bridge 
 
 ```typescript
 // apps/api/src/modules/media/cqrs/handlers/request-upload.handler.ts
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { MediaService } from '../../media.service';
-import { RequestUploadCommand } from '../commands/request-upload.command';
-import { UploadUrlResult } from '../../dto/media.dto';
+import { CommandHandler, ICommandHandler } from "@nestjs/cqrs";
+import { MediaService } from "../../media.service";
+import { RequestUploadCommand } from "../commands/request-upload.command";
+import { UploadUrlResult } from "../../dto/media.dto";
 
 @CommandHandler(RequestUploadCommand)
-export class RequestUploadHandler implements ICommandHandler<RequestUploadCommand, UploadUrlResult> {
+export class RequestUploadHandler implements ICommandHandler<
+  RequestUploadCommand,
+  UploadUrlResult
+> {
   constructor(private readonly mediaService: MediaService) {}
 
   execute(command: RequestUploadCommand): Promise<UploadUrlResult> {
@@ -746,7 +752,7 @@ export class RequestUploadHandler implements ICommandHandler<RequestUploadComman
       command.tenantId,
       command.originalName,
       command.mimeType,
-      command.sizeBytes,
+      command.sizeBytes
     );
   }
 }
@@ -754,20 +760,23 @@ export class RequestUploadHandler implements ICommandHandler<RequestUploadComman
 
 ```typescript
 // apps/api/src/modules/media/cqrs/handlers/confirm-upload.handler.ts
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { MediaService } from '../../media.service';
-import { ConfirmUploadCommand } from '../commands/confirm-upload.command';
-import { MediaEntity } from '../../media.entity';
+import { CommandHandler, ICommandHandler } from "@nestjs/cqrs";
+import { MediaService } from "../../media.service";
+import { ConfirmUploadCommand } from "../commands/confirm-upload.command";
+import { MediaEntity } from "../../media.entity";
 
 @CommandHandler(ConfirmUploadCommand)
-export class ConfirmUploadHandler implements ICommandHandler<ConfirmUploadCommand, MediaEntity> {
+export class ConfirmUploadHandler implements ICommandHandler<
+  ConfirmUploadCommand,
+  MediaEntity
+> {
   constructor(private readonly mediaService: MediaService) {}
 
   execute(command: ConfirmUploadCommand): Promise<MediaEntity> {
     return this.mediaService.confirmUploadMedia(
       command.mediaId,
       command.userId,
-      command.tenantId,
+      command.tenantId
     );
   }
 }
@@ -777,29 +786,29 @@ export class ConfirmUploadHandler implements ICommandHandler<ConfirmUploadComman
 
 ```typescript
 // apps/api/src/modules/media/cqrs/index.ts
-export { RequestUploadCommand } from './commands/request-upload.command';
-export { ConfirmUploadCommand } from './commands/confirm-upload.command';
-export { RequestUploadHandler } from './handlers/request-upload.handler';
-export { ConfirmUploadHandler } from './handlers/confirm-upload.handler';
+export { RequestUploadCommand } from "./commands/request-upload.command";
+export { ConfirmUploadCommand } from "./commands/confirm-upload.command";
+export { RequestUploadHandler } from "./handlers/request-upload.handler";
+export { ConfirmUploadHandler } from "./handlers/confirm-upload.handler";
 ```
 
 ### Resolver
 
 ```typescript
 // apps/api/src/modules/media/media.resolver.ts
-import { Args, Mutation, Query, Resolver, ID } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
-import { CommandBus } from '@nestjs/cqrs';
-import { AuthJwtGuard } from '../auth/auth-jwt.guard';
-import { ACPermissionGuard } from '../auth/ac-permission.guard';
-import { UseACGuard } from '../auth/use-ac-guard.decorator';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { JwtPayload } from '@enterprise-todo/contracts';
-import { MediaDto, UploadUrlResult } from './dto/media.dto';
-import { RequestUploadInput } from './cqrs/inputs/request-upload.input';
-import { ConfirmUploadInput } from './cqrs/inputs/confirm-upload.input';
-import { RequestUploadCommand, ConfirmUploadCommand } from './cqrs';
-import { MediaEntity } from './media.entity';
+import { Args, Mutation, Query, Resolver, ID } from "@nestjs/graphql";
+import { UseGuards } from "@nestjs/common";
+import { CommandBus } from "@nestjs/cqrs";
+import { AuthJwtGuard } from "../auth/auth-jwt.guard";
+import { ACPermissionGuard } from "../auth/ac-permission.guard";
+import { UseACGuard } from "../auth/use-ac-guard.decorator";
+import { CurrentUser } from "../auth/current-user.decorator";
+import { JwtPayload } from "@enterprise-todo/contracts";
+import { MediaDto, UploadUrlResult } from "./dto/media.dto";
+import { RequestUploadInput } from "./cqrs/inputs/request-upload.input";
+import { ConfirmUploadInput } from "./cqrs/inputs/confirm-upload.input";
+import { RequestUploadCommand, ConfirmUploadCommand } from "./cqrs";
+import { MediaEntity } from "./media.entity";
 
 @Resolver(() => MediaDto)
 export class MediaResolver {
@@ -811,11 +820,11 @@ export class MediaResolver {
    * The browser PUTs the file directly to S3 using uploadUrl — not through this API.
    */
   @UseGuards(AuthJwtGuard, ACPermissionGuard)
-  @UseACGuard('MEDIA', ['upload-media'])
+  @UseACGuard("MEDIA", ["upload-media"])
   @Mutation(() => UploadUrlResult)
   async requestUpload(
-    @Args('input') input: RequestUploadInput,
-    @CurrentUser() user: JwtPayload,
+    @Args("input") input: RequestUploadInput,
+    @CurrentUser() user: JwtPayload
   ): Promise<UploadUrlResult> {
     return this.commandBus.execute(
       new RequestUploadCommand(
@@ -823,8 +832,8 @@ export class MediaResolver {
         user.tenantId,
         input.originalName,
         input.mimeType,
-        input.sizeBytes,
-      ),
+        input.sizeBytes
+      )
     );
   }
 
@@ -834,14 +843,14 @@ export class MediaResolver {
    * Sets status to UPLOADED and enqueues background processing.
    */
   @UseGuards(AuthJwtGuard, ACPermissionGuard)
-  @UseACGuard('MEDIA', ['upload-media'])
+  @UseACGuard("MEDIA", ["upload-media"])
   @Mutation(() => MediaDto)
   async confirmUpload(
-    @Args('input') input: ConfirmUploadInput,
-    @CurrentUser() user: JwtPayload,
+    @Args("input") input: ConfirmUploadInput,
+    @CurrentUser() user: JwtPayload
   ): Promise<MediaEntity> {
     return this.commandBus.execute(
-      new ConfirmUploadCommand(input.mediaId, user.sub, user.tenantId),
+      new ConfirmUploadCommand(input.mediaId, user.sub, user.tenantId)
     );
   }
 }
@@ -865,16 +874,16 @@ Add the `upload-media` permission to your permissions seeder so it can be assign
 
 ```typescript
 // apps/api/src/modules/media/media.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bull';
-import { MediaEntity } from './media.entity';
-import { MediaService } from './media.service';
-import { MediaResolver } from './media.resolver';
-import { S3Service } from './s3.service';
-import { MediaProcessor } from './media.processor';
-import { MEDIA_QUEUE } from './media.constants';
-import { RequestUploadHandler, ConfirmUploadHandler } from './cqrs';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { BullModule } from "@nestjs/bull";
+import { MediaEntity } from "./media.entity";
+import { MediaService } from "./media.service";
+import { MediaResolver } from "./media.resolver";
+import { S3Service } from "./s3.service";
+import { MediaProcessor } from "./media.processor";
+import { MEDIA_QUEUE } from "./media.constants";
+import { RequestUploadHandler, ConfirmUploadHandler } from "./cqrs";
 
 @Module({
   imports: [
@@ -901,7 +910,7 @@ Register `MediaModule` in `AppModule`:
 
 ```typescript
 // apps/api/src/app/app.module.ts  (add to imports)
-import { MediaModule } from '../modules/media/media.module';
+import { MediaModule } from "../modules/media/media.module";
 
 @Module({
   imports: [
@@ -936,16 +945,16 @@ The processor runs as a background Bull worker. It downloads only the first 4KB 
 
 ```typescript
 // apps/api/src/modules/media/media.processor.ts
-import { Processor, Process } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Job } from 'bull';
-import sharp from 'sharp';
-import { fileTypeFromBuffer } from 'file-type';
-import { MediaEntity, MediaStatus } from './media.entity';
-import { S3Service } from './s3.service';
-import { MEDIA_QUEUE } from './media.constants';
+import { Processor, Process } from "@nestjs/bull";
+import { Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Job } from "bull";
+import sharp from "sharp";
+import { fileTypeFromBuffer } from "file-type";
+import { MediaEntity, MediaStatus } from "./media.entity";
+import { S3Service } from "./s3.service";
+import { MEDIA_QUEUE } from "./media.constants";
 
 interface ProcessUploadJob {
   mediaId: number;
@@ -953,11 +962,16 @@ interface ProcessUploadJob {
 
 // Magic byte → MIME type mappings that file-type recognises
 // If the detected type is not in this set, the file is FAILED (not a security rejection we log and stop)
-const PROCESSABLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const PROCESSABLE_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
 
 // Thumbnail dimensions — 200×200 max, converted to webp for optimal size
 const THUMBNAIL_SIZE = 200;
-const THUMBNAIL_SUFFIX = '_thumb.webp';
+const THUMBNAIL_SUFFIX = "_thumb.webp";
 
 @Processor(MEDIA_QUEUE)
 export class MediaProcessor {
@@ -966,10 +980,10 @@ export class MediaProcessor {
   constructor(
     @InjectRepository(MediaEntity)
     private readonly mediaRepo: Repository<MediaEntity>,
-    private readonly s3Service: S3Service,
+    private readonly s3Service: S3Service
   ) {}
 
-  @Process('process-upload')
+  @Process("process-upload")
   async handleProcessUpload(job: Job<ProcessUploadJob>): Promise<void> {
     const { mediaId } = job.data;
     this.logger.log(`Processing media ${mediaId}`);
@@ -980,14 +994,19 @@ export class MediaProcessor {
 
     if (!media) {
       // Already processed (READY/FAILED) or never confirmed — do nothing
-      this.logger.warn(`Media ${mediaId} not found in UPLOADED state — skipping`);
+      this.logger.warn(
+        `Media ${mediaId} not found in UPLOADED state — skipping`
+      );
       return;
     }
 
     try {
       // Download only the first 4KB — enough for magic byte detection
       // Avoids downloading the full file (could be 100MB video) just to check the type
-      const firstBytes = await this.s3Service.getFirstBytes(media.fileKey, 4096);
+      const firstBytes = await this.s3Service.getFirstBytes(
+        media.fileKey,
+        4096
+      );
 
       // fileTypeFromBuffer inspects magic bytes — the first few bytes that identify
       // the real format regardless of extension or declared Content-Type
@@ -1000,11 +1019,11 @@ export class MediaProcessor {
         await this.failMedia(
           media,
           `Magic byte mismatch: declared '${media.mimeType}', ` +
-          `detected '${detectedType?.mime ?? 'unknown'}'. Upload rejected.`,
+            `detected '${detectedType?.mime ?? "unknown"}'. Upload rejected.`
         );
         this.logger.warn(
           `Media ${mediaId} FAILED: magic byte mismatch ` +
-          `(declared ${media.mimeType}, detected ${detectedType?.mime ?? 'unknown'})`,
+            `(declared ${media.mimeType}, detected ${detectedType?.mime ?? "unknown"})`
         );
         return;
       }
@@ -1014,7 +1033,10 @@ export class MediaProcessor {
 
       // Generate thumbnail for image types
       if (PROCESSABLE_IMAGE_TYPES.has(media.mimeType)) {
-        const thumbnailKey = media.fileKey.replace(/\.[^.]+$/, THUMBNAIL_SUFFIX);
+        const thumbnailKey = media.fileKey.replace(
+          /\.[^.]+$/,
+          THUMBNAIL_SUFFIX
+        );
 
         // Sharp works on the first 4KB — only enough for JPEG/PNG magic bytes.
         // For thumbnail generation we need the full image. Download it.
@@ -1022,13 +1044,13 @@ export class MediaProcessor {
           media.fileKey,
           // getFirstBytes with a very large number effectively downloads the full file
           // In production, consider a separate getObject method that streams directly to sharp
-          100 * 1024 * 1024,
+          100 * 1024 * 1024
         );
 
         const thumbnailBuffer = await sharp(fullBytes)
           .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
-            fit: 'cover',
-            position: 'attention', // smart crop — focuses on salient regions
+            fit: "cover",
+            position: "attention", // smart crop — focuses on salient regions
           })
           .webp({ quality: 80 })
           .toBuffer();
@@ -1053,7 +1075,10 @@ export class MediaProcessor {
     }
   }
 
-  private async failMedia(media: MediaEntity, errorMessage: string): Promise<void> {
+  private async failMedia(
+    media: MediaEntity,
+    errorMessage: string
+  ): Promise<void> {
     media.status = MediaStatus.FAILED;
     media.errorMessage = errorMessage.slice(0, 500); // column length limit
     media.processedAt = new Date();
@@ -1063,8 +1088,8 @@ export class MediaProcessor {
   private async uploadThumbnail(key: string, buffer: Buffer): Promise<void> {
     // Re-use the S3 client from S3Service via a direct put
     // Thumbnail is a small webp — no presigned URL needed (server-to-server)
-    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-    const { ConfigService } = await import('@nestjs/config');
+    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const { ConfigService } = await import("@nestjs/config");
     // Note: in a real implementation, inject S3Client directly rather than re-instantiating.
     // This is simplified for tutorial clarity — see the note below.
     void key;
@@ -1140,6 +1165,7 @@ yarn api:migration:generate apps/api/src/migrations/CreateMediaTable
 The generated migration will contain `CREATE TABLE media` with all columns from `MediaEntity`, the `media_status_enum` PostgreSQL enum, and the indexes on `tenantId`, `userId`, and `status`.
 
 Review the generated SQL before running. Confirm:
+
 - `status` column uses the `media_status_enum` enum type
 - `size_bytes` column is `bigint` (not `integer`)
 - `file_key` has a `UNIQUE` constraint
@@ -1175,9 +1201,9 @@ yarn api:dev
 
 ```typescript
 // apps/web/src/hooks/useFileUpload.ts
-import { useState } from 'react';
-import { useMutation } from '@apollo/client/react';
-import { gql } from '@apollo/client';
+import { useState } from "react";
+import { useMutation } from "@apollo/client/react";
+import { gql } from "@apollo/client";
 
 const REQUEST_UPLOAD = gql`
   mutation RequestUpload($input: RequestUploadInput!) {
@@ -1201,21 +1227,21 @@ const CONFIRM_UPLOAD = gql`
 `;
 
 export type UploadState =
-  | { type: 'idle' }
-  | { type: 'requesting' }
-  | { type: 'uploading'; progress: number }
-  | { type: 'confirming' }
-  | { type: 'done'; cdnUrl: string | null; mediaId: number }
-  | { type: 'error'; message: string };
+  | { type: "idle" }
+  | { type: "requesting" }
+  | { type: "uploading"; progress: number }
+  | { type: "confirming" }
+  | { type: "done"; cdnUrl: string | null; mediaId: number }
+  | { type: "error"; message: string };
 
 export function useFileUpload() {
-  const [state, setState] = useState<UploadState>({ type: 'idle' });
+  const [state, setState] = useState<UploadState>({ type: "idle" });
 
   const [requestUploadMutation] = useMutation(REQUEST_UPLOAD);
   const [confirmUploadMutation] = useMutation(CONFIRM_UPLOAD);
 
   const upload = async (file: File): Promise<void> => {
-    setState({ type: 'requesting' });
+    setState({ type: "requesting" });
 
     try {
       // Step 1: Request presigned URL from API
@@ -1234,22 +1260,24 @@ export function useFileUpload() {
       // Step 2: PUT file directly to S3
       // Note: Authorization header must NOT be sent to S3 — it would cause a SignatureDoesNotMatch error
       // The presigned URL already carries all the auth information in query params
-      setState({ type: 'uploading', progress: 0 });
+      setState({ type: "uploading", progress: 0 });
 
       const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
+        method: "PUT",
         body: file,
         headers: {
-          'Content-Type': file.type,
+          "Content-Type": file.type,
           // Do NOT include Authorization header here
         },
       });
 
       if (!uploadResponse.ok) {
-        throw new Error(`S3 upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+        throw new Error(
+          `S3 upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`
+        );
       }
 
-      setState({ type: 'confirming' });
+      setState({ type: "confirming" });
 
       // Step 3: Confirm the upload with the API
       const { data: confirmData } = await confirmUploadMutation({
@@ -1259,14 +1287,14 @@ export function useFileUpload() {
       });
 
       const { cdnUrl } = confirmData.confirmUpload;
-      setState({ type: 'done', cdnUrl, mediaId });
+      setState({ type: "done", cdnUrl, mediaId });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed';
-      setState({ type: 'error', message });
+      const message = err instanceof Error ? err.message : "Upload failed";
+      setState({ type: "error", message });
     }
   };
 
-  const reset = () => setState({ type: 'idle' });
+  const reset = () => setState({ type: "idle" });
 
   return { upload, state, reset };
 }
@@ -1439,10 +1467,7 @@ Attach this policy to the IAM role used by your ECS task or EC2 instance running
     {
       "Sid": "AllowPresignedPut",
       "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject"
-      ],
+      "Action": ["s3:PutObject", "s3:GetObject"],
       "Resource": "arn:aws:s3:::enterprise-todo-media-prod/*"
     }
   ]
@@ -1612,11 +1637,13 @@ Expected response:
 ### Step 7: Watch the Bull Board
 
 Open `http://localhost:3333/queues` in your browser. You should see:
+
 - Queue: `media-processing`
 - One job in `waiting` or `active`
 - Within seconds: job moves to `completed`
 
 If the job moves to `failed`, check the job error in the Bull Board for details. Common causes:
+
 - AWS credentials not set in `.env`
 - S3 bucket does not exist in the configured region
 - `file-type` version issue — check Section 2 Gotcha
@@ -1718,17 +1745,17 @@ The file is stored in S3 (the presigned URL let it through), but the processed r
 
 ## Summary: Meteor ostrio:files vs Enterprise Presigned URL Pattern
 
-| Concern | Meteor ostrio:files | Enterprise presigned URL |
-|---|---|---|
-| File bytes path | Through Meteor server DDP connection | Direct browser → S3, API never sees bytes |
-| Server load during upload | DDP connection blocked for entire transfer | Two small JSON mutations, zero file I/O |
-| Storage on server failure | Files lost if written to local disk | S3 is durable (11 9s) — server restart irrelevant |
-| CDN delivery | Manual CloudFront config, S3 URLs in DB | `getCdnUrl()` returns CloudFront URL — CDN is the only delivery path |
-| File type validation | Extension + Content-Type header (both spoofable) | Magic byte check on first 4KB — extension/MIME both untrusted |
-| Post-processing | Synchronous in upload handler or manual setTimeout | Bull queue job — async, retryable, observable in Bull Board |
-| Per-tenant isolation | Manual prefix convention | UUID fileKey with `tenants/{id}/` prefix — enforced in `requestUpload` |
-| Large file support | Limited by DDP message size | No API limit — S3 presigned PUT supports up to 5GB single-part |
-| Access control | `allow/deny` on FilesCollection | ACPermissionGuard + per-tenant S3 prefix |
+| Concern                   | Meteor ostrio:files                                | Enterprise presigned URL                                               |
+| ------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
+| File bytes path           | Through Meteor server DDP connection               | Direct browser → S3, API never sees bytes                              |
+| Server load during upload | DDP connection blocked for entire transfer         | Two small JSON mutations, zero file I/O                                |
+| Storage on server failure | Files lost if written to local disk                | S3 is durable (11 9s) — server restart irrelevant                      |
+| CDN delivery              | Manual CloudFront config, S3 URLs in DB            | `getCdnUrl()` returns CloudFront URL — CDN is the only delivery path   |
+| File type validation      | Extension + Content-Type header (both spoofable)   | Magic byte check on first 4KB — extension/MIME both untrusted          |
+| Post-processing           | Synchronous in upload handler or manual setTimeout | Bull queue job — async, retryable, observable in Bull Board            |
+| Per-tenant isolation      | Manual prefix convention                           | UUID fileKey with `tenants/{id}/` prefix — enforced in `requestUpload` |
+| Large file support        | Limited by DDP message size                        | No API limit — S3 presigned PUT supports up to 5GB single-part         |
+| Access control            | `allow/deny` on FilesCollection                    | ACPermissionGuard + per-tenant S3 prefix                               |
 
 ---
 
