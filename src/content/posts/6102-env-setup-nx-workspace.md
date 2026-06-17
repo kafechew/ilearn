@@ -274,7 +274,7 @@ apps/api/
 ### 3.3 Generate the Next.js Frontend
 
 ```bash
-npx nx g @nx/next:app apps/web --src=true --appDir=true --style=tailwind
+npx nx g @nx/next:app apps/web --src=true --appDir=true --style=css
 ```
 
 When prompted:
@@ -283,7 +283,50 @@ When prompted:
 - **unit test runner?** → `jest` (we use Jest for unit tests)
 - **E2E test runner?** → `playwright` or `none`
 
-This creates `apps/web/` with a Next.js 16 App Router app pre-configured with Tailwind CSS.
+`@nx/next` does not have a `setup-tailwind` generator — add Tailwind manually. This project uses **Tailwind CSS v4**, which uses a CSS-first configuration approach (no `tailwind.config.js`, no `init` command):
+
+```bash
+yarn add --dev tailwindcss postcss autoprefixer @tailwindcss/postcss
+```
+
+Create `postcss.config.js` in the workspace root:
+
+```js
+module.exports = {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+}
+```
+
+Replace the contents of `apps/web/src/app/global.css` with:
+
+```css
+@import "tailwindcss";
+```
+
+> **`global.css` not `globals.css`:** Nx generates the file as `global.css` (no trailing `s`). The import in `layout.tsx` already points to the correct name — don't rename it.
+
+> **Tailwind v4 vs v3:** V4 removes `tailwind.config.js` and the three `@tailwind` directives. Source file detection is automatic. Custom theme extensions use `@theme` blocks directly in CSS instead of a config file.
+
+Finally, replace the Nx placeholder `apps/web/src/app/page.tsx` with a clean starter:
+
+```tsx
+export default function Index() {
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900">entodo</h1>
+        <p className="mt-2 text-gray-500">Frontend is up and running.</p>
+      </div>
+    </main>
+  );
+}
+```
+
+> **Why replace the default page?** The Nx-generated `page.tsx` references custom CSS class names (`.wrapper`, `.container`, `.button-pill`) that depended on styles Nx would have bundled with a different template. Those styles are gone once you adopt Tailwind v4. Tailwind's preflight also resets SVG elements to `display: block`, causing any unsized SVG to expand and fill its container. The placeholder page is never meant to be kept — replace it immediately with your own markup.
+
+This gives you `apps/web/` with a Next.js App Router app and Tailwind CSS v4 confirmed working.
 
 > **Meteor analogy:** `apps/web/` is your `client/` directory. But now it is a completely separate application — it communicates with `apps/api` only through HTTP, not through shared memory.
 
@@ -469,7 +512,7 @@ Open `http://localhost:8080` in your browser and log in:
 | Server   | `postgres` (the container name — Docker's internal DNS) |
 | Username | `postgres`                                              |
 | Password | `postgres`                                              |
-| Database | `entodo`                                       |
+| Database | `entodo`                                                |
 
 You should see an empty database. This is where your tables will appear after running migrations (Part 04).
 
@@ -639,9 +682,12 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   // Helmet — security headers. CSP disabled in dev so Apollo Sandbox loads.
-  app.use(helmet({
-    contentSecurityPolicy: config.get('NODE_ENV') === 'production' ? undefined : false,
-  }));
+  app.use(
+    helmet({
+      contentSecurityPolicy:
+        config.get("NODE_ENV") === "production" ? undefined : false,
+    })
+  );
 
   // Global validation pipe — runs class-validator on every input automatically
   // forbidNonWhitelisted: reject unknown fields (prevents mass-assignment attacks)
