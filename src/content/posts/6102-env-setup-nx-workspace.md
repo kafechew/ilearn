@@ -302,7 +302,8 @@ yarn add --dev @types/pg @types/passport-jwt @types/bcrypt
 | Package                              | Purpose                                               | Meteor equivalent                             |
 | ------------------------------------ | ----------------------------------------------------- | --------------------------------------------- |
 | `@nestjs/graphql` + `@nestjs/apollo` | GraphQL schema + Apollo server integration            | DDP transport layer                           |
-| `graphql`                            | Core GraphQL library                                  | (no equivalent — Meteor used DDP not GraphQL) |
+| `@as-integrations/express5`          | Apollo Server v5 → Express 5 adapter (required)       | (no equivalent)                               |
+| `graphql`                            | Core GraphQL library (must pin `@16` on Node 20)      | (no equivalent — Meteor used DDP not GraphQL) |
 | `@nestjs/typeorm` + `typeorm`        | ORM for database operations                           | `mongo` driver integration                    |
 | `pg`                                 | PostgreSQL driver                                     | (no equivalent — Meteor used MongoDB)         |
 | `@nestjs/cqrs`                       | Command/Query bus infrastructure                      | Meteor Methods mechanism                      |
@@ -585,11 +586,17 @@ Replace `apps/api/src/main.ts`:
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import helmet from "helmet";
 import { AppModule } from "./app/app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
+
+  // Helmet — security headers. CSP disabled in dev so Apollo Sandbox loads.
+  app.use(helmet({
+    contentSecurityPolicy: config.get('NODE_ENV') === 'production' ? undefined : false,
+  }));
 
   // Global validation pipe — runs class-validator on every input automatically
   // forbidNonWhitelisted: reject unknown fields (prevents mass-assignment attacks)

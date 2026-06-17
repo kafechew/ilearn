@@ -546,7 +546,7 @@ export const AppDataSource = new DataSource({
   password: process.env.PROJECT_DB_PASSWORD,
   database: process.env.PROJECT_DB_DATABASE,
   namingStrategy: new SnakeNamingStrategy(),
-  entities: ['apps/api/src/**/*.entity.ts'],
+  entities: ['apps/api/src/**/*.entity.ts'], // glob OK here — CLI runs via ts-node, not Webpack
   migrations: ['apps/api/src/migrations/*.ts'],
   synchronize: false, // NEVER true — always use migrations
 });

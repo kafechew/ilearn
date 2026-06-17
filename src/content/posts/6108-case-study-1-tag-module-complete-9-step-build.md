@@ -367,7 +367,7 @@ Always one line. No logic.
 ```typescript
 // apps/api/src/modules/tag/cqrs/tag.cqrs.handler.ts
 import { CommandHandler, IInferredCommandHandler, IInferredQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CommandResult, QueryResult } from '@nestjs-architects/typed-cqrs';
+import { CommandResult, QueryResult } from 'nestjs-typed-cqrs';
 import { TagService } from '../tag.service';
 import {
   CountTagQuery,
@@ -443,8 +443,7 @@ This is where all business logic lives.
 // apps/api/src/modules/tag/tag.service.ts
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { InjectQueryService, QueryService } from '@ptc-org/nestjs-query-core';
-import { FilterQueryBuilder } from '@ptc-org/nestjs-query-typeorm/src/query';
+import { TypeOrmQueryService } from '@ptc-org/nestjs-query-typeorm';
 import { CqrsCommandFunc, CqrsQueryFunc } from 'nestjs-typed-cqrs';
 import { Repository } from 'typeorm';
 
@@ -459,16 +458,12 @@ import {
 import { TagEntity } from './tag.entity';
 
 @Injectable()
-export class TagService {
-  private readonly filterQueryBuilder: FilterQueryBuilder<TagEntity>;
-
+export class TagService extends TypeOrmQueryService<TagEntity> {
   constructor(
     @InjectRepository(TagEntity)
-    private readonly repo: Repository<TagEntity>,
-    @InjectQueryService(TagEntity)
-    private readonly queryService: QueryService<TagEntity>,
+    repo: Repository<TagEntity>, // no `private readonly` — parent sets this.repo
   ) {
-    this.filterQueryBuilder = new FilterQueryBuilder<TagEntity>(this.repo);
+    super(repo); // sets this.repo and this.filterQueryBuilder via TypeOrmQueryService
   }
 
   findOne: CqrsQueryFunc<FindOneTagQuery, FindOneTagQuery['args']> = async ({ query, options }) => {
@@ -695,7 +690,7 @@ export class AppModule {}
 
 ```bash
 # Generate migration from entity diff
-yarn api:migration:generate --name=create-tag-table
+yarn api:migration:generate apps/api/src/migrations/CreateTagTable
 ```
 
 Review the generated file at `apps/api/src/migrations/<timestamp>-create-tag-table.ts`:

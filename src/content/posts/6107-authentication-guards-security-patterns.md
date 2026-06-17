@@ -241,6 +241,7 @@ import { UserEntity } from '../user/user.entity';
 export interface JwtPayload {
   sub: number;     // user id (standard JWT claim)
   username: string;
+  platform: 'user' | 'portal'; // required — RequestPlatformInterceptor rejects mismatches
   iat: number;     // issued at
   exp: number;     // expires at
 }
@@ -330,7 +331,7 @@ export class AuthService {
   }
 
   private generateTokens(user: UserEntity): AuthTokensDto {
-    const payload: Partial<JwtPayload> = { sub: user.id, username: user.username };
+    const payload: Partial<JwtPayload> = { sub: user.id, username: user.username, platform: 'user' };
 
     const accessToken = this.jwtService.sign(payload, {
       privateKey: this.config.get('JWT_PRIVATE_KEY')?.replace(/\\n/g, '\n'),

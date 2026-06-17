@@ -454,7 +454,7 @@ import {
   IInferredQueryHandler,
   QueryHandler,
 } from "@nestjs/cqrs";
-import { CommandResult, QueryResult } from "@nestjs-architects/typed-cqrs";
+import { CommandResult, QueryResult } from "nestjs-typed-cqrs";
 import { TodoService } from "../todo.service";
 import {
   CountTodoQuery,

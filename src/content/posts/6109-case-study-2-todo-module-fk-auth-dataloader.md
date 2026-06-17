@@ -353,7 +353,7 @@ export class CountTodoQuery extends AbstractCqrsQueryInput<TodoEntity, Query<Tod
 
 export class CreateOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, CreateTodoInput & { userId: number }> {}
 export class UpdateOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, UpdateTodoInput, true, RecordMutateOptions, { before: TodoEntity; updated: TodoEntity }> {}
-export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, number> {}
+export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, { id: number; userId: number }> {}
 ```
 
 **`cqrs/index.ts`** and **`cqrs/todo.cqrs.handler.ts`** — same one-liner pattern as Tag. (See Part 08 for the template — substitute `Tag` → `Todo`.)
@@ -366,10 +366,9 @@ The Todo service adds one important concern: **ownership validation** on update 
 
 ```typescript
 // apps/api/src/modules/todo/todo.service.ts
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { InjectQueryService, QueryService } from '@ptc-org/nestjs-query-core';
-import { FilterQueryBuilder } from '@ptc-org/nestjs-query-typeorm/src/query';
+import { TypeOrmQueryService } from '@ptc-org/nestjs-query-typeorm';
 import { CqrsCommandFunc, CqrsQueryFunc } from 'nestjs-typed-cqrs';
 import { Repository } from 'typeorm';
 
@@ -380,16 +379,12 @@ import {
 import { TodoEntity } from './todo.entity';
 
 @Injectable()
-export class TodoService {
-  private readonly filterQueryBuilder: FilterQueryBuilder<TodoEntity>;
-
+export class TodoService extends TypeOrmQueryService<TodoEntity> {
   constructor(
     @InjectRepository(TodoEntity)
-    private readonly repo: Repository<TodoEntity>,
-    @InjectQueryService(TodoEntity)
-    private readonly queryService: QueryService<TodoEntity>,
+    repo: Repository<TodoEntity>, // no `private readonly` — parent sets this.repo
   ) {
-    this.filterQueryBuilder = new FilterQueryBuilder<TodoEntity>(this.repo);
+    super(repo); // sets this.repo and this.filterQueryBuilder via TypeOrmQueryService
   }
 
   findOneTodo: CqrsQueryFunc<FindOneTodoQuery, FindOneTodoQuery['args']> = async ({ query, options }) => {
@@ -631,16 +626,9 @@ export class TodoResolver {
     @CurrentUser() currentUser: AccessTokenUser,
     @Args('id', { type: () => Int }) id: number,
   ): Promise<boolean> {
-    // First verify ownership
-    const { data: todo } = await this.queryBus.execute(
-      new FindOneTodoQuery({
-        query: { filter: { id: { eq: id }, userId: { eq: currentUser.user.id } } },
-      }),
+    return this.commandBus.execute(
+      new DeleteOneTodoCommand({ input: { id, userId: currentUser.user.id } }),
     );
-    if (!todo) throw new Error('Todo not found or access denied');
-
-    await this.commandBus.execute(new DeleteOneTodoCommand({ input: id }));
-    return true;
   }
 
   // ── Relation Field Resolver ────────────────────────────────────
@@ -711,7 +699,7 @@ export class TodoModule {}
 Register in `AppModule` (add `TodoEntity` to entities, `TodoModule` to imports), generate and run the migration:
 
 ```bash
-yarn api:migration:generate --name=create-todo-table
+yarn api:migration:generate apps/api/src/migrations/CreateTodoTable
 # Review the generated SQL — check FK constraint and index on user_id
 yarn api:migration:run
 ```
