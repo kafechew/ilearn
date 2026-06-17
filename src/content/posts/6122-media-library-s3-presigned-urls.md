@@ -1086,16 +1086,7 @@ export class MediaProcessor {
   }
 
   private async uploadThumbnail(key: string, buffer: Buffer): Promise<void> {
-    // Re-use the S3 client from S3Service via a direct put
-    // Thumbnail is a small webp — no presigned URL needed (server-to-server)
-    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-    const { ConfigService } = await import("@nestjs/config");
-    // Note: in a real implementation, inject S3Client directly rather than re-instantiating.
-    // This is simplified for tutorial clarity — see the note below.
-    void key;
-    void buffer;
-    // Implementation detail: extend S3Service with a putObject(key, buffer, contentType) method
-    // and call it here. Omitted to keep S3Service focused on its primary responsibilities.
+    await this.s3Service.putObject(key, buffer, 'image/webp');
   }
 }
 ```
@@ -1262,6 +1253,7 @@ export function useFileUpload() {
       // The presigned URL already carries all the auth information in query params
       setState({ type: "uploading", progress: 0 });
 
+      // Note: fetch does not support upload progress. Use XMLHttpRequest for progress tracking.
       const uploadResponse = await fetch(uploadUrl, {
         method: "PUT",
         body: file,

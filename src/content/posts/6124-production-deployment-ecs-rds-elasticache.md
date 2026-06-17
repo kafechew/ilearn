@@ -357,6 +357,31 @@ runMigrations().catch(err => {
 });
 ```
 
+> **The missing piece — `ormconfig.ts`:** The migrator imports `AppDataSource` from a dedicated TypeORM datasource config. This is the same connection config as your NestJS `TypeOrmModule.forRootAsync` but as a plain TypeORM `DataSource` object (TypeORM CLI requirement — it can't use NestJS's DI).
+> 
+> Create `apps/backend/src/app/ormconfig.ts`:
+> ```typescript
+> import { DataSource } from 'typeorm';
+> import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+> import * as dotenv from 'dotenv';
+> dotenv.config();
+> 
+> export const AppDataSource = new DataSource({
+>   type: 'postgres',
+>   host: process.env.PROJECT_DB_HOST,
+>   port: Number(process.env.PROJECT_DB_PORT),
+>   username: process.env.PROJECT_DB_USERNAME,
+>   password: process.env.PROJECT_DB_PASSWORD,
+>   database: process.env.PROJECT_DB_DATABASE,
+>   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
+>   namingStrategy: new SnakeNamingStrategy(),
+>   entities: [/* explicit entity list — no globs (Webpack bundles to main.js) */],
+>   migrations: ['apps/backend/src/migrations/*.ts'],
+>   synchronize: false,
+> });
+> ```
+> Add every entity explicitly to the `entities[]` array.
+
 Register `migration-runner.ts` as a separate webpack entry point in `apps/api/project.json` so Nx compiles it alongside `main.ts`:
 
 ```json
@@ -1666,12 +1691,12 @@ This is the final tutorial in the 24-part Meteor to NestJS migration series. The
 
 **Email**
 
-- **`@nestjs-modules/mailer`** with Handlebars templates — all transactional email via Bull queue
+- **`nodemailer`** with direct transport — all transactional email via Bull queue for async delivery
 - **`requestPasswordReset` always returns true** — no user enumeration via email existence check
 
 **Two-Factor Authentication**
 
-- **`speakeasy` TOTP** — RFC 6238 compliant, 30-second windows, QR code provisioning
+- **`otplib` TOTP** — RFC 6238 compliant, 30-second windows, QR code provisioning
 - **`TWOFA_BYPASS_PASSWORD`** for test environments only — hard-blocked from staging and production
 
 **Production Infrastructure**

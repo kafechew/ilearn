@@ -167,6 +167,8 @@ Link to ticket CU-1234."
 6. Clean → done | Errors spike → roll back to previous image
 ```
 
+> **See Part 24** for the complete production deployment setup: ECS Fargate task definition, RDS Multi-AZ, ElastiCache with TLS, GitHub Actions OIDC CD pipeline, and the one-off migration task pattern.
+
 See Part 12 for the full ECS migration task pattern and GitHub Actions CI/CD pipeline.
 
 ### Phase 6: Post-Deployment

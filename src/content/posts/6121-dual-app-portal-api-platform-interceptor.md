@@ -140,6 +140,12 @@ The generated `AppModule` is a minimal skeleton. You will replace it with `Porta
 
 ### Update main.ts to Use Port 3334
 
+> **Before the import works:** Make sure `libs/core/src/index.ts` exports the interceptor factory:
+> ```typescript
+> export { createPlatformInterceptor } from './lib/interceptors/request-platform.interceptor';
+> ```
+> The full interceptor implementation and barrel export are covered in Section 5. If you are following this tutorial top-to-bottom, implement Section 5 first before running `portal-api`.
+
 Replace the generated `apps/portal-api/src/main.ts`:
 
 ```typescript
@@ -293,6 +299,8 @@ import { PortalAuthModule } from "../modules/portal-auth/portal-auth.module";
 })
 export class PortalAppModule {}
 ```
+
+> **Portal DB config:** `portal-api` shares the same database as `backend` (same PostgreSQL instance, same migrations). Its `TypeOrmModule.forRootAsync` config is identical to `AppModule`'s setup in `apps/backend` — copy it and substitute `PortalConfigService` where applicable. Do NOT run separate migrations for `portal-api`; the single migration source of truth is `apps/backend/src/migrations/`.
 
 The critical point: `PortalAppModule` imports `CoreConfigModule` from `@enterprise-todo/core` (shared), but it does NOT import `AuthModule` from `apps/api`. It has its own `PortalAuthModule`. Because Nx enforces app boundary rules, `apps/portal-api` cannot import directly from `apps/api` — any shared code must go through a library.
 

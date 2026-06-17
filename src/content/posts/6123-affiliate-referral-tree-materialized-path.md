@@ -303,17 +303,25 @@ export class ReferralService {
   }
 
   /**
-   * Direct referrals only — users whose path is exactly parent.path + userId + '.'
-   * i.e. one level below the target user.
+   * Direct referrals only — users whose path is exactly one level deeper than the target user.
+   * i.e. path starts with user.path and has exactly one more dot-separated segment.
+   *
+   * Example: user 42 has path '1.42.'
+   *   Direct children have paths like '1.42.107.', '1.42.234.' — one more segment.
+   *   Grandchildren like '1.42.107.500.' are excluded by the NOT LIKE filter.
    */
   async getDirectReferrals(userId: number): Promise<UserEntity[]> {
     const user = await this.userRepo.findOneOrFail({ where: { id: userId } });
-    // The path a direct child of userId would have
-    const childPath = `${user.path}${userId}.`;
+    // parent.path is e.g. '1.42.' — direct children have one more segment: '1.42.<childId>.'
+    const parentDepth = user.path.split(".").filter(Boolean).length;
 
     return this.userRepo
       .createQueryBuilder("u")
-      .where("u.path = :path", { path: childPath })
+      .where("u.path LIKE :prefix", { prefix: `${user.path}%` })
+      .andWhere(
+        "array_length(string_to_array(trim(trailing '.' from u.path), '.'), 1) = :depth",
+        { depth: parentDepth + 1 }
+      )
       .getMany();
   }
 
@@ -399,6 +407,8 @@ export class ReferralService {
   }
 }
 ```
+
+> **Path depth calculation:** Direct children have exactly `parent_depth + 1` segments in their path. The `array_length(string_to_array(...))` expression counts dot-separated segments after trimming the trailing dot, ensuring we don't accidentally include grandchildren. For user 42 with path `'1.42.'` (depth 1), direct children have depth 2 (paths like `'1.42.107.'`), while grandchildren have depth 3 (paths like `'1.42.107.500.'`) and are excluded.
 
 ### ReferralModule
 

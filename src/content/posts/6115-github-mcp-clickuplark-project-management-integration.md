@@ -203,33 +203,7 @@ ClickUp is the primary tool for sprint planning, ticket tracking, and daily task
 
 ### 3.1 Setup
 
-ClickUp MCP authenticates via Claude's built-in integration panel, or you can add it directly to `mcp.json`:
-
-```json
-"clickup": {
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-clickup"],
-  "env": {
-    "CLICKUP_API_TOKEN": "${CLICKUP_TOKEN}"
-  }
-}
-```
-
-```bash
-# ~/.zshrc
-export CLICKUP_TOKEN=pk_your_token_here
-```
-
-```bash
-source ~/.zshrc
-```
-
-Verify in a Claude session:
-
-```bash
-/mcp
-# → clickup: connected ✓
-```
+> **ClickUp MCP — built-in, not a local server:** Unlike GitHub MCP (which runs a local server binary), ClickUp integration with Claude is handled through Claude's **built-in OAuth connection panel**. In Claude Desktop or Claude Code web, go to Settings → Connections → ClickUp, authenticate with OAuth. Once connected, Claude can read and create ClickUp tasks without any `mcp.json` entry. There is no `@modelcontextprotocol/server-clickup` npm package — any such config will silently fail.
 
 ### 3.2 Daily ClickUp Prompts
 
@@ -363,6 +337,22 @@ For most teams using this stack: **ClickUp for tickets, Lark for notifications**
 - Database MCPs with direct SQL on production — never
 - MCPs with write access to infrastructure (AWS, GCP) without explicit per-action auth
 - Any MCP that stores credentials as a literal value in the committed `mcp.json`
+
+---
+
+## Troubleshooting MCP Setup
+
+**GitHub MCP: `Server not found` / `ENOENT`**  
+The `npx` command is not in `$PATH` for the subprocess. Provide the absolute path: use `which npx` in your terminal to find it, then replace `"npx"` in mcp.json with the full path (e.g. `/Users/yourname/.nvm/versions/node/v20.x.x/bin/npx`).
+
+**Changes to mcp.json not taking effect**  
+Claude Code reads mcp.json at startup only. After any change, quit Claude Code completely and restart — a hot-reload is not triggered.
+
+**GitHub token 403 on PR creation**  
+The classic token scope issue. Go to GitHub → Settings → Developer Settings → Personal Access Tokens → find your token → Edit → ensure `repo` scope is checked (not just `public_repo`).
+
+**MCP server crashes silently**  
+Check Claude Code's MCP logs: open a terminal, run `claude --debug` and reproduce the action that fails. The debug output includes each MCP server's stderr.
 
 ---
 

@@ -1055,6 +1055,8 @@ async generateTwoFactorSecret(
 }
 ```
 
+> **Production gap — recovery codes:** This implementation doesn't generate TOTP recovery codes. In production, when `setup2FA` is called, generate 8–10 single-use codes (e.g. `crypto.randomBytes(4).toString('hex')` × 10), store them hashed in a `UserRecoveryCodeEntity`, and return them once to the user. If they lose their authenticator app, recovery codes are the only way back in. Without them, locked-out users require manual DB intervention.
+
 ```typescript
 // apps/api/src/modules/auth/dto/two-factor.dto.ts
 import { Field, ObjectType } from "@nestjs/graphql";
@@ -1234,10 +1236,10 @@ async verifyTwoFactorLogin(twoFactorToken: string, code: string): Promise<AuthTo
     throw new UnauthorizedException('Two-factor authentication is not configured');
   }
 
-  // Check bypass password for development/testing
+  // Check bypass password for development/testing — never active in production
   const bypassPassword = this.configService.get<string>('TWOFA_BYPASS_PASSWORD');
   const isValid =
-    (bypassPassword && code === bypassPassword) ||
+    (process.env.NODE_ENV !== 'production' && bypassPassword && code === bypassPassword) ||
     authenticator.verify({ token: code, secret: user.twoFactorSecret });
 
   if (!isValid) {

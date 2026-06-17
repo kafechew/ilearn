@@ -373,6 +373,8 @@ export class AuditSubscriber implements EntitySubscriberInterface {
 
 The subscriber has no `listenTo()` method, which means TypeORM applies it to all entities. You can optionally add `listenTo() { return TodoEntity; }` to scope it to a single entity type.
 
+> **Scope gotcha:** `AuditSubscriber` uses `Scope.REQUEST` DI to access `ClsService`. But TypeORM subscribers are registered globally at datasource level. If the NestJS DI container creates a new subscriber instance per request (via CLS integration) and it keeps pushing to `dataSource.subscribers`, you'll accumulate duplicate subscribers. Verify your integration registers the subscriber once at module init, not once per request — if using `@EventSubscriber()` with TypeORM's decorator, TypeORM manages the lifecycle and avoids duplicates automatically.
+
 ### Step 4 — Add Audit Columns to Entities
 
 If `AbstractEntity` from `nestjs-dev-utilities` does not already include `createdBy` and `updatedBy`, add them directly to the entities that need auditing. Check first:
@@ -385,6 +387,8 @@ node -e "
   console.log(cols.map(c => c.propertyName));
 "
 ```
+
+> **Nx gotcha:** This `node -e` command runs in Node module resolution mode, not in the Nx TypeScript context. If you get a `Cannot find module` error, skip this step — the integration is verified by running a migration and inspecting the generated SQL instead.
 
 If not present, add to `TodoEntity`:
 

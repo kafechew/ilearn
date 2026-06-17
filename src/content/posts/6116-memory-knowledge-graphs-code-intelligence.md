@@ -67,6 +67,8 @@ Three tools solve this in three different ways:
 └── reference_*.md     ← pointers to external resources
 ```
 
+> **Path encoding:** Claude Code encodes the project path by replacing `/` with `-`. On macOS with a project at `/Users/kai/dev/myapp`, the memory directory is `~/.claude/projects/-Users-kai-dev-myapp/memory/`. On Linux, a project at `/home/kai/dev/myapp` would be `~/.claude/projects/-home-kai-dev-myapp/memory/`. Windows paths encode differently. The simplest way to find the correct path: run `ls ~/.claude/projects/` and look for the directory that matches your project name.
+
 `MEMORY.md` is always loaded. It's an index file — each line points to a memory file with a one-sentence description. Claude reads the index and loads specific files when relevant.
 
 ### 1.2 The Four Memory Types
@@ -489,6 +491,8 @@ For decisions that apply to all team members, write them into `CLAUDE.md` (commi
 ```
 
 This way the rule applies in everyone's Claude sessions, not just yours.
+
+> **Team memory sync:** Memory files live in `~/.claude/` on each developer's local machine — they are NOT in the git repo. Team knowledge that should be shared belongs in `.claude/rules/` (checked into git) or in CLAUDE.md. Use personal memory for individual context (your current focus, your coding preferences) and shared rules for team conventions and architecture decisions.
 
 ### 5.3 Keeping Knowledge Fresh
 
