@@ -806,30 +806,41 @@ npx nx reset
 
 ---
 
-## 11. Hybrid Git Workflow: GitHub Desktop + Commitizen
+## 11. Git Workflow: VS Code + Commitizen
 
 Enterprise codebases enforce **Conventional Commits** — a strict format that powers automated changelogs, semantic versioning, and project management integrations. `yarn cz` (Commitizen) enforces this format via an interactive terminal wizard.
 
-You do not have to abandon visual Git tools to comply. GitHub Desktop and your terminal share the same local `.git/` index. The hybrid loop:
+VS Code's built-in Source Control is the right tool for visual staging. When you stage a file in VS Code, it writes directly to the real Git index — so terminal tools like `yarn cz` see the staged files immediately. Standalone GUIs (like GitHub Desktop) hold their checkmarks in internal memory and only run `git add` a split second before their own commit button fires. This means `yarn cz` in the terminal will always see an empty staging area if you staged via a GUI.
+
+### VS Code Source Control Shortcuts
+
+| Action | Mac | Windows/Linux |
+|---|---|---|
+| Open Source Control tab | `Cmd+Shift+G` | `Ctrl+Shift+G` |
+| Toggle integrated terminal | `Cmd+\`` | `Ctrl+\`` |
+| Stage specific lines only | Highlight in diff → right-click → **Stage Selected Ranges** | same |
+
+**Stage Selected Ranges** is the most powerful one. If you edited a file but only want to commit part of it, highlight specific lines in the diff editor and stage only those. This makes it easy to keep commits focused without having to split your changes across multiple files manually.
+
+### The Commit Loop
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Engineer
-    participant GD as GitHub Desktop
-    participant VS as VS Code
-    participant Term as Terminal
+    participant SC as VS Code Source Control
+    participant Term as Integrated Terminal
     participant GH as Remote GitHub
 
-    Engineer->>GD: Create isolation branch (feat/feature-name)
-    Engineer->>VS: Implement logic
-    Engineer->>Term: Run quality check (yarn lint --fix)
-    Engineer->>GD: Visual staging — check specific file diffs, confirm .env is excluded
-    Note over GD: Leave commit summary and description BLANK
-    Engineer->>Term: Execute standardised commit (yarn cz)
+    Engineer->>SC: Create isolation branch (feat/feature-name)
+    Engineer->>SC: Implement logic, review visual diff
+    Engineer->>SC: Stage specific files or line ranges via '+' icon
+    Note over SC: Staged changes write to the real Git index immediately
+    Engineer->>Term: yarn lint --fix
+    Engineer->>Term: yarn cz
     Note over Term: Interactive wizard → Conventional Commit generated
-    Engineer->>GD: Push branch and open Pull Request
-    GD->>GH: Sync local index to remote
+    Engineer->>SC: Push branch and open Pull Request
+    SC->>GH: Sync local index to remote
 ```
 
 ### Install Commitizen
@@ -862,6 +873,8 @@ When you run `yarn cz`, the interactive terminal wizard takes over:
 3. **Short description** — concise, lowercase, imperative. No period at the end. Example: `setup structural base for graphql resolution`.
 4. **Breaking change?** — defaults to No. Yes flags a major version increment.
 5. **Issue reference** — link to your task tracker. Example: `Closes #6102`.
+
+> **Part 19** covers the full professional workflow: Husky pre-commit hooks, commit-msg validation, branch strategy, GitHub branch protection rules, and the complete CI/CD pipeline to production. → [Git Commit Standards & CI/CD Pipeline](/posts/6119-git-workflow-cicd-deployment)
 
 ---
 

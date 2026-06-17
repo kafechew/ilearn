@@ -53,6 +53,8 @@ Meteor's deployment story was Galaxy — a proprietary PaaS. It handled containe
 
 ## 1. Conventional Commits + Commitizen
 
+> **Part 02** covers workspace creation, initial Commitizen setup, and the VS Code Source Control workflow. This section assumes that setup is complete and goes deeper on automation (Husky hooks), branch protection, and CI/CD. ← [Environment Setup & Nx Workspace](/posts/6102-env-setup-nx-workspace)
+
 ### Why Conventional Commits
 
 A consistent commit message format enables:
@@ -129,6 +131,20 @@ Why this matters:
 - The commit message should accurately describe the staged diff — if you staged 6 modules, no single message does that
 
 Internalize: **stage → verify → cz**. The `git add .` shortcut is fine for personal scripts and throwaway projects. Not here.
+
+### VS Code Source Control: The Right Visual Tool
+
+`yarn cz` runs in the terminal. It asks the core Git engine whether the staging index has any files. Standalone GUIs (like GitHub Desktop) hold their checkmarks in internal memory and only run `git add` a millisecond before their own commit button — so the terminal always sees an empty index.
+
+VS Code's built-in Source Control writes to the real index on every click. Use it instead:
+
+| Action | Mac | Windows/Linux |
+|---|---|---|
+| Open Source Control tab | `Cmd+Shift+G` | `Ctrl+Shift+G` |
+| Toggle integrated terminal | `Cmd+\`` | `Ctrl+\`` |
+| Stage specific lines only | Highlight in diff → right-click → **Stage Selected Ranges** | same |
+
+**Stage Selected Ranges** is the practical superpower here. If a file has both the bug fix you want to commit and a debug log you don't, highlight only the fix lines in the diff editor and stage exactly those. Cleaner commits, no `git stash` gymnastics.
 
 ---
 
@@ -312,53 +328,11 @@ docker run -p 3000:3000 --env-file .env enterprise-todo-api
 
 ---
 
-## 6. docker-compose.dev.yml
+## 6. Local Docker Infrastructure
 
-```yaml
-# docker-compose.dev.yml
-version: '3.9'
+> **`docker-compose.dev.yml` is defined in Part 02 §5.** That file covers PostgreSQL, Redis, and Adminer with named volumes and convenience scripts (`yarn docker:dev`). ← [Environment Setup & Nx Workspace](/posts/6102-env-setup-nx-workspace)
 
-services:
-  postgres:
-    image: postgres:15-alpine
-    ports:
-      - '5432:5432'
-    environment:
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_DATABASE}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME}']
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  adminer:
-    image: adminer
-    ports:
-      - '8080:8080'
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-volumes:
-  postgres_data:
-  redis_data:
-```
+For CI, the services are declared inline in the GitHub Actions workflow (see §7 below) — no compose file is used in CI runners.
 
 ---
 
