@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-14T09:00:00+08:00
+pubDatetime: 2026-05-21T09:00:00+08:00
 title: Claude Code & the AI Development Layer
 featured: false
 draft: false
-slug: 6114-claude-code-ai-development-layer
+slug: 6121-claude-code-ai-development-layer
 tags:
   - deeptech
   - ai
@@ -17,7 +17,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/14-claude-code-ai-development-layer.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/21-claude-code-ai-development-layer.png"
 description: By the end of this part, you will learn Claude Code configuration, MCP servers, graphify, gitnexus, and the 6-phase AI-accelerated module workflow.  
 
 ---
@@ -28,13 +28,17 @@ description: By the end of this part, you will learn Claude Code configuration, 
 - Installing and configuring Claude Code for a NestJS project
 - The `.claude/` directory — every file explained
 - MCP servers: what they are and which ones matter
-- `graphify` — introduced here; full deep-dive in Part 6116
-- `gitnexus` — introduced here; full deep-dive in Part 6116
+- `graphify` — introduced here; full deep-dive in Part 23
+- `gitnexus` — introduced here; full deep-dive in Part 23
 - The 6-phase AI-accelerated module workflow
 - The prompt library: copy-paste starters for every phase
 - What agents cannot do — keeping judgment with the human
 
 ---
+
+## The AI Capstone
+
+You've now built the complete backend (Parts 1–20): multi-tenant auth, CQRS architecture, GraphQL API, media uploads, affiliate trees, CI/CD, and production deployment on AWS. You understand every layer. Now we show how AI tools accelerate this entire workflow — not as a learning shortcut, but as a force multiplier for engineers who already know what they're building.
 
 ## Meteor Equivalent
 
@@ -347,7 +351,7 @@ graphify explain "FilterQueryBuilder"
 
 **When to use:** understanding unfamiliar code. For modifying or debugging specific files, Read directly.
 
-> Graphify is covered in full — what it stores, how to maintain it, team practices — in Part 6116: Memory, Knowledge Graphs & Code Intelligence.
+> Graphify is covered in full — what it stores, how to maintain it, team practices — in Part 23: Memory, Knowledge Graphs & Code Intelligence.
 
 ---
 
@@ -382,7 +386,7 @@ AuthResolver.signIn → CommandBus → SignInCommandHandler.execute → AuthServ
 
 LOW risk → safe to proceed. If it returns HIGH or CRITICAL, Claude explains why and what else would break.
 
-> gitnexus tools — `context`, `detect_changes`, `rename` — are covered in full in Part 6116: Memory, Knowledge Graphs & Code Intelligence.
+> gitnexus tools — `context`, `detect_changes`, `rename` — are covered in full in Part 23: Memory, Knowledge Graphs & Code Intelligence.
 
 ---
 
@@ -623,8 +627,8 @@ The right mental model: **you are the architect, the agents are skilled contract
 |------|-------------|--------------|-----|
 | `CLAUDE.md` + rules | Always | Loads project context and constraints automatically | — |
 | `agents/` | Phase 2, 3, 4 | Scaffolds modules, reviews migrations, writes tests | — |
-| `graphify query` | Phase 1, anytime | Semantic search over codebase without reading files | Part 6116 |
-| `gitnexus impact` | Before any edit to existing code | Blast radius, risk level | Part 6116 |
-| `gitnexus detect_changes` | Before every commit | Verify you only changed what you meant to | Part 6116 |
+| `graphify query` | Phase 1, anytime | Semantic search over codebase without reading files | Part 23 |
+| `gitnexus impact` | Before any edit to existing code | Blast radius, risk level | Part 23 |
+| `gitnexus detect_changes` | Before every commit | Verify you only changed what you meant to | Part 23 |
 | `/code-review` | Phase 5, before every PR | Security + pattern violations in the diff | — |
 | `settings.local.json` | Once, personal setup | Pre-approve common commands to reduce prompts | — |

@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-16T09:00:00+08:00
+pubDatetime: 2026-05-23T09:00:00+08:00
 title: Memory, Knowledge Graphs & Code Intelligence
 featured: false
 draft: false
-slug: 6116-memory-knowledge-graphs-code-intelligence
+slug: 6123-memory-knowledge-graphs-code-intelligence
 tags:
   - deeptech
   - ai
@@ -16,7 +16,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/16-memory-knowledge-graphs-code-intelligence.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/23-memory-knowledge-graphs-code-intelligence.png"
 description: The authoritative reference for Claude's three-layer knowledge system - persistent memory, graphify codebase graph, and gitnexus call graph — what each stores, how to maintain them, and how they compose.
 ---
 
@@ -27,11 +27,11 @@ description: The authoritative reference for Claude's three-layer knowledge syst
 - What each one stores, when to use each, and how they compose
 - Practical prompts for reading, writing, and maintaining each
 - Why knowledge management is a senior developer skill
-- This part is the deep-dive reference for graphify and gitnexus, introduced in Part 6114.
+- This part is the deep-dive reference for graphify and gitnexus, introduced in Part 21.
 
 ---
 
-> If you haven't set up Claude Code or the `.claude/` directory yet, start with Part 6114. This part assumes the tools are installed and your project is configured.
+> If you haven't set up Claude Code or the `.claude/` directory yet, start with Part 21. This part assumes the tools are installed and your project is configured.
 
 ## The Problem: Context Doesn't Survive Sessions
 
@@ -211,7 +211,7 @@ Memory files are plain markdown — you can read and edit them directly.
 
 ## 2. graphify — The Codebase Knowledge Graph
 
-Part 6114 introduced graphify briefly. This section is the full treatment.
+Part 21 introduced graphify briefly. This section is the full treatment.
 
 ### 2.1 What It Stores
 
@@ -317,7 +317,7 @@ to trace how the userId filter flows from the resolver to the SQL query."
 
 ## 3. gitnexus — The Call Graph
 
-Part 6114 introduced gitnexus briefly. This section is the full treatment.
+Part 21 introduced gitnexus briefly. This section is the full treatment.
 
 ### 3.1 What It Stores
 

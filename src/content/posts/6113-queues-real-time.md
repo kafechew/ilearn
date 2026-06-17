@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-11T09:00:00+08:00
+pubDatetime: 2026-05-13T09:00:00+08:00
 title: Queues & Real-time
 featured: false
 draft: false
-slug: 6111-queues-real-time
+slug: 6113-queues-real-time
 tags:
   - deeptech
   - meteorjs
@@ -14,7 +14,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/11-queues-real-time.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/13-queues-real-time.png"
 description: By the end of this part, you will learn about async queues, Bull, Redis, GraphQL Subscriptions and when to use.  
 
 ---

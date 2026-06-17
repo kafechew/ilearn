@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-18T09:00:00+08:00
+pubDatetime: 2026-05-05T09:00:00+08:00
 title: Production Hardening — Config Validation, Logging & Security Middleware
 featured: false
 draft: false
-slug: 6118-production-hardening-config-logging-security
+slug: 6105-production-hardening-config-logging-security
 tags:
   - deeptech
   - meteorjs
@@ -15,9 +15,11 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/18-production-hardening-config-logging-security.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/05-production-hardening-config-logging-security.png"
 description: Add Joi environment validation, typed config mapper, global LoggingInterceptor, Helmet, rate limiting and a custom ExceptionFilter — the production hardening layer that prevents silent failures in any NestJS app.
 ---
+
+This is **Part 5 of 24** in the NestJS series. Part 4 set up the database layer with TypeORM and migrations. Before writing any business logic — CQRS, GraphQL resolvers, or auth (Parts 6–8) — this part hardens the environment so that misconfiguration, unhandled errors, and abuse are caught at the earliest possible point. Adding these safeguards now means every feature built from Part 6 onwards inherits them automatically.
 
 ## What This Part Covers
 
@@ -999,3 +1001,5 @@ Confirm all of the following in order:
 ```
 
 The API now crashes fast on misconfiguration, logs every request, sends secure HTTP headers, rejects abusive clients, and surfaces all errors with full stack traces. This is the baseline for any production NestJS deployment — a starting point, not a ceiling. Future parts will add Bull queues with Redis-backed rate limiting, structured logging with Pino, and OpenTelemetry tracing for distributed request tracking.
+
+**Next: Part 6 — CQRS & the Enterprise Request Pipeline**

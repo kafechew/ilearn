@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-21T09:00:00+08:00
+pubDatetime: 2026-05-16T09:00:00+08:00
 title: Dual-App Monorepo — Portal API & Platform Interceptor
 featured: false
 draft: false
-slug: 6121-dual-app-portal-api-platform-interceptor
+slug: 6116-dual-app-portal-api-platform-interceptor
 tags:
   - deeptech
   - nestjs
@@ -14,13 +14,13 @@ tags:
   - backend
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/21-dual-app-portal-api-platform-interceptor.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/16-dual-app-portal-api-platform-interceptor.png"
 description: Add a second NestJS app (portal-api) for your internal operations team, wire up a RequestPlatformInterceptor that prevents user JWTs from working on the admin portal, and complete the enterprise-todo monorepo as a fullstack replacement scaffold.
 ---
 
 ## What This Part Covers
 
-The previous tutorial extracted `libs/core` specifically to prepare for this moment: adding a second NestJS application to the monorepo without duplicating config. This tutorial makes that concrete by building `apps/portal-api` — a separate backend for your internal operations and support team.
+After establishing multi-tenancy and RBAC in Part 15, we now split the API into two apps: a user-facing API and an internal operations portal. This tutorial makes that concrete by building `apps/portal-api` — a separate backend for your internal operations and support team.
 
 - Why structural separation is safer than guard-only separation
 - Generating `apps/portal-api` in the existing Nx 22 monorepo

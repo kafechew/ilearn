@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-19T09:00:00+08:00
+pubDatetime: 2026-05-09T09:00:00+08:00
 title: Extended Auth — Email Service, Secured Tokens & Two-Factor Authentication
 featured: false
 draft: false
-slug: 6119-extended-auth-email-secured-tokens-2fa
+slug: 6109-extended-auth-email-secured-tokens-2fa
 tags:
   - deeptech
   - meteorjs
@@ -16,9 +16,11 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/19-extended-auth-email-secured-tokens-2fa.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/09-extended-auth-email-secured-tokens-2fa.png"
 description: Add transactional email via Bull queues, a single-use SecuredToken module for password reset and email verification, and TOTP two-factor authentication with otplib and qrcode.
 ---
+
+In Part 8 we built JWT RS256 auth with guards. Now we extend it with email verification, password reset via single-use tokens, and TOTP 2FA before moving to the case studies.
 
 ## What This Part Covers
 
@@ -307,7 +309,7 @@ yarn docker:dev
 yarn api:dev
 ```
 
-Open GraphQL Playground at `http://localhost:3333/graphql`. Run a registration mutation (from Part 7). Open `http://localhost:8025` — the verification email should appear within a second or two. The API response should return immediately without waiting for delivery.
+Open GraphQL Playground at `http://localhost:3333/graphql`. Run a registration mutation (from Part 8). Open `http://localhost:8025` — the verification email should appear within a second or two. The API response should return immediately without waiting for delivery.
 
 ---
 
@@ -1377,7 +1379,7 @@ Returns full tokens without needing the authenticator app.
 
 ### The Compose
 
-All the pieces from Parts 7 through 19 now compose:
+All the pieces from Parts 8 through 9 now compose:
 
 ```
 Login request
@@ -1400,3 +1402,5 @@ Full access token issued
 ```
 
 Every gate is explicit, ordered, and individually testable. No implicit Meteor magic — each check is a method call you can trace, mock, and reason about.
+
+In Part 10 — Case Study 1: Tag Module — you will apply everything from Parts 1–9 to build a complete module from scratch following the 9-step checklist end-to-end with tests.

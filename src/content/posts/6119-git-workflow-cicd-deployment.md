@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-12T09:00:00+08:00
+pubDatetime: 2026-05-19T09:00:00+08:00
 title: Git Commit Standards & CI/CD Pipeline
 featured: false
 draft: false
-slug: 6112-git-workflow-cicd-deployment
+slug: 6119-git-workflow-cicd-deployment
 tags:
   - deeptech
   - meteorjs
@@ -14,12 +14,14 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/12-git-workflow-cicd-deployment.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/19-git-workflow-cicd-deployment.png"
 description: Set up Commitizen with correct selective staging, Husky pre-commit hooks, branch strategy, GitHub branch protection rules, Docker multi-stage build, GitHub Actions CI/CD, and production migration patterns on AWS ECS Fargate.
 
 ---
 
 ## What This Part Covers
+
+With all features built (Parts 1–18), Part 19 covers the professional development workflow that keeps the codebase maintainable at team scale. These practices apply from your very first commit, but they matter most when you have a full-featured backend and a team shipping to production.
 
 - Conventional commits with Commitizen — and the staging mistake that bites everyone
 - Husky pre-commit and commit-msg hooks
@@ -592,4 +594,4 @@ git push origin feature/add-tag ──→ open PR
                                Production live ✓
 ```
 
-The next part covers the MCP tools — GitHub MCP, ClickUp, and Lark — that let you manage PRs, tickets, and team notifications without leaving the terminal. Part 17 shows the full daily workflow with a real case study end-to-end.
+Part 20 — Production Deployment covers deploying both NestJS apps to AWS ECS Fargate with RDS, ElastiCache, and a zero-downtime migration strategy using the one-off ECS task pattern introduced here.

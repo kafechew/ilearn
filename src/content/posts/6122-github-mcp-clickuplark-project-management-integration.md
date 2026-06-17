@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-15T09:00:00+08:00
+pubDatetime: 2026-05-22T09:00:00+08:00
 title: MCP Setup - GitHub, ClickUp & Lark Integration
 featured: false
 draft: false
-slug: 6115-github-mcp-clickuplark-project-management-integration
+slug: 6122-github-mcp-clickuplark-project-management-integration
 tags:
   - deeptech
   - mcp
@@ -15,7 +15,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/15-github-mcp-clickuplark-project-management-integration.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/22-github-mcp-clickuplark-project-management-integration.png"
 description: Set up GitHub MCP for PR and CI management, ClickUp MCP as your primary project management integration, and Lark MCP as a team comms alternative — all from the terminal without context-switching.
 ---
 
@@ -27,7 +27,7 @@ description: Set up GitHub MCP for PR and CI management, ClickUp MCP as your pri
 - Lark MCP: when and how to use it instead of (or alongside) ClickUp
 - Recommended MCP stack for a new enterprise team
 
-For how these tools fit into your actual daily workflow — morning standup to merged PR — see Part 17.
+For how these tools fit into your actual daily workflow — morning standup to merged PR — see Part 24.
 
 ---
 
@@ -365,4 +365,4 @@ Check Claude Code's MCP logs: open a terminal, run `claude --debug` and reproduc
 | Lark MCP    | 5 min              | Medium — team notifications and docs if your team uses Lark       |
 | gitnexus    | Built into project | Critical — impact analysis before every symbol edit               |
 
-The compound effect: code, PR, ticket update, team message — all from one terminal session. Zero browser tabs. Part 17 shows exactly how this plays out across a full day, with a real-world case study of building a module from ticket to production.
+The compound effect: code, PR, ticket update, team message — all from one terminal session. Zero browser tabs. Part 24 shows exactly how this plays out across a full day, with a real-world case study of building a module from ticket to production.

@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-17T09:00:00+08:00
+pubDatetime: 2026-05-24T09:00:00+08:00
 title: "Tech Lead SDLC & Daily Workflow: Ticket to Production"
 featured: false
 draft: false
-slug: 6117-tech-lead-sdlc-daily-workflow
+slug: 6124-tech-lead-sdlc-daily-workflow
 tags:
   - deeptech
   - nestjs
@@ -13,7 +13,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/17-tech-lead-sdlc-daily-workflow.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/24-tech-lead-sdlc-daily-workflow.png"
 description: The complete SDLC from ticket to production — SDLC phases, daily workflow, a real end-to-end case study building the Product module, sprint ceremonies, code review standards, ADRs, and onboarding new developers.
 
 ---
@@ -30,7 +30,7 @@ description: The complete SDLC from ticket to production — SDLC phases, daily 
 - Onboarding new developers
 - Technical debt management
 
-**Prerequisites:** Part 12 covers Commitizen, Husky, branch strategy, GitHub branch protection, and CI/CD setup. Part 15 covers MCP tool setup (GitHub, ClickUp, Lark). This part assumes both are in place and shows how they work together in practice.
+**Prerequisites:** Part 19 covers Commitizen, Husky, branch strategy, GitHub branch protection, and CI/CD setup. Part 22 covers MCP tool setup (GitHub, ClickUp, Lark). This part assumes both are in place and shows how they work together in practice.
 
 ---
 
@@ -167,9 +167,9 @@ Link to ticket CU-1234."
 6. Clean → done | Errors spike → roll back to previous image
 ```
 
-> **See Part 24** for the complete production deployment setup: ECS Fargate task definition, RDS Multi-AZ, ElastiCache with TLS, GitHub Actions OIDC CD pipeline, and the one-off migration task pattern.
+> **See Part 20** for the complete production deployment setup: ECS Fargate task definition, RDS Multi-AZ, ElastiCache with TLS, GitHub Actions OIDC CD pipeline, and the one-off migration task pattern.
 
-See Part 12 for the full ECS migration task pattern and GitHub Actions CI/CD pipeline.
+See Part 19 for the full ECS migration task pattern and GitHub Actions CI/CD pipeline.
 
 ### Phase 6: Post-Deployment
 
@@ -854,11 +854,20 @@ The last row is the most important for AI-assisted development. **A senior devel
 | 09 | FK relations, DataLoader, ownership enforcement |
 | 10 | Unit tests (mock repos) + E2E tests (real DB) |
 | 11 | Bull queues for async, Redis PubSub for real-time |
-| 12 | Commitizen, Husky, branch strategy, GitHub branch protection, CI/CD, Docker, ECS |
-| 13 | Multi-tenancy, RBAC, dual-auth portals |
-| 14 | Claude Code, agents, graphify, gitnexus — the AI layer |
-| 15 | GitHub MCP, ClickUp, Lark — project management from the terminal |
-| 16 | Persistent memory, knowledge graphs, code intelligence |
-| 17 | Tech lead SDLC, daily workflow, case study, code review, ADRs, onboarding |
+| 12 | Email, 2FA, API keys, audit logging |
+| 13 | Two-factor authentication deep dive |
+| 14 | API key management |
+| 15 | Multi-tenancy, RBAC, dual-auth portals |
+| 16 | Dual-app monorepo — portal API & platform interceptor |
+| 17 | Media library — S3 presigned uploads, CDN |
+| 18 | Affiliate referral tree — materialized path |
+| 19 | Git workflow & CI/CD pipeline |
+| 20 | Production deployment — ECS Fargate, RDS, ElastiCache |
+| 21 | Claude Code & the AI development layer |
+| 22 | MCP integrations — GitHub, ClickUp, Lark |
+| 23 | Memory, knowledge graphs & code intelligence |
+| 24 | Tech lead SDLC, daily workflow, case study, code review, ADRs, onboarding |
 
 You now have everything needed to be a productive senior enterprise NestJS developer — not just someone who follows patterns, but someone who understands them well enough to enforce them, explain them to others, and extend them safely.
+
+This is Part 24 — the final part of the 24-part Meteor to NestJS migration series. The series is complete.

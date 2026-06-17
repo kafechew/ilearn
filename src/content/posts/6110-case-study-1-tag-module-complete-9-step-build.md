@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-08T09:00:00+08:00
+pubDatetime: 2026-05-10T09:00:00+08:00
 title: Case Study 1 - Tag Module (Complete 9-Step Build)
 featured: false
 draft: false
-slug: 6108-case-study-1-tag-module-complete-9-step-build
+slug: 6110-case-study-1-tag-module-complete-9-step-build
 tags:
   - deeptech
   - meteorjs
@@ -14,10 +14,12 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/08-case-study-1-tag-module-complete-9-step-build.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/10-case-study-1-tag-module-complete-9-step-build.png"
 description: By the end of this part, you follow every step of the 9-step pattern with nothing skipped — from empty directory to running GraphQL queries in the Playground, with unit tests passing. This is your first complete module build from scratch.
 
 ---
+
+In Parts 6–9 we covered CQRS, GraphQL, authentication, and extended auth. Now we apply all of it from scratch.
 
 ## What This Part Covers
 
@@ -1097,4 +1099,4 @@ CQRS Handlers → Service → Resolver → Module → Register → Migrate → T
 
 Every file has one job. Every business rule is in the service. Every handler is a one-liner. The GraphQL API is self-documenting, auto-filters, and cursor-paginates.
 
-In Part 09, you will build the Todo module — which adds foreign keys, auth ownership enforcement, and the DataLoader pattern for resolving related entities without N+1 queries.
+In Part 11, you will build the Todo module — which adds foreign keys, auth ownership enforcement, and the DataLoader pattern for resolving related entities without N+1 queries.

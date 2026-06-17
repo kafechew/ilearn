@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-09T09:00:00+08:00
+pubDatetime: 2026-05-11T09:00:00+08:00
 title: Case Study 2 - Todo Module (FK + Auth + DataLoader)
 featured: false
 draft: false
-slug: 6109-case-study-2-todo-module-fk-auth-dataloader
+slug: 6111-case-study-2-todo-module-fk-auth-dataloader
 tags:
   - deeptech
   - meteorjs
@@ -14,7 +14,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/09-case-study-2-todo-module-fk-auth-dataloader.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/11-case-study-2-todo-module-fk-auth-dataloader.png"
 description: By the end of this part, you will be building a module with a foreign key to another entity (Todo → User) and learn about solving N+1 problem with DataLoader.
 
 ---
@@ -356,7 +356,7 @@ export class UpdateOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, U
 export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, { id: number; userId: number }> {}
 ```
 
-**`cqrs/index.ts`** and **`cqrs/todo.cqrs.handler.ts`** — same one-liner pattern as Tag. (See Part 08 for the template — substitute `Tag` → `Todo`.)
+**`cqrs/index.ts`** and **`cqrs/todo.cqrs.handler.ts`** — same one-liner pattern as Tag. (See Part 10 for the template — substitute `Tag` → `Todo`.)
 
 ---
 
@@ -893,3 +893,5 @@ describe('TodoService', () => {
 | DataLoader | Batches user lookups: 10 todos = 2 queries | No equivalent |
 | `Scope.REQUEST` | Fresh DataLoader per request | No concept |
 | `@ResolveField` | `user(@Parent() todo)` → `userLoader.load(todo.userId)` | Automatic via DDP reactive joins |
+
+In Part 12 — Testing — you will write unit, integration, and e2e tests for the modules built so far.

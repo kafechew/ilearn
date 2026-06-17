@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-10T09:00:00+08:00
+pubDatetime: 2026-05-12T09:00:00+08:00
 title: Testing - Unit + E2E
 featured: false
 draft: false
-slug: 6110-testing-unit-e2e
+slug: 6112-testing-unit-e2e
 tags:
   - deeptech
   - meteorjs
@@ -14,7 +14,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/10-testing-unit-e2e.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/12-testing-unit-e2e.png"
 description: By the end of this part, you will learn the enterprise testing philosophy, Unit tests, mock TypeORM correctly, E2E tests and run tests in CI. 
 
 ---

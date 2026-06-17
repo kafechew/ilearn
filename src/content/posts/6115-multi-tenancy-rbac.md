@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-13T09:00:00+08:00
+pubDatetime: 2026-05-15T09:00:00+08:00
 title: Multi-tenancy & Role-Based Access Control (RBAC)
 featured: false
 draft: false
-slug: 6113-senior-level-multi-tenancy-rbac
+slug: 6115-multi-tenancy-rbac
 tags:
   - deeptech
   - meteorjs
@@ -14,7 +14,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/13-senior-level-multi-tenancy-rbac.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/15-senior-level-multi-tenancy-rbac.png"
 description: By the end of this part, you will learn multi-tenancy, tenantId pattern, TenantGuard, RBAC, Dual-auth architecture, @Authorize and promoting a module to multi-tenant.  
 
 ---
@@ -746,9 +746,9 @@ You've built from zero to enterprise. Here's the full progression:
 | 07 | Implement RS256 JWT auth, @CurrentUser, refresh tokens |
 | 08 | Complete a module from scratch: Tag with all 9 steps |
 | 09 | FK relations, DataLoader, ownership enforcement |
-| 10 | Unit tests (mock repos) + E2E tests (real DB) |
-| 11 | Bull queues for async work, Redis PubSub for real-time |
-| 12 | CI/CD pipeline, multi-stage Docker, production migration strategy |
-| 13 | Multi-tenancy, RBAC, @Authorize, dual-auth portals |
+| 12 | Unit tests (mock repos) + E2E tests (real DB) |
+| 13 | Bull queues for async work, Redis PubSub for real-time |
+| 19 | CI/CD pipeline, multi-stage Docker, production migration strategy |
+| 15 | Multi-tenancy, RBAC, @Authorize, dual-auth portals |
 
 The codebase patterns you've learned map directly to production-grade enterprise NestJS backends. Every system in this series is a deliberate choice, not a convenience shortcut — and now you know the tradeoff behind each one.

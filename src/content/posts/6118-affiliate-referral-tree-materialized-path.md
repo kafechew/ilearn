@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-23T09:00:00+08:00
+pubDatetime: 2026-05-18T09:00:00+08:00
 title: Affiliate & Referral Tree — Materialized Path Hierarchy on UserEntity
 featured: false
 draft: false
-slug: 6123-affiliate-referral-tree-materialized-path
+slug: 6118-affiliate-referral-tree-materialized-path
 tags:
   - deeptech
   - nestjs
@@ -14,7 +14,7 @@ tags:
   - backend
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/23-affiliate-referral-tree-materialized-path.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/18-affiliate-referral-tree-materialized-path.png"
 description: Add a self-referential affiliate tree to UserEntity using the materialized path pattern — store each user's ancestry as a string path, enabling O(1) depth lookups, efficient descendant queries with a single LIKE clause, and referral commission calculations without recursive CTEs.
 ---
 

@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-06T09:00:00+08:00
+pubDatetime: 2026-05-07T09:00:00+08:00
 title: GraphQL API + Next.js Frontend
 featured: false
 draft: false
-slug: 6106-graphql-api-nextjs-frontend
+slug: 6107-graphql-api-nextjs-frontend
 tags:
   - deeptech
   - meteorjs
@@ -19,9 +19,11 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/06-graphql-api-nextjs-frontend.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/07-graphql-api-nextjs-frontend.png"
 description: By the end of this part, you will learn DTOs, @Field, @FilterableField, class-validator, resolver anatomy, QueryArgsType, ConnectionType, and FilterQueryBuilder for backend. As well as Next.js, Shadcn UI, Apollo, writing GraphQL queries and mutations.
 ---
+
+This is **Part 7 of 24** in the NestJS series. Part 6 established the CQRS request pipeline — commands, queries, handlers, and the service layer. This part builds the API surface on top of that pipeline: DTOs that define the GraphQL schema, resolvers that expose queries and mutations, and the Next.js frontend that consumes them.
 
 ## What This Part Covers
 
@@ -123,7 +125,7 @@ export class CreateTodoInput {
   @MaxLength(500, { message: "Todo text cannot exceed 500 characters" })
   text: string;
 
-  // Part 07: userId removed from @Field and injected from JWT instead
+  // Part 08: userId removed from @Field and injected from JWT instead
   @Field(() => Int)
   @IsInt()
   userId: number;
@@ -150,9 +152,9 @@ export class UpdateTodoInput {
 }
 ```
 
-> **Note: `userId` is a `@Field()` for now — Part 07 fixes this.**
+> **Note: `userId` is a `@Field()` for now — Part 08 fixes this.**
 >
-> In production, exposing `userId` as a client-supplied field is a security risk: a malicious client could send `userId: 999` and create todos that appear to belong to another user. Part 07 adds JWT authentication — at that point `userId` is removed from `@Field()` and injected server-side from the verified token instead. For this part, the endpoints are public and `userId` is passed explicitly so you can test without auth.
+> In production, exposing `userId` as a client-supplied field is a security risk: a malicious client could send `userId: 999` and create todos that appear to belong to another user. Part 08 adds JWT authentication — at that point `userId` is removed from `@Field()` and injected server-side from the verified token instead. For this part, the endpoints are public and `userId` is passed explicitly so you can test without auth.
 
 ### 1.3 Query Args DTO (`@ArgsType`)
 
@@ -258,7 +260,7 @@ To get the next page, pass `endCursor` as `after`:
 
 The resolver is the GraphQL entry point — the Meteor Method and Publication combined into one class, but separated into `@Query` (reads) and `@Mutation` (writes).
 
-> **Part 06 vs Part 07:** This resolver has no auth guards. All endpoints are publicly accessible. Part 07 adds JWT authentication: `@UseGuards(AuthJwtGuard)` is added to protected queries/mutations, `@CurrentUser()` replaces the explicit `userId` input field, and per-user data isolation is enforced via userId filters.
+> **Part 07 vs Part 08:** This resolver has no auth guards. All endpoints are publicly accessible. Part 08 adds JWT authentication: `@UseGuards(AuthJwtGuard)` is added to protected queries/mutations, `@CurrentUser()` replaces the explicit `userId` input field, and per-user data isolation is enforced via userId filters.
 
 ```typescript
 // apps/api/src/modules/todo/todo.resolver.ts
@@ -349,7 +351,7 @@ export class TodoResolver {
 }
 ```
 
-**What Part 07 changes in `updateTodo`:**
+**What Part 08 changes in `updateTodo`:**
 
 After auth is added, the filter will be:
 
@@ -569,7 +571,7 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
   }
 });
 
-// Part 07: adds an authLink that reads localStorage.getItem('accessToken')
+// Part 08: adds an authLink that reads localStorage.getItem('accessToken')
 // and injects Authorization: Bearer <token> into every request
 
 export const apolloClient = new ApolloClient({
@@ -664,7 +666,7 @@ export const GET_TODOS = gql`
   }
 `;
 
-// Part 07: userId removed from CreateTodoInput (injected from JWT instead)
+// Part 08: userId removed from CreateTodoInput (injected from JWT instead)
 export const CREATE_TODO = gql`
   mutation CreateTodo($input: CreateTodoInput!) {
     createTodo(input: $input) {
@@ -753,7 +755,7 @@ export function TodoList() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodoText.trim()) return;
-    // Part 07: userId comes from JWT — hardcoded to 1 for Part 06 demo
+    // Part 08: userId comes from JWT — hardcoded to 1 for Part 07 demo
     await createTodo({ variables: { input: { text: newTodoText.trim(), userId: 1 } } });
     setNewTodoText('');
   };
@@ -958,7 +960,7 @@ Open:
 
 ### GraphQL Playground Smoke Test
 
-No auth header needed for Part 06 — all endpoints are public. Open `http://localhost:3333/graphql` and run each step in order. Note the `id` returned in step 1 and use it in steps 3–4.
+No auth header needed for Part 07 — all endpoints are public. Open `http://localhost:3333/graphql` and run each step in order. Note the `id` returned in step 1 and use it in steps 3–4.
 
 **Step 1 — Create** (verifies mutation + input validation + service business rule)
 
@@ -1084,7 +1086,7 @@ Expected: only todos with `status: ACTIVE` are returned. If you also create one 
 
 All five steps passing means the resolver, DTOs, `FilterQueryBuilder`, cursor pagination, and `ConnectionType` are all correctly wired. The backend is ready for the Next.js frontend.
 
-> **What Part 07 changes here:** `createTodo` will drop `userId` from the input (injected from JWT), and `getTodos` will only return the authenticated user's todos. The Playground will require an `Authorization: Bearer <token>` header.
+> **What Part 08 changes here:** `createTodo` will drop `userId` from the input (injected from JWT), and `getTodos` will only return the authenticated user's todos. The Playground will require an `Authorization: Bearer <token>` header.
 
 ---
 
@@ -1129,7 +1131,7 @@ This is less magical than Meteor's reactive subscriptions — and far more predi
 | List query with pagination | `QueryArgsType` + `ConnectionType` | `find()` cursor             |
 | Cursor pagination          | `PagingStrategies.CURSOR`          | No equivalent               |
 | SQL filter translation     | `FilterQueryBuilder`               | Minimongo's query operators |
-| Auth guard (Part 07)       | `@UseGuards(AuthJwtGuard)`         | `Meteor.userId()` check     |
+| Auth guard (Part 08)       | `@UseGuards(AuthJwtGuard)`         | `Meteor.userId()` check     |
 
 **Frontend:**
 

@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-05T09:00:00+08:00
+pubDatetime: 2026-05-06T09:00:00+08:00
 title: CQRS - The Enterprise Request Pipeline
 featured: false
 draft: false
-slug: 6105-cqrs-enterprise-request-pipeline
+slug: 6106-cqrs-enterprise-request-pipeline
 tags:
   - deeptech
   - meteorjs
@@ -17,9 +17,11 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/05-cqrs-enterprise-request-pipeline.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/06-cqrs-enterprise-request-pipeline.png"
 description: By the end of this part, you will learn CQRS, request lifecycle, GraphQL mutation, 9-step module pattern, and index pattern.
 ---
+
+This is **Part 6 of 24** in the NestJS series. By this point, Part 5 has already applied the production hardening layer — Joi config validation, `LoggingInterceptor`, Helmet, and rate limiting are all in place. This part focuses on the request architecture: how writes and reads are separated through the CQRS pattern so that every feature module is independently testable and maintainable.
 
 ## What This Part Covers
 
@@ -704,7 +706,7 @@ Step 9: Module         → TypeOrmModule.forFeature([Entity]) + providers spread
         Test           → unit tests for service + handlers (Part 10)
 ```
 
-You will run through this checklist completely in Part 08 (Tag module) and Part 09 (Todo module).
+You will run through this checklist completely in Part 10 (Tag module) and Part 11 (Todo module).
 
 ---
 
@@ -879,7 +881,7 @@ export class TodoCreatedEventHandler implements IEventHandler<TodoCreatedEvent> 
 }
 ```
 
-Events are used for side effects that should not block the primary operation. Use them for: sending emails, creating notifications, updating analytics, triggering background jobs. You will implement this pattern with Bull queues in Part 11.
+Events are used for side effects that should not block the primary operation. Use them for: sending emails, creating notifications, updating analytics, triggering background jobs. You will implement this pattern with Bull queues in Part 13.
 
 ---
 
@@ -942,4 +944,4 @@ Entity → Constants → DTOs → CQRS Inputs → CQRS Index →
 CQRS Handlers → Service → Resolver → Module → Register → Migrate
 ```
 
-In Part 06, you will learn how DTOs and resolvers work together with GraphQL and nestjs-query to give you automatic filtering, sorting, pagination, and the frontend that consumes it all.
+In Part 07, you will learn how DTOs and resolvers work together with GraphQL and nestjs-query to give you automatic filtering, sorting, pagination, and the frontend that consumes it all.

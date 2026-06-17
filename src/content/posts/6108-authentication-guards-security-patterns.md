@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-07T09:00:00+08:00
+pubDatetime: 2026-05-08T09:00:00+08:00
 title: Authentication, Guards & Security Patterns
 featured: false
 draft: false
-slug: 6107-authentication-guards-security-patterns
+slug: 6108-authentication-guards-security-patterns
 tags:
   - deeptech
   - meteorjs
@@ -16,7 +16,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/07-authentication-guards-security-patterns.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/08-authentication-guards-security-patterns.png"
 description: By the end of this part, you will learn RS256, AuthModule, Passport JWT, AuthJwtGuard, @CurrentUser, ValidationPipe, forbidNonWhitelisted and Dual-auth architecture.  
 
 ---
@@ -929,7 +929,7 @@ export class TodoResolver {
 The delete command was originally defined with a plain `number` input (Part 06). Now that auth is in place, it must carry `userId` so the service can verify ownership before deleting:
 
 ```typescript
-// apps/api/src/modules/todo/cqrs/todo.cqrs.input.ts  (Part 07 update)
+// apps/api/src/modules/todo/cqrs/todo.cqrs.input.ts  (Part 08 update)
 export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<
   TodoEntity,
   { id: number; userId: number }  // ← was: number
@@ -937,7 +937,7 @@ export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<
 ```
 
 ```typescript
-// apps/api/src/modules/todo/todo.service.ts  (Part 07 update)
+// apps/api/src/modules/todo/todo.service.ts  (Part 08 update)
 deleteOneTodo: CqrsCommandFunc<
   DeleteOneTodoCommand,
   DeleteOneTodoCommand['args']
@@ -1108,7 +1108,7 @@ export function useAuth() {
 
 ## What You Have Now
 
-After Parts 01-07, you have:
+After Parts 01-08, you have:
 - ✅ Full environment (Node, Yarn, Docker, VS Code, Nx workspace)
 - ✅ NestJS app with GraphQL, TypeORM, CQRS
 - ✅ PostgreSQL + Redis in Docker
@@ -1119,4 +1119,4 @@ After Parts 01-07, you have:
 - ✅ RS256 JWT authentication, Passport strategy, guards, decorators
 - ✅ Global ValidationPipe with security hardening
 
-In Part 08, you will apply all of this to build the first complete module from scratch — the `Tag` module — following the 9-step checklist end-to-end with tests.
+In Part 09, we extend the auth system with email verification, password reset via single-use tokens, and TOTP 2FA — before moving to the case studies in Parts 10 and 11.

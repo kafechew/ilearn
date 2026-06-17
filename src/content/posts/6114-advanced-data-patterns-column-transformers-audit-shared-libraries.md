@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-20T09:00:00+08:00
+pubDatetime: 2026-05-14T09:00:00+08:00
 title: Advanced Data Patterns — Column Transformers, Audit Columns & Shared Libraries
 featured: false
 draft: false
-slug: 6120-advanced-data-patterns-column-transformers-audit-shared-libraries
+slug: 6114-advanced-data-patterns-column-transformers-audit-shared-libraries
 tags:
   - deeptech
   - nestjs
@@ -14,7 +14,7 @@ tags:
   - code
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/20-advanced-data-patterns-column-transformers-audit-shared-libraries.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/14-advanced-data-patterns-column-transformers-audit-shared-libraries.png"
 description: Add reusable TypeORM column transformers (lowercase, slug), wire up createdBy/updatedBy audit columns via a request-scoped TypeORM subscriber, build a running number service for ordered sequences, and extract shared config into libs/core for multi-app monorepo reuse.
 ---
 

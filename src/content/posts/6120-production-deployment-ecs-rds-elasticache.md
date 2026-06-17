@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-24T09:00:00+08:00
+pubDatetime: 2026-05-20T09:00:00+08:00
 title: Production Deployment — ECS Fargate, RDS, ElastiCache & Zero-Downtime Releases
 featured: false
 draft: false
-slug: 6124-production-deployment-ecs-rds-elasticache
+slug: 6120-production-deployment-ecs-rds-elasticache
 tags:
   - deeptech
   - nestjs
@@ -16,7 +16,7 @@ tags:
   - typescript
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/24-production-deployment-ecs-rds-elasticache.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/20-production-deployment-ecs-rds-elasticache.png"
 description: Deploy both NestJS apps (api + portal-api) and the Next.js frontend to AWS ECS Fargate with RDS PostgreSQL, ElastiCache Redis, Secrets Manager for environment variables, a GitHub Actions CD pipeline, and a zero-downtime migration strategy using one-off ECS tasks
 ---
 
@@ -30,7 +30,7 @@ description: Deploy both NestJS apps (api + portal-api) and the Next.js frontend
 - ECS task definitions for `api` and `portal-api` — secrets, health checks, log config
 - Application Load Balancer routing: `api.yourdomain.com` → api service, `portal.yourdomain.com` → portal-api service
 - Zero-downtime migrations as one-off ECS tasks — run before traffic is routed to new containers
-- Complete GitHub Actions CD pipeline extending the CI pipeline from part 6112
+- Complete GitHub Actions CD pipeline extending the CI pipeline from Part 19
 - CloudWatch log groups, metric filters, and alarms wired to structured logs from `LoggingInterceptor`
 - Go-live checklist and full series completion summary
 
@@ -72,7 +72,7 @@ VPC (private subnets only)
 ECR                             (Docker image registry, per-app repositories)
 Secrets Manager                 (all env vars: RSA keys, DB passwords, API secrets)
 CloudWatch Logs                 (structured logs from LoggingInterceptor)
-S3 + CloudFront                 (media library — configured in part 6122)
+S3 + CloudFront                 (media library — configured in Part 17)
 ```
 
 **Everything except the ALB lives in private subnets.** There is no public IP on any ECS task, RDS instance, or ElastiCache node. The only entry point from the public internet is the Application Load Balancer on port 443. Any attempt to connect directly to RDS or Redis from outside the VPC will time out — the security group rules enforce this at the network layer.
@@ -235,7 +235,7 @@ Apply the same lifecycle policy to `portal-api` and `migrator`.
 
 ### 3.2 Production Dockerfile for api
 
-The multi-stage Dockerfile from part 6112 extended for production with a health check:
+The multi-stage Dockerfile from Part 19 extended for production with a health check:
 
 ```dockerfile
 # apps/api/Dockerfile
@@ -1008,7 +1008,7 @@ aws elbv2 create-rule \
   --actions '[{"Type":"forward","TargetGroupArn":"'$PORTAL_TG_ARN'"}]'
 ```
 
-**Critical reminder:** `HealthResolver` must have `@SkipThrottle()` (added in part 6118). The ALB health check runs every 30 seconds against every registered target. With two api tasks, that is 4 health check requests per minute — above the default throttler limit. Without `@SkipThrottle()`, the ALB will start receiving 429 responses, mark targets as unhealthy, and deregister them.
+**Critical reminder:** `HealthResolver` must have `@SkipThrottle()` (added in Part 15). The ALB health check runs every 30 seconds against every registered target. With two api tasks, that is 4 health check requests per minute — above the default throttler limit. Without `@SkipThrottle()`, the ALB will start receiving 429 responses, mark targets as unhealthy, and deregister them.
 
 ```typescript
 // apps/api/src/modules/health/health.resolver.ts
@@ -1151,7 +1151,7 @@ aws logs get-log-events \
 
 ## 10. GitHub Actions CD Pipeline
 
-This extends the CI pipeline from part 6112. The CI pipeline runs on every push; this CD pipeline runs on push to `main` only.
+This extends the CI pipeline from Part 19. The CI pipeline runs on every push; this CD pipeline runs on push to `main` only.
 
 ### 10.1 OIDC IAM Role for GitHub Actions
 
@@ -1469,7 +1469,7 @@ aws logs put-retention-policy \
 
 ### 11.2 Metric Filter for ERROR Logs
 
-The `LoggingInterceptor` from part 6118 writes structured logs. When `NODE_ENV=production`, NestJS's built-in logger writes to stdout in a format that includes the log level. Create a metric filter that counts lines containing `[ERROR]`:
+The `LoggingInterceptor` from Part 15 writes structured logs. When `NODE_ENV=production`, NestJS's built-in logger writes to stdout in a format that includes the log level. Create a metric filter that counts lines containing `[ERROR]`:
 
 ```bash
 aws logs put-metric-filter \
@@ -1598,7 +1598,7 @@ Work through this checklist before routing real traffic to production.
 - [ ] CloudWatch alarms configured and in OK state
 - [ ] SNS topic subscribed and email confirmed
 
-**Media (from part 6122)**
+**Media (from Part 17)**
 
 - [ ] S3 bucket has `Block Public Access` enabled — only CloudFront can read objects
 - [ ] CloudFront distribution using ACM certificate for `media.yourdomain.com`
@@ -1626,7 +1626,9 @@ Work through this checklist before routing real traffic to production.
 
 ## What You Have Now
 
-This is the final tutorial in the 24-part Meteor to NestJS migration series. The complete enterprise-grade fullstack NestJS stack is now deployed and production-ready:
+With the complete backend deployed and running in production, Part 21 — Claude Code AI Development Layer shows how to 10x your development speed now that you understand the architecture deeply. Parts 21–24 form the AI capstone of the series.
+
+The complete enterprise-grade fullstack NestJS stack is now deployed and production-ready:
 
 **The Complete Enterprise-Grade Fullstack NestJS Stack**
 

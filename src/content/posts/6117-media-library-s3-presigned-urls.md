@@ -1,10 +1,10 @@
 ---
 author: Kai
-pubDatetime: 2026-05-22T09:00:00+08:00
+pubDatetime: 2026-05-17T09:00:00+08:00
 title: Media Library — S3 Presigned Uploads, Magic Byte Validation & CDN
 featured: false
 draft: false
-slug: 6122-media-library-s3-presigned-urls
+slug: 6117-media-library-s3-presigned-urls
 tags:
   - deeptech
   - nestjs
@@ -14,7 +14,7 @@ tags:
   - backend
   - enterprise
   - english
-ogImage: "https://ik.imagekit.io/kheai/tutorial/22-media-library-s3-presigned-urls.png"
+ogImage: "https://ik.imagekit.io/kheai/tutorial/17-media-library-s3-presigned-urls.png"
 description: Build a production-grade media library with S3 presigned upload URLs, Bull-queue post-processing, magic-byte file-type validation, sharp thumbnail generation, and CloudFront CDN delivery — without ever routing file bytes through your API server.
 ---
 
