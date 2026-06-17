@@ -267,10 +267,13 @@ import { ConfigService } from "@nestjs/config";
 import { GraphQLModule } from "@nestjs/graphql";
 import { ApolloDriver, ApolloDriverConfig } from "@nestjs/apollo";
 import { CqrsModule } from "@nestjs/cqrs";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { SnakeCaseNamingStrategy } from "typeorm-naming-strategies";
 
 // Imported from libs/core — identical config, zero duplication
 import { CoreConfigModule, AppConfig } from "@enterprise-todo/core";
 
+import { PortalUserEntity } from "../modules/portal-auth/portal-user.entity";
 import { PortalHealthModule } from "../modules/portal-health/portal-health.module";
 import { PortalAuthModule } from "../modules/portal-auth/portal-auth.module";
 
@@ -280,6 +283,27 @@ import { PortalAuthModule } from "../modules/portal-auth/portal-auth.module";
     CoreConfigModule,
 
     CqrsModule.forRoot(),
+
+    // portal-api shares the same PostgreSQL instance as apps/api.
+    // Its own migrations (apps/portal-api/src/migrations/) cover portal_user only.
+    TypeOrmModule.forRootAsync({
+      imports: [CoreConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const db = config.getOrThrow<AppConfig["database"]>("database");
+        return {
+          type: "postgres",
+          host: db.host,
+          port: db.port,
+          username: db.username,
+          password: db.password,
+          database: db.database,
+          entities: [PortalUserEntity],
+          synchronize: false,
+          namingStrategy: new SnakeCaseNamingStrategy(),
+        };
+      },
+    }),
 
     GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
@@ -300,7 +324,7 @@ import { PortalAuthModule } from "../modules/portal-auth/portal-auth.module";
 export class PortalAppModule {}
 ```
 
-> **Portal DB config:** `portal-api` shares the same database as `backend` (same PostgreSQL instance, same migrations). Its `TypeOrmModule.forRootAsync` config is identical to `AppModule`'s setup in `apps/backend` — copy it and substitute `PortalConfigService` where applicable. Do NOT run separate migrations for `portal-api`; the single migration source of truth is `apps/backend/src/migrations/`.
+> **Portal DB:** `portal-api` connects to the same PostgreSQL instance as `apps/api`. Both apps read the same DB credentials from `.env`. Each app owns migrations for its own tables — `apps/api/src/migrations/` covers all user-side tables; `apps/portal-api/src/migrations/` covers `portal_user`. `synchronize` is always `false` in both.
 
 The critical point: `PortalAppModule` imports `CoreConfigModule` from `@enterprise-todo/core` (shared), but it does NOT import `AuthModule` from `apps/api`. It has its own `PortalAuthModule`. Because Nx enforces app boundary rules, `apps/portal-api` cannot import directly from `apps/api` — any shared code must go through a library.
 
