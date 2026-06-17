@@ -13,9 +13,11 @@ tags:
   - backend
   - code
   - enterprise
+  - git
+  - workflow
   - english
 ogImage: "https://ik.imagekit.io/kheai/tutorial/02-environment-setup-nx-workspace.png"
-description: By the end of this part, you will have a running (empty) enterprise-todo backend accessible at localhost.
+description: Set up the entodo Nx monorepo from scratch — Node, Yarn, Docker, NestJS, Next.js, PostgreSQL, and a Conventional Commits workflow with GitHub Desktop and Commitizen.
 ---
 
 ## What This Part Covers
@@ -26,8 +28,9 @@ description: By the end of this part, you will have a running (empty) enterprise
 - Spinning up PostgreSQL, Redis, and Adminer via Docker
 - Writing the environment file
 - Booting the server and verifying it works
+- Setting up a Conventional Commits workflow with GitHub Desktop and Commitizen
 
-By the end of this part, you will have a running (empty) enterprise-todo backend accessible at `http://localhost:3333/graphql`.
+By the end of this part, you will have a running (empty) entodo backend accessible at `http://localhost:3333/graphql`, with a Conventional Commits workflow in place.
 
 ---
 
@@ -45,6 +48,37 @@ meteor
 The framework created the directory structure, started MongoDB, and served both client and server in one process.
 
 In the enterprise world, you build this infrastructure yourself — explicitly. It takes longer the first time. After that, every project starts the same way and every team member knows exactly what is running and why.
+
+---
+
+## Architectural Foundations: The Three "-ilities"
+
+Enterprise development separates itself from amateur work by prioritising the **lifecycle** of code over the speed of immediate delivery. Three structural pillars govern every decision in this project:
+
+- **Extensibility** — the codebase must accept new modules and business requirements without fracturing or triggering breaking rewrites of core logic.
+- **Maintainability** — code is read far more times than it is written. Names, boundaries, types, and documentation must make debugging and refactoring straightforward for anyone who opens a file.
+- **Reusability** — common configurations, logic gates, schema types, and validations are written once to eliminate cross-system synchronisation bugs from copy-paste patterns.
+
+### The Apartment Intercom Model
+
+The `entodo` monorepo is structured like a high-density apartment building:
+
+```mermaid
+graph TD
+    subgraph Workspace [Nx Monorepo: entodo]
+        API[apps/api <br> NestJS Backend]
+        WEB[apps/web <br> Next.js Frontend]
+        CONTRACTS[libs/contracts <br> Shared Isomorphic Types]
+    end
+
+    API -->|Imports Types| CONTRACTS
+    WEB -->|Imports Types| CONTRACTS
+    WEB -.->|HTTP / GraphQL requests only| API
+```
+
+`apps/api` is Apartment A. `apps/web` is Apartment B. They operate completely independently. `libs/contracts` is the intercom wiring — the only legal channel for sharing constants: interfaces and validation types.
+
+> **The Rule of Boundaries:** `@nx/enforce-module-boundaries` is the building's alarm. The moment code tries to bypass the intercom and reach directly into another apartment's private files, the linter fires at IDE level and blocks the CI/CD pipeline.
 
 ---
 
@@ -173,7 +207,7 @@ This is the enterprise equivalent of `meteor create`. One command creates the mo
 
 ```bash
 cd dev # any folder you prefer to host your app
-npx create-nx-workspace@latest enterprise-todo --preset=apps
+npx create-nx-workspace@latest entodo --preset=apps
 ```
 
 When prompted:
@@ -182,13 +216,13 @@ When prompted:
 - **Enable Nx Cloud?** → No (free tier but not needed for learning)
 
 ```bash
-cd enterprise-todo
+cd entodo
 ```
 
 Your directory now looks like:
 
 ```
-enterprise-todo/
+entodo/
 ├── apps/          ← your applications live here
 ├── libs/          ← shared libraries live here
 ├── nx.json        ← Nx configuration
@@ -344,12 +378,12 @@ version: "3.8"
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: enterprise_todo_postgres
+    container_name: entodo_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: enterprise_todo
+      POSTGRES_DB: entodo
     ports:
       - "5432:5432"
     volumes:
@@ -359,7 +393,7 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: enterprise_todo_redis
+    container_name: entodo_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -370,7 +404,7 @@ services:
 
   adminer:
     image: adminer
-    container_name: enterprise_todo_adminer
+    container_name: entodo_adminer
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -422,7 +456,7 @@ Wait ~10 seconds, then verify all three are running:
 
 ```bash
 docker ps
-# Should show: enterprise_todo_postgres, enterprise_todo_redis, enterprise_todo_adminer
+# Should show: entodo_postgres, entodo_redis, entodo_adminer
 ```
 
 ### 5.4 Verify Adminer
@@ -435,7 +469,7 @@ Open `http://localhost:8080` in your browser and log in:
 | Server   | `postgres` (the container name — Docker's internal DNS) |
 | Username | `postgres`                                              |
 | Password | `postgres`                                              |
-| Database | `enterprise_todo`                                       |
+| Database | `entodo`                                       |
 
 You should see an empty database. This is where your tables will appear after running migrations (Part 04).
 
@@ -460,11 +494,11 @@ PROJECT_DB_HOST=localhost
 PROJECT_DB_PORT=5432
 PROJECT_DB_USERNAME=postgres
 PROJECT_DB_PASSWORD=postgres
-PROJECT_DB_DATABASE=enterprise_todo
+PROJECT_DB_DATABASE=entodo
 PROJECT_DB_DEBUG=false
 
 # ── Database (Test) ───────────────────────────────────────────
-PROJECT_DB_DATABASE_TEST=enterprise_todo_test
+PROJECT_DB_DATABASE_TEST=entodo_test
 
 # ── Redis ─────────────────────────────────────────────────────
 REDIS_BULL_HOST=localhost
@@ -488,6 +522,17 @@ Add `.env` to your `.gitignore` (it should already be there from Nx):
 echo ".env" >> .gitignore
 echo ".env.local" >> .gitignore
 ```
+
+> **If `.env` was ever committed before this:** Adding it to `.gitignore` after the fact does not remove it from history — Git silently continues tracking changes. Run the full purge:
+>
+> ```bash
+> # Strip from Git's index cache without deleting the local file
+> git rm --cached .env
+> git rm --cached .env.local
+>
+> # Commit the tracking removal immediately
+> git commit -m "chore(git): purge local environment tracking cache"
+> ```
 
 > **Meteor analogy:** In Meteor you used `Meteor.settings` (loaded from `settings.json`) for server config. In the enterprise stack, environment variables are the standard — they work across Docker, ECS, Kubernetes, and local development without code changes.
 
@@ -712,6 +757,90 @@ npx nx affected:graph
 # Clear Nx cache (if builds behave strangely)
 npx nx reset
 ```
+
+---
+
+## 11. Hybrid Git Workflow: GitHub Desktop + Commitizen
+
+Enterprise codebases enforce **Conventional Commits** — a strict format that powers automated changelogs, semantic versioning, and project management integrations. `yarn cz` (Commitizen) enforces this format via an interactive terminal wizard.
+
+You do not have to abandon visual Git tools to comply. GitHub Desktop and your terminal share the same local `.git/` index. The hybrid loop:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Engineer
+    participant GD as GitHub Desktop
+    participant VS as VS Code
+    participant Term as Terminal
+    participant GH as Remote GitHub
+
+    Engineer->>GD: Create isolation branch (feat/feature-name)
+    Engineer->>VS: Implement logic
+    Engineer->>Term: Run quality check (yarn lint --fix)
+    Engineer->>GD: Visual staging — check specific file diffs, confirm .env is excluded
+    Note over GD: Leave commit summary and description BLANK
+    Engineer->>Term: Execute standardised commit (yarn cz)
+    Note over Term: Interactive wizard → Conventional Commit generated
+    Engineer->>GD: Push branch and open Pull Request
+    GD->>GH: Sync local index to remote
+```
+
+### Install Commitizen
+
+```bash
+yarn add --dev commitizen cz-conventional-changelog
+```
+
+Add to `package.json`:
+
+```json
+{
+  "scripts": {
+    "cz": "cz"
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  }
+}
+```
+
+### Navigating the `yarn cz` Prompt
+
+When you run `yarn cz`, the interactive terminal wizard takes over:
+
+1. **Type** — arrow keys to select intent: `feat` (new functionality), `fix` (bug correction), `chore` (build/config updates).
+2. **Scope** — the domain affected: `api`, `web`, or `workspace`.
+3. **Short description** — concise, lowercase, imperative. No period at the end. Example: `setup structural base for graphql resolution`.
+4. **Breaking change?** — defaults to No. Yes flags a major version increment.
+5. **Issue reference** — link to your task tracker. Example: `Closes #6102`.
+
+---
+
+## 12. Advanced Integrations: Automated Project Management via MCP
+
+Conventional Commits are not just cosmetic — they power automated workflows through a **Model Context Protocol (MCP) Server** hooked to project management layers like ClickUp and Lark.
+
+By accurately mapping issue handles in the Commitizen footer (e.g. `Closes #CLK-9421`), a chain of automated updates fires the moment a Pull Request merges:
+
+- **ClickUp status updates** — the target ticket moves from `In Progress` to `QA Validation` without any manual browser interaction.
+- **Lark broadcast alerts** — an automated webhook posts a summary into the engineering channel, notifying QA leads the feature is ready for testing.
+- **Clean commit history** — enforcing a **Squash Merge Strategy** on Pull Requests collapses noisy intermediate commits into one descriptive entry, keeping the log aligned with project management records.
+
+---
+
+## 13. Daily Engineering Checklist
+
+Before every commit, verify:
+
+1. [ ] Did I run `git checkout -b feat/your-feature` before modifying files?
+2. [ ] Is `reflect-metadata` pinned to `^0.2.2` in `package.json`?
+3. [ ] Did I review diffs visually in GitHub Desktop — no debug logs, no unexpected files, `.env` excluded?
+4. [ ] Did I run `yarn lint --fix` before committing?
+5. [ ] Did I use `yarn cz` to format the commit message and include the task tracker handle?
+6. [ ] Is my Pull Request documented with a summary, ticket links, and screenshots of a successful local run?
 
 ---
 
