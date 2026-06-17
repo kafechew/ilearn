@@ -62,6 +62,8 @@ With a queue:
                                                 ──→ dead-letter queue on max retries
 ```
 
+> **The kitchen ticket rail:** Bull is the ticket rail in a restaurant kitchen. The waiter (API handler) takes your order, clips the ticket to the rail, and **immediately returns to serve the next table**. The chef (Bull worker) processes tickets at their own pace in the background. The waiter never stands next to the stove watching your steak cook — that would block the entire front of house. The ticket rail also survives a shift change: if the chef goes on break (worker restarts), the ticket is still on the rail waiting.
+
 A Bull queue guarantees:
 - Jobs survive API restarts (stored in Redis)
 - Automatic retries with exponential backoff
@@ -334,6 +336,8 @@ Redis PubSub (correct):
   Redis ──→ fans out to ALL pods listening on that channel
   API pod 1 receives it and pushes to the WebSocket client ✓
 ```
+
+> **Broadcast tower vs walkie-talkie:** In-process PubSub is a **walkie-talkie** — only people within direct radio range (the same server process) receive the message. Redis PubSub is a **broadcast radio tower** — one station transmits, every radio in the country picks up the same signal simultaneously. When your API scales to multiple pods, every pod subscribes to the same Redis channel. One pod publishes an event, Redis fans it out to all pods, and each pod forwards it to its own WebSocket clients.
 
 ### 5.2 Install Redis PubSub
 

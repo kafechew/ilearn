@@ -68,6 +68,8 @@ Single-tenant (traditional):              Multi-tenant:
 
 We implement **shared tables + `tenantId`** — add a `tenantId` column to every domain entity.
 
+> **The storage unit facility:** A multi-tenant system is a cloud storage unit facility with hundreds of units. All units share the same building, the same staff, the same lock type. Each tenant can only access their own unit. If a staff member accidentally opens Unit 102's door for the Unit 101 tenant — even just to look — that is a catastrophic data breach. Every operation must check the unit number first. Every time. Without exception. The `tenantId` column is the unit number stamped on every item stored in the system.
+
 ---
 
 ## 2. Tenant Entity
@@ -277,6 +279,8 @@ Production apps use two guards in combination:
 | `ACPermissionGuard` | Fine-grained, DB-backed | Slightly slower (DB join on login) | Specific action slugs (`create-tag`, `delete-user`…) |
 
 `RolesGuard` answers "what level is this user?" — `ACPermissionGuard` answers "can this user perform this action?". Use `RolesGuard` for coarse tenant-level gates; use `ACPermissionGuard` for feature/action-level gates. Both are guards, so they compose with `@UseGuards()` without coupling to business logic.
+
+> **The VIP wristband system:** Think of RBAC like a nightclub with multiple zones. Your wristband determines which doors open for you: general admission wristband = public areas only, staff wristband = back of house, VIP wristband = the VIP lounge. `RolesGuard` checks your wristband tier (OWNER, ADMIN, MEMBER, VIEWER). `ACPermissionGuard` checks specific door slugs (`create-todo`, `delete-user`). A "Tag Manager" role can have the `create-tag` door without having the full ADMIN wristband.
 
 ### 7.2 UserRole Enum
 
@@ -530,6 +534,8 @@ export class TodoDto extends AbstractDto {}
 
 Now even if a handler forgets to add `tenantId` to its filter, the `@Authorize` decorator injects it at the TypeORM query builder level. **Defense in depth.**
 
+> **The turnstile inside the corridor:** Guards at the front door are your first layer. But `@Authorize` is a **turnstile built into the database corridor itself** — after the guards, before the rows. Even if a handler forgets to add `tenantId` to its filter (a code review miss), the `@Authorize` decorator merges `WHERE tenant_id = $1` at the TypeORM query builder level. It is impossible to bypass by crafting a clever GraphQL query. You cannot bribe a turnstile.
+
 ---
 
 ## 9. Dual-Auth: User JWT vs Admin Portal JWT
@@ -549,6 +555,8 @@ Admin Portal: admin@your-app.com
 ```
 
 Two separate key pairs enforces that a user JWT cannot elevate to admin actions — even if the user inspects the JWT payload and crafts a similar token, they don't have the Admin private key.
+
+> **Two separate key rings:** The user portal and the admin portal use two physically separate RSA key pairs — like two separate key rings for two separate buildings. A key from Building A (user JWT signed with `JWT_PRIVATE_KEY`) cannot open Building B (admin portal protected by `PortalAuthJwtGuard` verifying against `ADMIN_JWT_PUBLIC_KEY`). Even if a user inspects their JWT payload and crafts a similar token, the RS256 signature verification against the admin public key will fail. The key ring itself is the guarantee.
 
 ```typescript
 // apps/api/src/shared/portal-auth-jwt.guard.ts

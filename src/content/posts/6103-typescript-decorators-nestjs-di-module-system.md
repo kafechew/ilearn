@@ -74,6 +74,8 @@ calc.add(2, 3);
 
 NestJS uses decorators to attach **metadata** to classes. This metadata is read at startup by the NestJS framework to understand: what is this class? What does it need? How should requests reach it?
 
+> **Think of decorators as sticky labels on file folders.** The folder's content doesn't change — the label tells whoever handles it what to do: "HTTP HANDLER", "INJECTABLE", "ADMIN ONLY". NestJS is the handler reading those labels at startup to wire the application.
+
 ### NestJS-Specific Decorators
 
 ```typescript
@@ -145,6 +147,8 @@ NestJS reads the constructor types, checks the module registry, finds registered
 - Testing is trivial: pass mock objects into the constructor
 - The same `UserService` instance is shared across the module (singleton by default)
 
+> **The staffing agency:** DI works like a professional staffing agency. A chef (your class) tells the agency: "I need a sous chef, a pastry specialist, and a sommelier." On opening day, the agency sends the right people. The chef focuses entirely on cooking. In the test kitchen, the agency sends stand-ins (mocks). The chef cooks the same way regardless — never knowing whether the sommelier is real or a fake.
+
 > **Meteor analogy:** In Meteor you accessed globals: `Meteor.userId()`, `Accounts`, `TasksCollection`. In NestJS, there are no globals. Every dependency arrives through the constructor — explicit, typed, testable.
 
 ### Singleton vs Request-Scoped
@@ -156,6 +160,8 @@ By default, NestJS creates one instance of each provider per module (singleton).
 ## 3. The Module System
 
 A NestJS module is a class decorated with `@Module()`. It is the unit of organisation — the equivalent of a Meteor package, but explicit and composable.
+
+> **Think of each module as a department in a company.** The HR Department owns its own staff and filing cabinets. It doesn't walk directly into Finance to grab payroll data — it formally requests it through a defined interface. In code: `imports` = what your department borrows, `providers` = your internal workers, `controllers` = your front-desk staff, `exports` = what you're willing to share with other departments.
 
 ```typescript
 @Module({
@@ -469,7 +475,11 @@ export class TodoResolver {
 
 ## 8. Services
 
-The service is where business logic lives. Nothing else goes in here except:
+The service is where business logic lives.
+
+> **The doctor:** The controller is the **receptionist at a clinic** — she takes your name, routes you to the right room, and hands back the answer. She never prescribes treatment. The service is the **doctor** — she examines, diagnoses, and prescribes. She does not answer phones or handle paperwork. If your controller method is longer than two lines, you're doing the doctor's job at the front desk.
+
+Nothing else goes in here except:
 - Repository calls (read/write to the database)
 - Business rules (validation, computation, side effects)
 - Calls to external services (email, S3, LLM)

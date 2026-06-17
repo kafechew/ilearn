@@ -138,6 +138,8 @@ export class TagEntity extends AbstractEntity {
 - `createdAt: Date` — `created_at TIMESTAMPTZ DEFAULT now()` (hardcoded column name)
 - `updatedAt: Date` — `updated_at TIMESTAMPTZ DEFAULT now()` (auto-updated on save)
 
+> **Government form template:** An entity is the **official form template** that defines every field — name, type, whether it's required (nullable or not), any uniqueness constraints. Every row in the database is a filled-in copy of that template. When you need a new field, you don't edit old forms — you issue a new revision (migration) and all future submissions follow the new version.
+
 Your entity only declares the *additional* columns. The `slug` column has `unique: true` — PostgreSQL will enforce that no two tags share the same slug (e.g., `'work'` can only exist once).
 
 ---
@@ -427,11 +429,15 @@ export class DeleteOneTagCommandHandler implements IInferredCommandHandler<Delet
 
 Notice: every handler body is identical in structure. `this.service.methodName(query.args)` — that's it. The handler is a message router, nothing more.
 
+> **The postal sorting facility:** The CommandBus is a national postal sorting facility. You drop a letter (command object) in the slot. The facility reads the address (class name), routes it to the right delivery driver (handler class registered via `@CommandHandler`), and delivers it. The handler's one-liner body is the driver completing the last mile — calling the service method and returning the result. Anything more than one line means the handler is trying to sort AND deliver AND repackage. That's not its job.
+
 ---
 
 ## Step 9 — Service (`tag.service.ts`)
 
 This is where all business logic lives.
+
+> **The doctor:** The resolver is the **receptionist at a clinic** — she takes your name and reason for visit, decides which doctor (service method) to route you to, and returns the result when your appointment ends. She never examines you. The service is the **doctor** — she examines the request (business rules), prescribes treatment (creates/updates/deletes data), and never touches the appointment book. If your service method imports anything from `@nestjs/graphql`, it's doing the receptionist's job.
 
 ```typescript
 // apps/api/src/modules/tag/tag.service.ts

@@ -69,6 +69,8 @@ Every decision Meteor makes for you — you make yourself, in code, where it is 
 
 This sounds like more work. It is, slightly, at the start. But consider what you gain:
 
+Think of it like switching from a company where everyone "just knows" the unwritten rules, to one where every department has a written job description on the wall. The adjustment feels bureaucratic for the first week. After that, any new hire can understand the whole system in an afternoon.
+
 | Concern | Meteor (Implicit) | Enterprise NestJS (Explicit) |
 |---------|-------------------|------------------------------|
 | Who can write data? | `.allow()` rules (forgotten, bypassed) | `@UseGuards(AuthJwtGuard)` on every mutation |
@@ -170,6 +172,8 @@ enterprise-todo/                    ← was: my-meteor-app/
     └── contracts/                  ← was: imports/ (isomorphic code)
         └── src/                    ← shared TypeScript types
 ```
+
+> **Think of the monorepo like this:** An Nx workspace is an **apartment building with strict bylaws**. Each apartment (app) has its own locked front door — `apps/api` and `apps/web` cannot reach into each other's code directly. Shared code travels through the building intercom: `libs/contracts`. The building's alarm system (`@nx/enforce-module-boundaries`) triggers the moment anyone tries to climb through a window instead.
 
 The critical insight: `apps/api` and `apps/web` are **separate processes**. They communicate only through a defined API contract — the GraphQL schema. This means:
 - You can deploy the backend without touching the frontend

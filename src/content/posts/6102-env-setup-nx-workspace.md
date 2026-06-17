@@ -235,6 +235,8 @@ apps/api/
 
 > **Meteor analogy:** `apps/api/src/main.ts` is your `server/main.js`. `app.module.ts` is the root of everything the server knows about — equivalent to all your `server/` imports combined.
 
+> **Opening day:** `main.ts` is the **building manager on opening day**. Before any tenant (module) can open for business, the manager unlocks the doors (NestJS.create), turns on the power (registers global pipes), checks permits (ConfigModule validates env vars), and opens reception. Once that's done, requests can start arriving.
+
 ### 3.3 Generate the Next.js Frontend
 
 ```bash
@@ -271,6 +273,8 @@ libs/contracts/
 ```
 
 > **Meteor analogy:** In Meteor you put isomorphic code in `imports/` and both client and server could import it. In the enterprise monorepo, `libs/contracts` is that shared space — but it exports _only what you explicitly export_, and only TypeScript types (no server code on the client, no client code on the server).
+
+> **The apartment building:** The full monorepo is like a well-managed apartment building. `apps/api` is one apartment, `apps/web` is another. `libs/contracts` is the intercom — the only legal way for apartments to share information. `@nx/enforce-module-boundaries` is the building's alarm: it fires before CI, at IDE level, the moment code tries to reach directly into another apartment.
 
 ---
 

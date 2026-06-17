@@ -94,6 +94,8 @@ SELECT * FROM user WHERE id = 5;  -- todo 5's owner (first user, again)
 
 This is the **N+1 problem**: 1 query to fetch N records, then N additional queries to fetch related data. With 100 todos = 101 DB queries. With 1000 todos = 1001 queries. The system gets slower as it grows.
 
+> **The warehouse trip problem:** Imagine a café where every customer causes the barista to run to the warehouse for coffee beans — one trip per cup. 100 customers = 100 warehouse trips. **DataLoader** is the barista who waits until the morning rush settles, writes down all 100 orders, makes **one warehouse trip** with the complete list, and fills all cups. 100 customers, 1 trip. This is the batch-and-deduplicate pattern that eliminates N+1.
+
 > **Meteor analogy:** Meteor's `autopublish` sends everything to the client, where Minimongo handles joins in memory. You never noticed the N+1 problem because all the data was already on the client. In a server-side GraphQL API, each field resolution is a potential DB query.
 
 ### DataLoader: The Solution
@@ -118,6 +120,8 @@ NestJS providers are singletons by default — created once at app startup, shar
 1. Accumulate cached user data across all requests
 2. Serve User A's data to User B (if their requests overlap and share cached IDs)
 3. Never invalidate stale data
+
+> **Fresh coffee per visitor:** Think of provider scopes as coffee service styles. `DEFAULT` (singleton) = one communal coffee maker in the office kitchen, shared by the whole company — fine for stateless services. `REQUEST` scope = a fresh cup brewed for each visitor as they arrive, then discarded when they leave. A DataLoader **must** be `REQUEST`-scoped because its per-request cache must never leak between different users' requests. If user A's data ends up in user B's cache, that's a data breach.
 
 `Scope.REQUEST` creates a fresh DataLoader instance for each incoming HTTP request. The cache lives only for the duration of that one request (collecting batches within the resolver tree), then is garbage-collected.
 

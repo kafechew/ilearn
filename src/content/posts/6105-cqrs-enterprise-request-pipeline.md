@@ -146,6 +146,8 @@ Problems:
 
 ## 2. What CQRS Solves
 
+> **Two kitchens that never share a stove.** The order kitchen (Commands) accepts new orders, cooks food, and changes the state of the menu. The reading kitchen (Queries) only describes what's available — it never starts the oven. A waiter from the reading kitchen cannot place new orders. There is zero confusion about which kitchen does what. This is CQRS: reads and writes have fundamentally different requirements, so they get separate handlers.
+
 CQRS — Command Query Responsibility Segregation — separates **writes** (Commands) from **reads** (Queries). Instead of one `createTask` method that does everything, you have:
 
 - A **Command** class: a typed message representing the _intent_ ("I want to create a todo")
@@ -219,6 +221,8 @@ Step 5: CommandBus routes to the registered handler
   → NestJS finds CreateOneTodoCommandHandler
   → Calls handler.execute(command)
 ```
+
+> **The postal sorting facility:** The CommandBus is like a national postal sorting facility. You write a letter (command object), drop it in the slot, and the facility reads the address (the class name), routes it to the right delivery driver (handler), and delivers it. You don't drive to the destination yourself. You don't know which driver was used. The handler registration via `@CommandHandler(CreateOneTodoCommand)` is the "address label" the sorting facility reads.
 
 ```
 Step 6: Handler delegates to service (one line)
@@ -837,6 +841,8 @@ Every name in the CQRS layer follows a strict convention. Consistency means any 
 ---
 
 ## 12. CQRS Events (Advanced)
+
+> **The office PA announcement:** Publishing a domain event is like a public announcement over the office PA: "New todo just created!" HR (the email handler) hears it and sends a notification. IT (the audit log handler) hears it and logs the action. The PA operator (command handler) broadcasts the fact and immediately moves on — it never manages who reacted or how.
 
 Commands can emit events after execution. Events are processed asynchronously by event handlers.
 

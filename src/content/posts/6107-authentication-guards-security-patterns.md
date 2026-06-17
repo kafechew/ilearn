@@ -73,6 +73,8 @@ Benefits:
 2. **Independent rotation.** Rotate the user access key without affecting the admin portal key.
 3. **Multiple key pairs.** This codebase uses three: `JWT` (user access), `JWT_REFRESH` (user refresh), `ADMIN_JWT` (admin portal). A stolen user token cannot be replayed against admin endpoints — different key pair, signature verification fails.
 
+> **Master key vs wax seal:** HS256 is a **master key** — whoever has it can both lock (sign) and unlock (verify). RS256 is a **royal wax seal**: only the king has the signet ring (private key) that makes the seal. Anyone can inspect a seal to verify it's genuine (public key). But no one can produce a convincing forgery — the signet ring never leaves the king's possession. In a multi-service architecture, downstream services verify tokens but can never issue them.
+
 ### Generating RSA Key Pairs
 
 Run once locally. Generate fresh keys for each environment (dev, staging, production).
@@ -403,6 +405,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 }
 ```
 
+> **Lanes at the border crossing:** Each Passport strategy is a different verification lane at the same border. Lane 1 checks JWTs (the `'jwt'` strategy). A future `'local'` lane checks username and password. OAuth lanes delegate to Google or GitHub. The border agent (guard) picks the lane based on the traveller's situation. A passport token doesn't get you through the API key lane — different lane, different check.
+
 **The validate flow:**
 1. Request arrives with `Authorization: Bearer eyJ...`
 2. Passport extracts the JWT from the header
@@ -429,6 +433,8 @@ export class AuthJwtGuard extends AuthGuard('jwt') {
   // Override handleRequest() here if you need custom error handling
 }
 ```
+
+> **The bouncer:** A guard is the nightclub bouncer. Before you reach the dance floor, the bouncer checks: Do you have a wristband? Is your wristband for the VIP section? Are you on the banned list? He doesn't negotiate — it's pass or block. And you don't have one bouncer who does everything: `AuthJwtGuard` handles "is this a valid JWT?", `RolesGuard` handles "does this role allow this action?" Each bouncer has one job.
 
 Usage in a resolver:
 
@@ -579,6 +585,8 @@ app.useGlobalPipes(
   }),
 );
 ```
+
+> **The water filter:** The `ValidationPipe` is a water purification system. Raw tap water (incoming JSON data) flows through the filter. Impurities (invalid fields, wrong types, unknown properties) are removed before the handler ever sees the data. `whitelist: true` strips undeclared fields. `forbidNonWhitelisted: true` rejects the entire request if unknown fields are present. Only clean, certified water reaches your resolver method.
 
 ### Why `forbidNonWhitelisted: true`?
 

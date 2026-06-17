@@ -95,6 +95,8 @@ export class TodoDto extends AbstractDto {
 
 > **Security rule:** Only add `@FilterableField` to columns you explicitly support filtering on. Never add it to internal columns like `password`, `twoFactorSecret`, or FK IDs that expose data from other tenants.
 
+> **Customs declaration:** The DTO is the **customs declaration form at the API border**. Before anything enters your service, it must declare its exact contents. The customs officer (`ValidationPipe`) checks the form. Undeclared items? Confiscated (`whitelist: true`). Unknown items? Detained (`forbidNonWhitelisted: true`). Malformed form? Turned back at the border. Only clean, certified data reaches your handler.
+
 ### 1.2 Input DTOs (`@InputType`)
 
 Input DTOs define what clients send in mutations. `class-validator` decorators enforce validation before the resolver method runs.
@@ -251,6 +253,8 @@ To get the next page, pass `endCursor` as `after`:
 ---
 
 ## 3. The Resolver
+
+> **The personal shopper:** A REST controller is a traffic cop at a fixed intersection — five routes, all cars must choose one, you often need multiple trips to assemble what you want. A GraphQL resolver is a personal shopper at a department store. The client tells the shopper exactly what it wants: "Give me the product name, its category, and the three most recent reviews — nothing else." The shopper fetches that precise shape in one trip. No over-fetching. No under-fetching. No three separate API calls.
 
 The resolver is the GraphQL entry point — the Meteor Method and Publication combined into one class, but separated into `@Query` (reads) and `@Mutation` (writes).
 

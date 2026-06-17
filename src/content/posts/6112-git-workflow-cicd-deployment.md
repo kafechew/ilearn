@@ -502,6 +502,8 @@ Why not on startup:
 - A failed migration kills every pod in a restart loop — noisy and hard to abort cleanly
 - A one-off task is explicit, observable, and stoppable before touching the service
 
+> **The migration is the renovation crew, not the building manager.** You wouldn't ask your building manager to renovate the lobby every morning when opening the building — especially with tenants already inside. You schedule the renovation crew for a specific time slot, with no tenants present, and let the manager open up only after the crew has signed off. The ECS one-off migration task is the renovation crew: it runs once, explicitly, before any new API pod starts serving traffic.
+
 ```typescript
 // apps/api/src/migrate.ts — separate entry point for migration ECS task
 import { DataSource } from 'typeorm';

@@ -71,6 +71,8 @@ E2E      ─── Full stack, real database
 
 ### The Golden Rule for Unit Tests
 
+> **Two kinds of truth:** Unit tests verify one doctor's diagnostic decisions in a mock clinic — no real patients, no real equipment, just the decision logic under controlled conditions. E2E tests run the full clinic with real patients: real building, real reception desk, real lab equipment (PostgreSQL), real pharmacy (Redis). The unit test catches the wrong diagnosis. The E2E test catches the broken door that prevents the patient from reaching the doctor at all.
+
 **Test your code, not the framework.**
 
 Don't test:
@@ -100,6 +102,8 @@ const module: TestingModule = await Test.createTestingModule({
 
 const service = module.get<TagService>(TagService);
 ```
+
+> **The staffing agency in test mode:** `Test.createTestingModule()` is the staffing agency in test mode. Instead of the real `UserRepository` (which needs a database), the agency sends a stand-in — a `jest.fn()` mock that returns whatever you tell it to. The class under test (`TagService`) never knows the difference. It receives what looks like a repository, calls its methods, and your assertions verify the decisions made with those responses.
 
 **Why `getRepositoryToken(TagEntity)` instead of `Repository<TagEntity>`?**
 

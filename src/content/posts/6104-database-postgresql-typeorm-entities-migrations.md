@@ -165,6 +165,8 @@ export class TodoEntity extends AbstractEntity {
 }
 ```
 
+> **Think of an entity as a government form template.** The template defines every field — name, type, whether it's required, the maximum length. Every filled-in form (database row) must match the template exactly. When the government revises the form (migration), all future submissions follow the new version. TypeORM reads these class definitions and generates the actual SQL for you.
+
 ---
 
 ## 4. `AbstractDto` — The Base DTO
@@ -371,6 +373,8 @@ TypeORM automatically manages the `todo_tag` join table. You never write SQL for
 
 ## 8. Create the UserEntity Stub
 
+> **The librarian:** In the enterprise pattern, the repository is the only layer allowed to talk to the database. Services don't write TypeORM queries directly — they ask the repository, which translates the request and returns typed results. You (the service) say "I need the user with this email." You don't go into the stacks yourself. The librarian (repository) fetches it. You don't care if it came from shelf 3 or a cache — you just get the result.
+
 `TodoEntity` has a `@ManyToOne` relation to `UserEntity`. That import must resolve before the build succeeds — but `UserEntity` is fully built in Part 07 (Authentication).
 
 Create the stub now so the build works. You will flesh it out in Part 07.
@@ -494,6 +498,8 @@ Migrations are versioned SQL scripts that track every schema change. They are th
 ### Why Migrations?
 
 In Meteor, adding a field to a MongoDB document is invisible: old documents just don't have it. In PostgreSQL, you cannot add a column to a live table without an explicit `ALTER TABLE` statement. Migrations automate and version this.
+
+> **Migrations are git commits for your database schema.** Every migration file adds a reversible change with an `up()` and `down()` method. You can see the full history. You can roll back to any point. You never modify a past migration in production — you write a new one that undoes the problem. Breaking this rule is like rewriting git history on a shared branch: it corrupts everyone else's understanding of the timeline.
 
 ```
 Without migrations:
