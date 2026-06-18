@@ -661,9 +661,9 @@ import { RunningNumberService } from "./running-number.service";
 export class RunningNumberModule {}
 ```
 
-> **Module analogy:** `RunningNumberModule` is its own **department in a company** — it owns the `RunningNumberEntity` table access and the `RunningNumberService` worker. By exporting `RunningNumberService`, it lends that worker to any other module (like `TodoModule`) that imports it. `TodoModule` borrows without knowing how the service is implemented internally.
+> **Module analogy:** `RunningNumberModule` is its own **hospital wing** — it owns the `RunningNumberEntity` table access and the `RunningNumberService` specialist. By exporting `RunningNumberService`, it lends that specialist to any other wing (like `TodoModule`) that imports it. `TodoModule` borrows without knowing how the service is implemented internally.
 
-**Memory hook:** Module = department. `exports` lends a worker to another department. The borrowing module never sees the internals — only the exported interface.
+**Memory hook:** Module = hospital wing. `exports` lends a specialist to another wing. The borrowing module never sees the internals — only the exported interface.
 
 ### Step 4 — Add referenceNumber to TodoEntity
 
@@ -844,13 +844,13 @@ Currently, the `ConfigModule` setup — with its Joi validation schema and `conf
 
 Duplicating the config setup across two apps means updates to environment variable names must be made in two places. `libs/core` is the escape hatch: shared infrastructure code that any app in the monorepo can import.
 
-> **Nx monorepo analogy:** The monorepo is an **apartment building with strict bylaws**. Each app (`apps/api`, `apps/portal-api`) is a locked unit — tenants cannot enter each other's units directly. Shared items travel through `libs/core`, which acts as the **building intercom** — the only legal channel between apps. The Nx module boundary rule is the alarm that triggers if anyone tries to climb through a window instead.
+> **Nx monorepo analogy:** The monorepo is a **city district with zoning laws**. Each app (`apps/api`, `apps/portal-api`) is a zoned district — they cannot reach into each other's territory directly. Shared items travel through `libs/core`, which acts as the **public post office** — the only legal channel between apps. The Nx module boundary rule is the City Inspector that triggers if anyone tries to bypass the zoning rules instead.
 
-> **ConfigModule analogy:** `CoreConfigModule` is the **company policy handbook in a locked cabinet**. Instead of each developer keeping private sticky notes with environment variable names, one handbook that all apps consult. Before the company opens each morning (app startup), the Joi validation schema checks the handbook is complete — a missing required variable keeps the office closed until it is fixed.
+> **ConfigModule analogy:** `CoreConfigModule` is the **hospital policy handbook**. Instead of each developer keeping private sticky notes with environment variable names, one handbook that all apps consult. Before the hospital opens each morning (app startup), the Joi validation schema checks the handbook is complete — a missing required variable keeps the doors closed until it is fixed.
 
 > **From Meteor?** `Meteor.settings` was a single-app concept — there was no monorepo, no second app to share config with. `libs/core` solves a problem Meteor never had: giving two independently deployable NestJS apps identical config without copy-paste.
 
-**Memory hook:** `libs/core` = building intercom. The only legal bridge between apps. Config lives here once; both apps read from it.
+**Memory hook:** `libs/core` = public post office. The only legal bridge between apps. Config lives here once; both apps read from it.
 
 > **`synchronize: false` note:** The `AppModule` above uses `synchronize: false`. This is correct for any environment beyond local dev throwaway. `synchronize: true` is an **unsupervised contractor** — it makes schema changes without asking, with no undo. Use migrations instead.
 
@@ -1356,10 +1356,10 @@ curl http://localhost:3333/graphql -X POST \
 | TypeORM EntitySubscriber | Silent co-worker who stamps every document | Manual `createdBy = this.userId` in every method | No `listenTo()` = fires on all entities automatically |
 | Migration | Git commit for the database | No migrations in Meteor/MongoDB | `up()` applies, `down()` reverts; never edit old migrations |
 | `synchronize: true` | Unsupervised contractor | Not applicable | Never in production; use migrations |
-| Repository / RunningNumberService | Librarian | `findOne` + manual increment in a method | Only layer touching DB; `SELECT FOR UPDATE` prevents race conditions |
-| `RunningNumberModule` | Department in a company | Single-app, no module system | `exports` lends `RunningNumberService`; `TodoModule` imports to borrow |
-| Nx monorepo / `libs/core` | Apartment building with strict bylaws | Not applicable (single-app model) | Cross-app sharing only through `libs/`; direct imports between apps are banned |
-| `CoreConfigModule` | Company policy handbook in a locked cabinet | `Meteor.settings` — no startup validation | Joi schema fails startup if any required variable is missing |
+| Repository / RunningNumberService | Archivist | `findOne` + manual increment in a method | Only layer touching DB; `SELECT FOR UPDATE` prevents race conditions |
+| `RunningNumberModule` | Hospital wing | Single-app, no module system | `exports` lends `RunningNumberService`; `TodoModule` imports to borrow |
+| Nx monorepo / `libs/core` | City district with zoning laws | Not applicable (single-app model) | Cross-app sharing only through `libs/`; direct imports between apps are banned |
+| `CoreConfigModule` | Hospital policy handbook | `Meteor.settings` — no startup validation | Joi schema fails startup if any required variable is missing |
 
 ---
 

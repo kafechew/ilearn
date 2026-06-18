@@ -167,11 +167,11 @@ export class TodoEntity extends AbstractEntity {
 
 > **Company letterhead:** `AbstractEntity` is the **company letterhead**. Every letter (entity) is printed on paper that already has the logo, address, and date field (`id`, `createdAt`, `updatedAt`). Each letter only adds its own unique content. Nobody types the letterhead from scratch each time.
 
-> **Government form template:** Each entity class is a **government form template**. The template defines every field — name, type, whether it's required, the maximum length. Every filled-in form (database row) must match exactly. When the government revises the form (migration), all future submissions follow the new version. TypeORM reads these class definitions and generates the SQL for you.
+> **Official record template:** Each entity class is an **official record template**. The template defines every field — name, type, whether it's required, the maximum length. Every filled-in record (database row) must match exactly. When the record format is revised (migration), all future entries follow the new version. TypeORM reads these class definitions and generates the SQL for you.
 
 > **From Meteor?** `new Mongo.Collection('tasks')` had no guaranteed `id`, `createdAt`, or `updatedAt` — you could add them but it was optional and inconsistent across collections. `AbstractEntity` guarantees every entity has these columns, in the same format, in every table, automatically.
 
-**Memory hook:** `AbstractEntity` = company letterhead. `Entity` = government form template. Extend `AbstractEntity` on every entity. Never write `id`, `createdAt`, `updatedAt` by hand.
+**Memory hook:** `AbstractEntity` = company letterhead. `Entity` = official record template. Extend `AbstractEntity` on every entity. Never write `id`, `createdAt`, `updatedAt` by hand.
 
 ---
 
@@ -389,7 +389,7 @@ TypeORM automatically manages the `todo_tag` join table. You never write SQL for
 
 ## 8. Create the UserEntity Stub
 
-> **The librarian:** In the enterprise pattern, the repository is the only layer allowed to talk to the database. Services don't write TypeORM queries directly — they ask the repository, which translates the request and returns typed results. You (the service) say "I need the user with this email." You don't go into the stacks yourself. The librarian (repository) fetches it. You don't care if it came from shelf 3 or a cache — you just get the result.
+> **The archivist:** In the enterprise pattern, the repository is the only layer allowed to talk to the database. Services don't write TypeORM queries directly — they ask the repository, which translates the request and returns typed results. You (the service) say "I need the patient record for this email." You don't go into the archive stacks yourself. The archivist (repository) fetches it. You don't care if it came from shelf 3 or a cache — you just get the result.
 
 `TodoEntity` has a `@ManyToOne` relation to `UserEntity`. That import must resolve before the build succeeds — but `UserEntity` is fully built in Part 07 (Authentication).
 
@@ -937,11 +937,11 @@ Expected output:
 
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
-| Entity | Government form template | `new Mongo.Collection()` | Schema enforced at DB + TypeScript level in one class |
+| Entity | Official record template | `new Mongo.Collection()` | Schema enforced at DB + TypeScript level in one class |
 | `AbstractEntity` | Company letterhead | Optional convention (inconsistent) | Every entity extends it — `id`, `createdAt`, `updatedAt` for free |
 | `AbstractDto` | Standard response envelope | Publication return shape (arbitrary) | Every `@ObjectType` DTO extends it — `id` + timestamps always present |
 | `SnakeNamingStrategy` | Automatic translator | (no equivalent) | TypeScript `camelCase` → SQL `snake_case` automatically |
-| Repository | Librarian | `Collection.find()` called directly anywhere | Only layer allowed to touch the database |
+| Repository | Archivist | `Collection.find()` called directly anywhere | Only layer allowed to touch the database |
 | `@ManyToOne` | Reference to the full person | Manual `userId` field | Defines the FK + enables JOINs |
 | `@RelationId` | Business card (ID only) | (no equivalent) | Always available without a JOIN — use for `WHERE` filters |
 | Migration | Git commit for the database | (none — MongoDB schema-less) | `up()` applies · `down()` reverts · never edit past migrations |

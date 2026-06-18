@@ -101,7 +101,7 @@ export class TodoDto extends AbstractDto {
 
 > **Security rule:** Only add `@FilterableField` to columns you explicitly support filtering on. Never add it to internal columns like `password`, `twoFactorSecret`, or FK IDs that expose data from other tenants.
 
-> **Customs declaration:** The DTO is the **customs declaration form at the API border**. Before anything enters your service, it must declare its exact contents. The customs officer (`ValidationPipe`) checks the form. Undeclared items? Confiscated (`whitelist: true`). Unknown items? Detained (`forbidNonWhitelisted: true`). Malformed form? Turned back at the border. Only clean, certified data reaches your handler.
+> **Intake form:** The DTO is the **intake form at the hospital entrance**. Before anything reaches your service, it must declare its exact contents. The customs hall (`ValidationPipe`) checks the form. Undeclared fields? Confiscated (`whitelist: true`). Unknown fields? The entire form is rejected (`forbidNonWhitelisted: true`). Malformed form? Turned away at the entrance. Only clean, certified data reaches your specialist.
 
 **Memory hook:** `@FilterableField` = field appears in responses AND is filterable by clients. `@Field` = appears in responses only. Neither = invisible to clients entirely.
 
@@ -160,7 +160,7 @@ export class UpdateTodoInput {
 
 > **From Meteor?** `check(input, String)` inside a Meteor method is the rough equivalent — but it was optional, per-method, and didn't strip unknown fields. `class-validator` decorators on an `@InputType` combined with the global `ValidationPipe({ whitelist: true })` are automatic, global, and reject requests with undeclared fields before your resolver method even starts.
 
-**Memory hook:** `@InputType` = order form (what clients can write). `class-validator` decorators = the rules printed on the form. `ValidationPipe` = the customs officer who enforces them globally.
+**Memory hook:** `@InputType` = intake form (what clients can submit). `class-validator` decorators = the rules printed on the form. `ValidationPipe` = the customs hall that enforces them globally.
 
 > **Note: `userId` is a `@Field()` for now — Part 08 fixes this.**
 >
@@ -1150,7 +1150,7 @@ This is less magical than Meteor's reactive subscriptions — and far more predi
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
 | `@ObjectType` / `AbstractDto` | Standard response envelope | Minimongo document shape | Only `@Field` / `@FilterableField` properties are visible to clients |
-| `@InputType` + `class-validator` | Order form with printed rules | `check(input, String)` — but optional | Never accept `id`, `tenantId`, `userId`, `createdAt` from the client |
+| `@InputType` + `class-validator` | Intake form with printed rules | `check(input, String)` — but optional | Never accept `id`, `tenantId`, `userId`, `createdAt` from the client |
 | `@Field` | Listed on the menu | Any document property | Clients can read it but cannot filter by it |
 | `@FilterableField` | Menu item with a filter toggle | Minimongo query key | Only expose on columns you explicitly support filtering on |
 | `QueryArgsType` + `ConnectionType` | Auto-generated filter/sort/page form | `find()` cursor with sort/limit | One `@ArgsType` declaration gives you filtering, sorting, and cursor pagination |

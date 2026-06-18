@@ -180,7 +180,7 @@ type Todo {
 
 ## 3. Entity (`todo.entity.ts`)
 
-> **Entity = government form template:** A TypeORM Entity is a TypeScript class where each property maps to a database column. Every filled-in form (database row) must match the template. When the government revises the form (migration), all future submissions follow the new version. `AbstractEntity` is the **company letterhead** — every entity is printed on paper that already has the logo (`id`), address (`createdAt`, `updatedAt`), and date field (`deletedAt`) pre-printed. Each entity just adds its unique content.
+> **Entity = official record template:** A TypeORM Entity is a TypeScript class where each property maps to a database column. Every completed record (database row) must match the template. When the hospital revises the official record template (migration), all future records follow the new version. `AbstractEntity` is the **company letterhead** — every entity is printed on paper that already has the logo (`id`), address (`createdAt`, `updatedAt`), and date field (`deletedAt`) pre-printed. Each entity just adds its unique content.
 
 > **From Meteor?** `new Mongo.Collection('todo')` is schema-less — any shape goes in. `@Entity()` enforces a schema at the database level AND at the TypeScript level. A field that doesn't match the entity declaration won't compile.
 
@@ -230,7 +230,7 @@ todo.user.fullname;  // → "Alice" (loaded via JOIN)
 
 You use `userId` for filtering and ownership checks (cheap). You use DataLoader to load `user` only when the client requests nested user fields.
 
-**Memory hook:** Entity = government form template. `@RelationId` gives you the FK integer cheaply (no JOIN). `@Index()` on every column used in `WHERE`. Never `synchronize: true` in production.
+**Memory hook:** Entity = official record template. `@RelationId` gives you the FK integer cheaply (no JOIN). `@Index()` on every column used in `WHERE`. Never `synchronize: true` in production.
 
 ---
 
@@ -392,7 +392,7 @@ export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, {
 
 ## 7. Service (`todo.service.ts`)
 
-> **Service = doctor:** The service is where the actual work happens. Business rules, ownership validation, repository calls — all in `*.service.ts`. The doctor examines, diagnoses, and prescribes. She does not answer phones (resolver's job) or file paperwork. She never touches HTTP concepts like `@Req()` or `@Res()`.
+> **Service = specialist doctor:** The service is where the actual work happens. Business rules, ownership validation, repository calls — all in `*.service.ts`. The specialist doctor examines, diagnoses, and prescribes. She does not answer the front desk phone (resolver's job) or file intake paperwork. She never touches HTTP concepts like `@Req()` or `@Res()`.
 
 > **From Meteor?** Meteor methods mixed routing, validation, and DB calls in one block. "Where is the business logic?" in NestJS → `*.service.ts`. Always. Every time.
 
@@ -492,7 +492,7 @@ export class TodoService extends TypeOrmQueryService<TodoEntity> {
 }
 ```
 
-**Memory hook:** Service = doctor. All `if` statements with business meaning live here. Ownership check (query filter with `userId: { eq: currentUser.user.id }`) is a service-level concern, not a resolver concern.
+**Memory hook:** Service = specialist doctor. All `if` statements with business meaning live here. Ownership check (query filter with `userId: { eq: currentUser.user.id }`) is a service-level concern, not a resolver concern.
 
 ---
 
@@ -550,7 +550,7 @@ yarn add dataloader
 
 ## 9. Resolver with `@ResolveField` (`todo.resolver.ts`)
 
-> **Resolver = receptionist + personal shopper:** The resolver is the entry point for every GraphQL operation. Like the receptionist at a clinic, it takes the request, routes it to the right handler, and returns the answer. It does not examine or prescribe. As a personal shopper, it lets the client ask for exactly the fields it needs — `user { fullname }` is only fetched when the client asks for it. If a resolver method has business logic, move it to the service.
+> **Resolver = front desk receptionist + personal shopper:** The resolver is the entry point for every GraphQL operation. Like the front desk receptionist at the hospital, it takes the request, routes it to the right specialist, and returns the answer. It does not examine or prescribe. As a personal shopper, it lets the client ask for exactly the fields it needs — `user { fullname }` is only fetched when the client asks for it. If a resolver method has business logic, move it to the service.
 
 > **From Meteor?** `Meteor.methods({ createTodo })` handled both routing and logic in one body. `@Mutation() createTodo()` is routing only — `@UseGuards` for auth, `@CurrentUser()` to extract the user, then dispatch to `commandBus`. The separation is strict and visible.
 
@@ -697,13 +697,13 @@ When a client requests:
 
 Apollo calls `TodoResolver.getTodos()` to get the todo list, then for each todo that has `user { ... }` requested, calls `TodoResolver.user(todo)`. Without DataLoader, this is N separate DB queries. With DataLoader, all `userLoader.load(userId)` calls in the same event loop tick are batched into one query.
 
-**Memory hook:** Resolver = receptionist. `@ResolveField` is called once per parent object — DataLoader batches all those calls into one query. `@UseGuards` is explicit and mandatory on every mutation.
+**Memory hook:** Resolver = front desk receptionist. `@ResolveField` is called once per parent object — DataLoader batches all those calls into one query. `@UseGuards` is explicit and mandatory on every mutation.
 
 ---
 
 ## 10. Module (`todo.module.ts`)
 
-> **Module = department in a company:** `TodoModule` owns its own workers (`providers`) — the resolver, service, DataLoader, and CQRS handlers. It borrows from other departments (`imports`) — `TypeOrmModule.forFeature` for the repositories. It lends `TodoService` to any module that needs it (`exports`). `UserEntity` must be in `imports` because `TodoUserLoader` needs the `UserEntity` repository — you cannot access another department's tools without formally requesting them.
+> **Module = hospital wing:** `TodoModule` owns its own staff (`providers`) — the resolver, service, DataLoader, and CQRS handlers. It borrows from other wings (`imports`) — `TypeOrmModule.forFeature` for the repositories. It lends `TodoService` to any module that needs it (`exports`). `UserEntity` must be in `imports` because `TodoUserLoader` needs the `UserEntity` repository — you cannot access another wing's resources without formally requesting them.
 
 ```typescript
 // apps/api/src/modules/todo/todo.module.ts
@@ -738,7 +738,7 @@ import { UserEntity } from '../user/user.entity';
 export class TodoModule {}
 ```
 
-**Memory hook:** Module = department. `imports` borrows · `providers` owns · `exports` lends. `TodoUserLoader` needs `UserEntity` in `imports` — always declare what your providers need.
+**Memory hook:** Module = hospital wing. `imports` borrows · `providers` owns · `exports` lends. `TodoUserLoader` needs `UserEntity` in `imports` — always declare what your providers need.
 
 ---
 
@@ -813,7 +813,7 @@ query {
 
 ## 12. Ownership Enforcement: The Three Layers
 
-> **Guard = bouncer at the club door:** `AuthJwtGuard` is the first bouncer — it checks your wristband (JWT). No valid JWT = 401, execution stops here. It runs before your resolver method ever starts.
+> **Guard = gate officer:** `AuthJwtGuard` is the gate officer — it checks your JWT pass. No valid JWT = 401, execution stops here. It runs before your resolver method ever starts.
 
 > **RS256 JWT = king's wax seal:** The auth service signs tokens with a private key. Any service can verify the signature using the public key. Even if an attacker steals a downstream service's code, they cannot forge a token — the private key never leaves the auth service. HS256 would be a master key: anyone who has it can both lock and unlock.
 
@@ -842,7 +842,7 @@ Layer 3: Query filter in resolver/service
 
 A malicious user who authenticates as user 5 and sends `id: 999` (another user's todo) will always get null — they cannot delete, update, or even read another user's records.
 
-**Memory hook:** Guard = bouncer (Layer 1 — JWT). `@CurrentUser()` = extract verified identity (Layer 2). Query filter with `userId` = row-level ownership (Layer 3). All three layers must be present.
+**Memory hook:** Guard = gate officer (Layer 1 — JWT). `@CurrentUser()` = extract verified identity (Layer 2). Query filter with `userId` = row-level ownership (Layer 3). All three layers must be present.
 
 ---
 
@@ -942,18 +942,18 @@ describe('TodoService', () => {
 
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
-| Entity | Government form template | `new Mongo.Collection('todo')` — schema-less | Extend `AbstractEntity`. Never `synchronize: true` in prod. |
+| Entity | Official record template | `new Mongo.Collection('todo')` — schema-less | Extend `AbstractEntity`. Never `synchronize: true` in prod. |
 | AbstractEntity | Company letterhead | No equivalent | Provides `id` + timestamps. All entities extend it. |
 | AbstractDto | Standard response envelope | No equivalent | Pairs with AbstractEntity. All output DTOs extend it. |
 | `@RelationId` | FK value on the form | `userId: String` field (unvalidated) | Cheap integer — use for filtering. Load full relation only when needed. |
-| Service | Doctor | Logic mixed into `Meteor.methods` body | All business logic here. Never touches HTTP objects. |
-| Resolver | Receptionist + personal shopper | `Meteor.methods` entry — routing only | Routes and returns. Two lines max. No business logic. |
+| Service | Specialist doctor | Logic mixed into `Meteor.methods` body | All business logic here. Never touches HTTP objects. |
+| Resolver | Front desk receptionist + personal shopper | `Meteor.methods` entry — routing only | Routes and returns. Two lines max. No business logic. |
 | `@ResolveField` | Personal shopper fetching nested items | Automatic via DDP reactive joins | Called once per parent object — always pair with DataLoader. |
-| Module | Department in a company | Implicit file loading | `imports` borrows · `providers` owns · `exports` lends. |
+| Module | Hospital wing | Implicit file loading | `imports` borrows · `providers` owns · `exports` lends. |
 | CommandBus/QueryBus | Postal sorting facility | Single method body doing everything | Drop the object; bus routes to handler. Handlers are one-liners. |
 | DataLoader | One warehouse trip for 100 orders | No equivalent (client-side joins in Minimongo) | Must be `Scope.REQUEST`. Result order must match input key order. |
 | `Scope.REQUEST` | Fresh cup brewed per visitor | No concept | Cascades up the dependency tree — use deliberately. |
-| Guard (`AuthJwtGuard`) | Bouncer at the club door | `.allow()` / `.deny()` — but at DB layer | Returns `true` or throws. Runs before pipes and handler. |
+| Guard (`AuthJwtGuard`) | Gate officer | `.allow()` / `.deny()` — but at DB layer | Returns `true` or throws. Runs before pipes and handler. |
 | RS256 JWT | King's wax seal | DDP session token | Private key signs, public key verifies. Use RS256, never HS256. |
 | Ownership filter | Unit number on every query | `find({ userId: this.userId })` in publish | `userId: { eq: currentUser.user.id }` on every query and mutation. |
 

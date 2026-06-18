@@ -140,13 +140,13 @@ export class TagEntity extends AbstractEntity {
 - `createdAt: Date` — `created_at TIMESTAMPTZ DEFAULT now()` (hardcoded column name)
 - `updatedAt: Date` — `updated_at TIMESTAMPTZ DEFAULT now()` (auto-updated on save)
 
-> **Government form template:** An entity is the **official form template** that defines every field — name, type, whether it's required (nullable or not), any uniqueness constraints. Every row in the database is a filled-in copy of that template. When you need a new field, you don't edit old forms — you issue a new revision (migration) and all future submissions follow the new version.
+> **Official record template:** An entity is the **official record template** that defines every field — name, type, whether it's required (nullable or not), any uniqueness constraints. Every row in the database is a completed record filed against that template. When you need a new field, you don't edit old templates — you issue a new revision (migration) and all future records follow the new version.
 
 > **Company letterhead:** `AbstractEntity` is the **company letterhead** — every entity (letter) is printed on paper that already has `id`, `createdAt`, `updatedAt`, and `deletedAt` pre-filled. Your entity only adds its unique content. Nobody types the letterhead from scratch on each file.
 
 > **From Meteor?** `new Mongo.Collection('tasks')` is schema-less — any shape goes in. `@Entity()` enforces a schema at the database level AND at the TypeScript level. A field that doesn't match the entity declaration won't compile.
 
-**Memory hook:** Entity = government form template. `AbstractEntity` = letterhead (id + timestamps pre-printed). Never `synchronize: true` in prod.
+**Memory hook:** Entity = official record template. `AbstractEntity` = letterhead (id + timestamps pre-printed). Never `synchronize: true` in prod.
 
 Your entity only declares the *additional* columns. The `slug` column has `unique: true` — PostgreSQL will enforce that no two tags share the same slug (e.g., `'work'` can only exist once).
 
@@ -461,11 +461,11 @@ Notice: every handler body is identical in structure. `this.service.methodName(q
 
 This is where all business logic lives.
 
-> **The doctor:** The resolver is the **receptionist at a clinic** — she takes your name and reason for visit, decides which doctor (service method) to route you to, and returns the result when your appointment ends. She never examines you. The service is the **doctor** — she examines the request (business rules), prescribes treatment (creates/updates/deletes data), and never touches the appointment book. If your service method imports anything from `@nestjs/graphql`, it's doing the receptionist's job.
+> **The specialist doctor:** The resolver is the **front desk receptionist** — she takes your name and reason for visit, decides which specialist (service method) to route you to, and returns the result when the appointment ends. She never examines you. The service is the **specialist doctor** — she examines the request (business rules), prescribes treatment (creates/updates/deletes data), and never touches the front desk appointment book. If your service method imports anything from `@nestjs/graphql`, it's doing the receptionist's job.
 
 > **From Meteor?** Meteor methods blurred routing and logic into one block. In NestJS, "Where is the business logic?" always has one answer: `*.service.ts`. The slug-uniqueness check in `createOne` and the cross-user update guard in `updateOne` are examples — they live here, not in the resolver or handler.
 
-**Memory hook:** Service = doctor. All `if` statements with business meaning live here. Never imports from `@nestjs/graphql`.
+**Memory hook:** Service = specialist doctor. All `if` statements with business meaning live here. Never imports from `@nestjs/graphql`.
 
 ```typescript
 // apps/api/src/modules/tag/tag.service.ts
@@ -571,7 +571,7 @@ export class TagService extends TypeOrmQueryService<TagEntity> {
 
 ## Step 10 — Resolver (`tag.resolver.ts`)
 
-> **Receptionist + personal shopper:** The resolver is the **receptionist at a clinic** — it takes the request, checks credentials (guards), and routes to the right bus. It is also a **personal shopper for GraphQL** — the client asks for exactly the fields it wants (id, name, slug, color) and gets precisely that shape back, nothing more. Zero business logic lives here.
+> **Front desk receptionist + personal shopper:** The resolver is the **front desk receptionist** — it takes the request, checks credentials (guards), and routes to the right bus. It is also a **personal shopper for GraphQL** — the client asks for exactly the fields it wants (id, name, slug, color) and gets precisely that shape back, nothing more. Zero business logic lives here.
 
 > **From Meteor?** `Meteor.methods({ createTag })` is the closest equivalent, but Meteor methods contained business logic and DB calls mixed in. This resolver contains none of that — it dispatches to the CommandBus and returns. Guards replace `if (!this.userId) throw new Meteor.Error('not-authorized')`.
 
@@ -663,11 +663,11 @@ export class TagResolver {
 
 ## Step 11 — Module (`tag.module.ts`)
 
-> **Department in a company:** The module is a **department in a company**. `imports` is what this department borrows from others (TypeORM gives it the database connection and the `TagEntity` repository). `providers` is the internal staff it owns (resolver, service, all handlers). `exports` is what it lends to other departments — just `TagService`, so other modules can call into tag logic without importing the whole department.
+> **Hospital wing:** The module is a **hospital wing**. `imports` is what this wing borrows from others (TypeORM gives it the database connection and the `TagEntity` repository). `providers` is the internal staff it owns (resolver, service, all handlers). `exports` is what it lends to other wings — just `TagService`, so other modules can call into tag logic without importing the whole wing.
 
 > **From Meteor?** In Meteor, any file anywhere could import any other file. In NestJS, `TagService` is only available to modules that explicitly import `TagModule`. This prevents accidental cross-module data access.
 
-**Memory hook:** `@Module` = department. `imports` borrows, `providers` owns workers, `exports` lends. One feature = one module.
+**Memory hook:** `@Module` = hospital wing. `imports` borrows, `providers` owns staff, `exports` lends. One feature = one module.
 
 ```typescript
 // apps/api/src/modules/tag/tag.module.ts
@@ -1136,15 +1136,15 @@ If lint fails: `yarn lint:fix` → re-`git add` → `yarn cz`
 
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
-| Entity | Government form template | `new Mongo.Collection` — but schema-less | Schema + TypeScript type in one class. Never `synchronize: true` in prod. |
+| Entity | Official record template | `new Mongo.Collection` — but schema-less | Schema + TypeScript type in one class. Never `synchronize: true` in prod. |
 | AbstractEntity | Company letterhead | No equivalent | Provides id + timestamps. All entities extend it. Never repeat those columns. |
 | AbstractDto | Standard response envelope | No equivalent | Pairs with AbstractEntity. All `@ObjectType` DTOs extend it. |
 | CQRS Inputs | Typed envelopes for two kitchens | Single `Meteor.methods` body | Commands mutate. Queries read. Never share a stove. |
 | CommandBus / QueryBus | Postal sorting facility | `Meteor.methods` call dispatch | Drop the message object. Bus routes to handler. Resolver never imports handler. |
 | CQRS Handler | Last-mile delivery driver | Part of the Meteor method body | Always a one-liner calling `this.service.method(args)`. No logic. |
-| Service | Doctor | Business logic inside `Meteor.methods` | All `if` statements with business meaning live here. Never imports from `@nestjs/graphql`. |
-| Resolver | Receptionist + personal shopper | `Meteor.methods` entry point | Routes and returns. Dispatches to bus. `@UseGuards` replaces manual `this.userId` checks. |
-| Module | Department in a company | `meteor add` — but implicit | `imports` borrows · `providers` owns · `exports` lends. One feature = one module. |
+| Service | Specialist doctor | Business logic inside `Meteor.methods` | All `if` statements with business meaning live here. Never imports from `@nestjs/graphql`. |
+| Resolver | Front desk receptionist + personal shopper | `Meteor.methods` entry point | Routes and returns. Dispatches to bus. `@UseGuards` replaces manual `this.userId` checks. |
+| Module | Hospital wing | `meteor add` — but implicit | `imports` borrows · `providers` owns · `exports` lends. One feature = one module. |
 | Migration | Git commit for the database | No equivalent in MongoDB | `up()` applies, `down()` reverts. Never edit old migrations. Review SQL before running. |
 
 ---

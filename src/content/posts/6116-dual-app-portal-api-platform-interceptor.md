@@ -70,7 +70,7 @@ async deleteUser(@Args('id') id: number) {
 
 The problem is disciplinary, not technical. Every new admin resolver requires the developer to remember to add `@UseGuards(PortalAuthGuard)`. Forget it once — perhaps during a late-night incident response — and a regular user JWT can reach the admin mutation. The only protection is developer discipline applied consistently across every future change.
 
-**Memory hook:** Two apps = two bouncers at two separate venues. A wristband from Venue A does not get you into Venue B — the venues don't share a list.
+**Memory hook:** Two apps = two gate officers at two separate entrances. A pass from Entrance A does not work at Entrance B — the entrances use different key pairs.
 
 The two-app model makes this structurally impossible:
 
@@ -106,11 +106,11 @@ Separate ports means separate DNS records in production (`api.example.com` vs `p
 
 ## 2. Generate portal-api
 
-> **Nx monorepo — apartment building with strict bylaws:** An Nx monorepo is one Git repo containing multiple apps and shared libraries. Each app is a locked unit. Shared items travel only through `libs/`. The `@nx/enforce-module-boundaries` ESLint rule is the building alarm — it triggers the moment any app tries to import directly from another app instead of going through a library.
+> **Nx monorepo — city district with zoning laws:** An Nx monorepo is one Git repo containing multiple apps and shared libraries. Each app is a zoned district. Shared items travel only through `libs/`. The `@nx/enforce-module-boundaries` ESLint rule is the City Inspector — it triggers the moment any app tries to import directly from another app instead of going through a library.
 
-> **`libs/contracts` — building intercom:** `libs/contracts` is the only legal communication channel between apps. It holds shared TypeScript types like `JwtPayload` and `Platform`. `apps/api` and `apps/portal-api` both import from it, but neither can import from the other directly.
+> **`libs/contracts` — public post office:** `libs/contracts` is the only legal communication channel between apps. It holds shared TypeScript types like `JwtPayload` and `Platform`. `apps/api` and `apps/portal-api` both import from it, but neither can import from the other directly.
 
-**Memory hook:** Nx monorepo = apartment building. `libs/contracts` = intercom. `@nx/enforce-module-boundaries` = the alarm that fires if you climb through a window.
+**Memory hook:** Nx monorepo = city district with zoning laws. `libs/contracts` = public post office. `@nx/enforce-module-boundaries` = the City Inspector that cites you if you bypass the post office.
 
 ### Run the Nx Generator
 
@@ -154,9 +154,9 @@ The generated `AppModule` is a minimal skeleton. You will replace it with `Porta
 
 ### Update main.ts to Use Port 3334
 
-> **main.ts bootstrapping — building manager on opening day:** `NestFactory.create(PortalAppModule)` builds the entire DI container from the module tree, applies global config (pipes, interceptors, CORS), then opens the doors. The global `ValidationPipe` and `createPlatformInterceptor` are wired here — every request that enters the building is subject to them, with no per-resolver configuration required.
+> **main.ts bootstrapping — ribbon-cutting ceremony:** `NestFactory.create(PortalAppModule)` builds the entire DI container from the module tree, applies global config (pipes, interceptors, CORS), then opens the doors. The global `ValidationPipe` and `createPlatformInterceptor` are wired here — every request that enters the Citadel is subject to them, with no per-resolver configuration required.
 
-**Memory hook:** `main.ts` = opening day. Global pipes and interceptors go here. Once done, every request inherits them automatically.
+**Memory hook:** `main.ts` = ribbon-cutting ceremony. Global pipes and interceptors go here. Once done, every request inherits them automatically.
 
 > **Before the import works:** Make sure `libs/core/src/index.ts` exports the interceptor factory:
 > ```typescript
@@ -274,11 +274,11 @@ Both apps can run simultaneously in separate terminals. `yarn api:dev` on port 3
 
 ## 3. Shared Libs in portal-api
 
-> **Module — department in a company:** `PortalAppModule` is a department that borrows config from `CoreConfigModule` (imports), owns its internal workers like `PortalAuthModule` and `PortalHealthModule` (providers/imports), and does not share anything back (no exports needed at the root level). Critically, it does NOT import `AuthModule` from `apps/api` — that module belongs to a different department in a different building.
+> **Module — hospital wing:** `PortalAppModule` is a hospital wing that borrows config from `CoreConfigModule` (imports), owns its internal staff like `PortalAuthModule` and `PortalHealthModule` (providers/imports), and does not share anything back (no exports needed at the root level). Critically, it does NOT import `AuthModule` from `apps/api` — that module belongs to a different wing in a different facility.
 
 > **From Meteor?** In Meteor, a single `Meteor.settings` object was shared across the entire app. `CoreConfigModule` provides the same single source of truth, but it is explicitly imported by both apps rather than globally ambient — you can see exactly which apps depend on it.
 
-**Memory hook:** `@Module` = department. `imports CoreConfigModule` = borrowing from shared services. No `AuthModule` import = the portal dept does not share a staff list with the user dept.
+**Memory hook:** `@Module` = hospital wing. `imports CoreConfigModule` = borrowing from shared services. No `AuthModule` import = the portal wing does not share a staff list with the user wing.
 
 ### PortalAppModule
 
@@ -680,7 +680,7 @@ The user API does not use these keys. Only `apps/portal-api`'s `PortalAuthModule
 
 ## 7. PortalAuthModule in portal-api
 
-> **Guard — bouncer at the club door:** `PortalAuthJwtGuard` is the bouncer for the portal app. It checks the portal-specific wristband (the RS256 signature against `ADMIN_JWT_PUBLIC_KEY`). If the wristband is from a different venue (wrong key pair), the bouncer rejects it before any resolver runs. The bouncer doesn't negotiate — it returns true or throws.
+> **Guard — gate officer:** `PortalAuthJwtGuard` is the gate officer for the portal app. It checks the portal-specific pass (the RS256 signature against `ADMIN_JWT_PUBLIC_KEY`). If the pass is from a different zone (wrong key pair), the gate officer rejects it before any resolver runs. The gate officer doesn't negotiate — it returns true or throws.
 
 > **Passport Strategy — ID verification lanes:** `PortalJwtStrategy` is a dedicated lane at the border crossing named `'portal-jwt'`. Passport routes tokens to this lane by name. A user-JWT-bearing traveller who arrives at the portal-jwt lane will fail the signature check because the lane verifies against the admin public key, not the user public key.
 
@@ -692,11 +692,11 @@ The user API does not use these keys. Only `apps/portal-api`'s `PortalAuthModule
 
 The portal user is a separate entity from the user-facing `UserEntity`. Portal users are your internal operations team — a different table, different password policies, different onboarding flow.
 
-> **Entity — government form template:** `PortalUserEntity` is the form template for the `portal_user` table. Every column is declared — name, type, constraints. Every row in the database must match this template. When the template changes (migration), all future rows follow the new version.
+> **Entity — official record template:** `PortalUserEntity` is the official record template for the `portal_user` table. Every column is declared — name, type, constraints. Every row in the database must match this template. When the official record template changes (migration), all future rows follow the new version.
 
 > **AbstractEntity — company letterhead:** `PortalUserEntity extends AbstractEntity` means the `id`, `createdAt`, `updatedAt`, and `deletedAt` columns are pre-printed on the letterhead. You only add the portal-specific fields (`fullname`, `email`, `password`, `role`, `isActive`) — the common columns are inherited, never repeated.
 
-**Memory hook:** Entity = form template. AbstractEntity = letterhead with id + timestamps pre-printed. Every entity extends it. Never repeat those columns.
+**Memory hook:** Entity = official record template. AbstractEntity = letterhead with id + timestamps pre-printed. Every entity extends it. Never repeat those columns.
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-user.entity.ts
@@ -1223,20 +1223,20 @@ All four cases pass. The platform boundary is enforced at the cryptographic leve
 
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
-| Nx monorepo | Apartment building with strict bylaws | Single Meteor app — no boundary | Apps communicate only through `libs/` |
-| `libs/contracts` | Building intercom | `imports/` isomorphic files — no enforced boundary | Only legal channel between apps |
-| `@Module` | Department in a company | `meteor add` — but implicit | `imports` borrows · `providers` owns · `exports` lends |
+| Nx monorepo | City district with zoning laws | Single Meteor app — no boundary | Apps communicate only through `libs/` |
+| `libs/contracts` | Public post office | `imports/` isomorphic files — no enforced boundary | Only legal channel between apps |
+| `@Module` | Hospital wing | `meteor add` — but implicit | `imports` borrows · `providers` owns · `exports` lends |
 | Interceptor | Sandwich (before + after handler) | No equivalent — cross-cutting logic buried in methods | Register globally in `main.ts`; wraps every handler |
-| Guard | Bouncer at the club door | `.allow()` / `.deny()` — ran at DB layer | Returns `true` or throws. Runs before pipes. |
+| Guard | Gate officer | `.allow()` / `.deny()` — ran at DB layer | Returns `true` or throws. Runs before pipes. |
 | Passport Strategy | ID verification lane at border crossing | Single `Accounts` system — one lane only | Named string. Guard calls it by name. `validate()` returns `req.user`. |
 | RS256 JWT | King's wax seal | Single shared session token — no structured claims | Private key signs (server only). Public key verifies (anyone). |
 | Dual key pairs | Two separate wax seals | No native support — single `accounts` secret | Different key pairs = cryptographic separation, not logical |
-| Entity | Government form template | `new Mongo.Collection()` — schema-less | Schema enforced at DB and TypeScript level |
+| Entity | Official record template | `new Mongo.Collection()` — schema-less | Schema enforced at DB and TypeScript level |
 | AbstractEntity | Company letterhead | No equivalent | Provides `id` + timestamps. All entities extend it. |
 | Migration | Git commit for the database | No migrations in MongoDB | `up()` applies · `down()` reverts · never edit old migrations |
 | `synchronize: false` | No unsupervised contractor | N/A — MongoDB has no schema sync | Always `false` in production. Use migrations. |
-| ValidationPipe | Customs desk at the airport | `check(input, String)` — optional, per-method | Global, automatic. `whitelist: true` strips unknowns. |
-| `main.ts` bootstrap | Building manager on opening day | `Meteor.startup()` | Global pipes and interceptors wired here. Every request inherits them. |
+| ValidationPipe | Customs hall | `check(input, String)` — optional, per-method | Global, automatic. `whitelist: true` strips unknowns. |
+| `main.ts` bootstrap | Ribbon-cutting ceremony | `Meteor.startup()` | Global pipes and interceptors wired here. Every request inherits them. |
 
 ---
 

@@ -233,13 +233,13 @@ Register both in `AppModule` providers. Apply `TenantGuard` globally — after `
 },
 ```
 
-> **Guard = bouncer at the club door:** `TenantGuard` is a bouncer that doesn't reject anyone — it reads the wristband (JWT) and stamps the visitor's hand with their unit number (`tenantId`) before they enter. Every handler downstream sees that stamp without asking for ID again.
+> **Guard = gate officer:** `TenantGuard` is a gate officer that doesn't reject anyone — it reads the JWT, extracts the patient wristband (`tenantId`), and records it in `TenantContext` before the request reaches any ward. Every handler downstream sees that wristband without checking the JWT again.
 
-> **TenantContext = automatic unit key:** `TenantContext` is REQUEST-scoped — each HTTP request gets its own fresh instance. If it were a singleton, a request from Tenant A could overwrite the `tenantId` that Tenant B's concurrent request is reading. The `Scope.REQUEST` is the lock that keeps the unit keys separate.
+> **TenantContext = automatic wristband holder:** `TenantContext` is REQUEST-scoped — each HTTP request gets its own fresh instance. If it were a singleton, a request from Tenant A could overwrite the `tenantId` that Tenant B's concurrent request is reading. The `Scope.REQUEST` is the lock that keeps the wristbands separate.
 
 > **From Meteor?** In Meteor, tenant identity had to be threaded through every method call manually as a parameter or looked up from a user document inside every method. Here `TenantGuard` runs once globally and `TenantContext` carries the result through the entire request chain automatically — any class that needs it just injects it.
 
-**Memory hook:** TenantGuard = bouncer that stamps the hand. TenantContext = REQUEST-scoped vault holding that stamp. Never singleton — each request owns its own copy.
+**Memory hook:** TenantGuard = gate officer that reads the patient wristband. TenantContext = REQUEST-scoped holder for that wristband. Never singleton — each request owns its own copy.
 
 ---
 
@@ -305,11 +305,11 @@ Production apps use two guards in combination:
 
 `RolesGuard` answers "what level is this user?" — `ACPermissionGuard` answers "can this user perform this action?". Use `RolesGuard` for coarse tenant-level gates; use `ACPermissionGuard` for feature/action-level gates. Both are guards, so they compose with `@UseGuards()` without coupling to business logic.
 
-> **The VIP wristband system:** Think of RBAC like a nightclub with multiple zones. Your wristband determines which doors open for you: general admission wristband = public areas only, staff wristband = back of house, VIP wristband = the VIP lounge. `RolesGuard` checks your wristband tier (OWNER, ADMIN, MEMBER, VIEWER). `ACPermissionGuard` checks specific door slugs (`create-todo`, `delete-user`). A "Tag Manager" role can have the `create-tag` door without having the full ADMIN wristband.
+> **The hospital clearance system:** Think of RBAC like the hospital's security zones. Your clearance level determines which areas you can enter: visitor pass = public areas only, staff badge = clinical wards, department head badge = restricted zones. `RolesGuard` checks your clearance level (OWNER, ADMIN, MEMBER, VIEWER). `ACPermissionGuard` checks specific access slugs (`create-todo`, `delete-user`). A "Tag Manager" role can have the `create-tag` slug without holding full ADMIN clearance.
 
 > **From Meteor?** `alanning:roles` provided `Roles.userIsInRole(userId, 'admin')` — a runtime check you called manually inside each method. Nothing enforced you to call it. Here `RolesGuard` and `ACPermissionGuard` are applied via decorators on the resolver method — they run automatically before the handler, and a missing decorator is visible in code review.
 
-**Memory hook:** Two-tier RBAC: `RolesGuard` checks the wristband tier (coarse, fast), `ACPermissionGuard` checks specific door slugs (fine-grained, DB-backed). Both are guards — they compose with `@UseGuards()` and never pollute business logic.
+**Memory hook:** Two-tier RBAC: `RolesGuard` checks the clearance level (coarse, fast), `ACPermissionGuard` checks specific access slugs (fine-grained, DB-backed). Both are guards — they compose with `@UseGuards()` and never pollute business logic.
 
 ### 7.2 UserRole Enum
 
@@ -794,10 +794,10 @@ Tests:
 |---------|---------|-------------------|--------------|
 | Multi-tenancy | Cloud storage unit facility — every unit shares the building, each tenant can only access their own | Manually add `organizationId` to every query (DIY) | Every operation must check the unit number first. Every time. |
 | tenantId | Unit number stamped on every item stored in the system | Manual `organizationId` field on documents | Never from the client — always from `TenantContext` (from JWT) |
-| TenantGuard | Bouncer who stamps the visitor's hand with their unit number | No equivalent — manual per-method | Runs globally after `AuthJwtGuard`; stores `tenantId` in `TenantContext` |
-| TenantContext | Automatic unit key — REQUEST-scoped, one per request | Thread `organizationId` as a parameter through every function | Must be `Scope.REQUEST` — singleton would let tenants overwrite each other |
+| TenantGuard | Gate officer who reads the patient wristband (tenantId) from the JWT | No equivalent — manual per-method | Runs globally after `AuthJwtGuard`; stores `tenantId` in `TenantContext` |
+| TenantContext | REQUEST-scoped wristband holder — one per request | Thread `organizationId` as a parameter through every function | Must be `Scope.REQUEST` — singleton would let tenants overwrite each other |
 | RS256 JWT | King's wax seal — private key signs, public key verifies | DDP session token (server-side session lookup) | Private key signs (auth service only); public key verifies (any service) |
-| RolesGuard | VIP wristband tier check — OWNER, ADMIN, MEMBER, VIEWER | `alanning:roles` + `Roles.userIsInRole()` manual check | Coarse, fast, in-memory; use for tenant-level gates |
+| RolesGuard | Hospital clearance level check — OWNER, ADMIN, MEMBER, VIEWER | `alanning:roles` + `Roles.userIsInRole()` manual check | Coarse, fast, in-memory; use for tenant-level gates |
 | ACPermissionGuard | Specific door slug check — `create-tag`, `delete-user` | Manual per-method role check | Fine-grained, DB-backed; decouples auth from role names |
 | SetMetadata / Reflector | Labels only supervisors can read | No equivalent — permissions were imperative checks in method bodies | `SetMetadata` attaches; `Reflector.getAllAndOverride()` reads inside a guard |
 | @Authorize | Turnstile inside the database corridor — cannot be bypassed | Manual `if (doc.userId !== this.userId)` per method | Declared once on the `@ObjectType` DTO; protects every query that type touches |

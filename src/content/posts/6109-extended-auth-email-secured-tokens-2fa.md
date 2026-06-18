@@ -414,13 +414,13 @@ export class SecuredTokenEntity extends AbstractEntity {
 
 `onDelete: 'CASCADE'` means deleting a user deletes all their pending tokens. The `token` column is unique — no two rows can hold the same token string. The `@Index()` on `userId` speeds up "find all tokens for this user" queries.
 
-> **Entity — government form template:** Every field is defined — name, type, required, max length. Every filled-in form (database row) must match. `SecuredTokenEntity` is the form; each issued token is a filled-in copy. When the government revises the form (migration), all future submissions follow the new version.
+> **Entity — official record template:** Every field is defined — name, type, required, max length. Every filled-in form (database row) must match. `SecuredTokenEntity` is the official record template; each issued token is a completed copy on file. When the hospital revises the template (migration), all future records follow the new version.
 
 > **AbstractEntity — company letterhead:** `SecuredTokenEntity` extends `AbstractEntity`, which pre-prints `id`, `createdAt`, `updatedAt`, and `deletedAt` on every entity. No one types the letterhead from scratch — each entity just adds its unique content.
 
 > **From Meteor?** In Meteor, password reset tokens lived as nested fields on the user document — no type system, no expiry enforcement, no audit trail. `SecuredTokenEntity` is a separate table with typed enums, a hard `expiresAt` column, a `CLAIMED` status for audit, and `ON DELETE CASCADE` for clean teardown when a user is removed.
 
-**Memory hook:** Entity = government form template. Schema + TypeScript type in one class. Never `synchronize: true` in prod.
+**Memory hook:** Entity = official record template. Schema + TypeScript type in one class. Never `synchronize: true` in prod.
 
 ---
 
@@ -595,7 +595,7 @@ export const SecuredTokenCqrsHandlers = [
 
 The service does three things: create a token with an expiry, find an active unexpired token, and claim a token.
 
-> **Service — the doctor:** `SecuredTokenService` examines the request, diagnoses the expiry and type, and prescribes the right action. It never answers phones (no HTTP concepts) and never does paperwork (no GraphQL concerns). It does the medicine: create tokens, find active tokens, claim them.
+> **Service — the specialist doctor:** `SecuredTokenService` examines the request, diagnoses the expiry and type, and prescribes the right action. It never answers the front desk phone (no HTTP concepts) and never does intake paperwork (no GraphQL concerns). It does the medicine: create tokens, find active tokens, claim them.
 
 > **From Meteor?** In Meteor, this logic would live scattered across method bodies — no clear "this is where token logic lives" file. In NestJS, "where is the token logic?" is always `secured-token.service.ts`.
 
@@ -672,15 +672,15 @@ export class SecuredTokenService {
 }
 ```
 
-**Memory hook:** Service = doctor. All business logic lives here. Never imports HTTP or GraphQL objects.
+**Memory hook:** Service = specialist doctor. All business logic lives here. Never imports HTTP or GraphQL objects.
 
 ### 3.6 Module
 
-> **Module — department in a company:** `SecuredTokenModule` owns its internal workers (`SecuredTokenService`, the CQRS handlers) and borrows the database connection via `TypeOrmModule.forFeature`. It lends `SecuredTokenService` via `exports` so `AuthModule` can import and use it without knowing how tokens are created internally.
+> **Module — hospital wing:** `SecuredTokenModule` owns its internal staff (`SecuredTokenService`, the CQRS handlers) and borrows the database connection via `TypeOrmModule.forFeature`. It lends `SecuredTokenService` via `exports` so `AuthModule` can import and use it without knowing how tokens are created internally.
 
-> **From Meteor?** In Meteor, token logic would be a global function available everywhere. In NestJS, `SecuredTokenModule` makes a deliberate decision: only `exports: [SecuredTokenService]`. The CQRS handlers are internal workers — other modules cannot access them directly.
+> **From Meteor?** In Meteor, token logic would be a global function available everywhere. In NestJS, `SecuredTokenModule` makes a deliberate decision: only `exports: [SecuredTokenService]`. The CQRS handlers are internal staff — other modules cannot access them directly.
 
-**Memory hook:** Module = department. `imports` borrows, `providers` owns workers, `exports` lends. One feature = one module.
+**Memory hook:** Module = hospital wing. `imports` borrows, `providers` owns staff, `exports` lends. One feature = one module.
 
 ```typescript
 // apps/api/src/modules/secured-token/secured-token.module.ts
@@ -933,11 +933,11 @@ async register(input: RegisterInput): Promise<UserEntity> {
 
 ### 5.3 Gate Login on ACTIVE Status
 
-> **Guard — bouncer at the club door:** The status checks below are the login gate equivalent of a guard. Before the dance floor (token generation), every patron must pass: valid credentials, active account, not suspended. The checks are explicit, ordered, and individually readable — no implicit Meteor magic.
+> **Guard — gate officer:** The status checks below are the login gate equivalent of a guard. Before the ward (token generation), every visitor must pass: valid credentials, active account, not suspended. The checks are explicit, ordered, and individually readable — no implicit Meteor magic.
 
 > **From Meteor?** Meteor's `Accounts` package handled status gating inside an opaque bundle you could not inspect. Here each gate is an explicit `if` statement in `auth.service.ts` — readable, testable, and extendable.
 
-**Memory hook:** Guard = bouncer. Returns true or throws. Chain them in order. Every gate is visible in code.
+**Memory hook:** Guard = gate officer. Returns true or throws. Chain them in order. Every gate is visible in code.
 
 ```typescript
 // apps/api/src/modules/auth/auth.service.ts — login() method
@@ -1415,15 +1415,15 @@ Returns full tokens without needing the authenticator app.
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
 | Bull Queue | Kitchen ticket rail — waiter clips ticket, chef processes async | `Meteor.setTimeout` / `synced-cron` — in-memory, lost on restart | Web enqueues and returns immediately. Worker processes in background. Redis-backed. |
-| Entity | Government form template — every field typed at DB and TypeScript level | Schema-less MongoDB document | Never `synchronize: true` in production. Use migrations. |
+| Entity | Official record template — every field typed at DB and TypeScript level | Schema-less MongoDB document | Never `synchronize: true` in production. Use migrations. |
 | AbstractEntity | Company letterhead — id + timestamps pre-printed | Manual `_id`, `createdAt` fields per collection | All entities extend it. Never repeat those columns. |
 | AbstractDto | Standard response envelope — id + timestamps as `@Field()` | N/A | All output DTOs extend it. Sensitive fields (raw token) stay off `@Field()`. |
 | CQRS | Two separate kitchens — Commands mutate, Queries read, no shared stove | `Meteor.methods` body (routing + logic + DB in one block) | Handlers are thin one-liners. All logic lives in the Service. |
 | CommandBus / QueryBus | Postal sorting facility — drop the letter, facility routes it | Direct method call inside a Meteor method | Resolver never imports the handler directly. |
-| Service | Doctor — examines, diagnoses, prescribes | Logic inside `Meteor.methods` | All business logic lives here. Never touches HTTP objects. |
-| Module | Department in a company — owns workers, lends via `exports` | `meteor add` — global, implicit | `imports` borrows, `providers` owns, `exports` lends. One feature = one module. |
+| Service | Specialist doctor — examines, diagnoses, prescribes | Logic inside `Meteor.methods` | All business logic lives here. Never touches HTTP objects. |
+| Module | Hospital wing — owns staff, lends via `exports` | `meteor add` — global, implicit | `imports` borrows, `providers` owns, `exports` lends. One feature = one module. |
 | Migration | Git commit for the database — `up()` applies, `down()` reverts | No migrations in MongoDB | Never edit old migrations. Test both directions. |
-| Guard | Bouncer at the club door — returns true or throws | `.allow()` / `.deny()` — ran at DB layer after your code | Explicit, ordered, runs before handler. Chain them left to right. |
+| Guard | Gate officer — returns true or throws | `.allow()` / `.deny()` — ran at DB layer after your code | Explicit, ordered, runs before handler. Chain them left to right. |
 | RS256 JWT | King's wax seal — private key signs, public key verifies, cannot be forged | DDP session token — opaque string, no cryptographic claims | Auth service signs with private key. Any service verifies with public key. Downstream breach cannot forge. |
 
 ---

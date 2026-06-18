@@ -379,11 +379,11 @@ export class ProductEntity extends AbstractEntity {
 }
 ```
 
-> **Government form template:** A TypeORM entity is a government form template — every field defined, named, typed, required or optional. Every database row is a filled-in form; it must match the template exactly. `AbstractEntity` is the company letterhead: `id`, `createdAt`, `updatedAt`, and `deletedAt` are pre-printed on every form so you never type them from scratch.
+> **Official record template:** A TypeORM entity is an official record template — every field defined, named, typed, required or optional. Every database row is a completed record; it must match the template exactly. `AbstractEntity` is the company letterhead: `id`, `createdAt`, `updatedAt`, and `deletedAt` are pre-printed on every record so you never type them from scratch.
 
 > **From Meteor?** `new Mongo.Collection('tasks')` is schema-less — any shape goes in. An `@Entity()` class enforces a schema at the PostgreSQL level and at the TypeScript level simultaneously. A field that doesn't match won't compile.
 
-**Memory hook:** Entity = government form template. AbstractEntity = company letterhead with id + timestamps pre-printed. Every entity extends it.
+**Memory hook:** Entity = official record template. AbstractEntity = company letterhead with id + timestamps pre-printed. Every entity extends it.
 
 Register it in `AppModule` immediately — TypeORM won't load it otherwise.
 
@@ -669,11 +669,11 @@ Questions worth asking every sprint:
 [ ] Validation decorators on all input fields
 ```
 
-> **Bouncer at the door:** A Guard runs before the handler and returns `true` (allow) or throws (deny). Every mutation that doesn't have `@UseGuards(AuthJwtGuard)` has no bouncer — anyone can walk in. Guards chain left to right: all must pass in declared order. A ValidationPipe on inputs is the customs declaration desk: undeclared fields are stripped (`whitelist: true`), unknown fields rejected (`forbidNonWhitelisted: true`).
+> **Gate officer:** A Guard runs before the handler and returns `true` (allow) or throws (deny). Every mutation that doesn't have `@UseGuards(AuthJwtGuard)` has no gate officer — anyone can walk in. Guards chain left to right: all must pass in declared order. A ValidationPipe on inputs is the customs hall: undeclared fields are stripped (`whitelist: true`), unknown fields rejected (`forbidNonWhitelisted: true`).
 
 > **From Meteor?** `.allow()` and `.deny()` rules ran at the database layer — after your code had already executed. NestJS guards run at the API entry point, before any business logic starts. `check(input, String)` was optional and per-method; `ValidationPipe` with `whitelist: true` is global and automatic.
 
-**Memory hook:** Guard = bouncer. Runs before pipe. Every mutation needs one. Pipe = customs desk. Returns 400 on bad input.
+**Memory hook:** Guard = gate officer. Runs before pipe. Every mutation needs one. Pipe = customs hall. Returns 400 on bad input.
 
 **Architecture:**
 ```
@@ -683,11 +683,11 @@ Questions worth asking every sprint:
 [ ] Resolver does not import Repository directly
 ```
 
-> **Module = department in a company:** Each module owns its providers (internal workers), borrows from other modules via `imports`, and decides what to lend via `exports`. A resolver that imports `Repository` directly has bypassed the department boundary — the repository belongs to the service, not the front desk.
+> **Module = hospital wing:** Each module owns its providers (internal staff), borrows from other wings via `imports`, and decides what to lend via `exports`. A resolver that imports `Repository` directly has bypassed the wing boundary — the repository belongs to the service, not the front desk.
 
 > **From Meteor?** In Meteor, `TasksCollection` was a global — any file anywhere could call `insertAsync`. In NestJS, `Repository<ProductEntity>` is only available inside `ProductModule` and modules it explicitly shares with. This prevents accidental cross-module data access.
 
-**Memory hook:** Module = department. `imports` borrows, `providers` owns workers, `exports` lends. Resolver imports the bus, never the repository.
+**Memory hook:** Module = hospital wing. `imports` borrows, `providers` owns staff, `exports` lends. Resolver imports the bus, never the repository.
 
 **Database:**
 ```
@@ -883,15 +883,15 @@ The last row is the most important for AI-assisted development. **A senior devel
 
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
-| Entity | Government form template | `new Mongo.Collection()` — schema-less | Schema enforced at DB and TypeScript level simultaneously |
+| Entity | Official record template | `new Mongo.Collection()` — schema-less | Schema enforced at DB and TypeScript level simultaneously |
 | AbstractEntity | Company letterhead (id + timestamps pre-printed) | No equivalent | All entities extend it — never repeat id/timestamps |
 | CQRS (Command/Query) | Two separate restaurant kitchens | `Meteor.methods` body (routing + logic in one block) | Commands mutate, queries read — never share a stove |
 | CommandBus / QueryBus | Postal sorting facility | Direct method call inside `Meteor.methods` | Drop the object; the bus routes it. Resolver never imports handler. |
-| Service | Doctor | Logic inside `Meteor.methods` body | All `if` statements and repository calls live here |
-| Resolver | Receptionist + personal shopper | `Meteor.methods` entry point (routing only) | Routes and returns. Dispatches to bus. Two lines max. |
-| Module | Department in a company | Flat `imports/` directory (isomorphic) | `imports` borrows · `providers` owns · `exports` lends |
-| Guard | Bouncer at the club door | `.allow()` / `.deny()` — but those run at DB layer | Returns `true` or throws. Every mutation needs one. |
-| Pipe / ValidationPipe | Customs declaration desk at the airport | `check(input, String)` — optional, per-method | Validates/transforms before handler. Returns 400 on failure. |
+| Service | Specialist doctor | Logic inside `Meteor.methods` body | All `if` statements and repository calls live here |
+| Resolver | Front desk receptionist + personal shopper | `Meteor.methods` entry point (routing only) | Routes and returns. Dispatches to bus. Two lines max. |
+| Module | Hospital wing | Flat `imports/` directory (isomorphic) | `imports` borrows · `providers` owns · `exports` lends |
+| Guard | Gate officer | `.allow()` / `.deny()` — but those run at DB layer | Returns `true` or throws. Every mutation needs one. |
+| Pipe / ValidationPipe | Customs hall | `check(input, String)` — optional, per-method | Validates/transforms before handler. Returns 400 on failure. |
 | Migration | Git commit for the database | No migrations — schema changes just happen | `up()` applies, `down()` reverts. Test both directions. |
 | `synchronize: true` | Unsupervised contractor (no undo) | No equivalent — Mongo is schema-less | Never in production. Always use migrations. |
 | Bull Queue | Kitchen ticket rail | `Meteor.setTimeout` / `synced-cron` (lost on restart) | Web enqueues and returns. Worker processes async. Redis-backed. |

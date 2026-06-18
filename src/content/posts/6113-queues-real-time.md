@@ -157,19 +157,19 @@ import { NotificationService } from './notification.service';
 export class NotificationModule {}
 ```
 
-> **Department in a company:** `NotificationModule` is a self-contained department. It owns `NotificationService` and `NotificationProcessor` as internal workers, borrows the Bull queue configuration from `BullModule`, and lends `NotificationService` to other departments (like `TodoModule`) via `exports`. `TodoModule` cannot reach inside and use `NotificationProcessor` directly — only what is explicitly exported is shared.
+> **Hospital wing:** `NotificationModule` is a self-contained hospital wing. It owns `NotificationService` and `NotificationProcessor` as internal staff, borrows the Bull queue configuration from `BullModule`, and lends `NotificationService` to other wings (like `TodoModule`) via `exports`. `TodoModule` cannot reach inside and use `NotificationProcessor` directly — only what is explicitly exported is shared.
 
 > **From Meteor?** In Meteor, email sending was typically `Email.send()` called inline in a method — no module boundary, no ownership, no export contract. Any file could call it. NestJS requires `TodoModule` to formally import `NotificationModule` and use only what `NotificationModule` chooses to expose.
 
-**Memory hook:** Module = department. `exports: [NotificationService]` lends the service to others; the processor stays internal.
+**Memory hook:** Module = hospital wing. `exports: [NotificationService]` lends the service to others; the processor stays internal.
 
 ### 4.3 NotificationService — Enqueue Jobs
 
-> **The doctor who writes prescriptions, not the waiter:** `NotificationService` is the service layer for notifications. It knows *what jobs to enqueue and with what parameters* — but it never processes them. It delegates to the Bull queue (the ticket rail) and returns immediately. The actual email sending happens in `NotificationProcessor`, a completely separate class.
+> **The specialist doctor who writes prescriptions, not the waiter:** `NotificationService` is the service layer for notifications. It knows *what jobs to enqueue and with what parameters* — but it never processes them. It delegates to the Bull queue (the ticket rail) and returns immediately. The actual email sending happens in `NotificationProcessor`, a completely separate class.
 
 > **From Meteor?** In Meteor, `Email.send()` was called directly inside a method body — synchronous, blocking, and if it failed the whole method failed with no retry. `NotificationService.notifyTodoCreated()` enqueues a job in milliseconds and returns. Bull handles retries with exponential backoff independently of the HTTP request.
 
-**Memory hook:** Service = doctor. Enqueues the job and walks away. Never processes it. Retry logic lives in the queue options, not the service.
+**Memory hook:** Service = specialist doctor. Enqueues the job and walks away. Never processes it. Retry logic lives in the queue options, not the service.
 
 ```typescript
 // apps/api/src/modules/notification/notification.service.ts
@@ -211,9 +211,9 @@ export class NotificationService {
 
 ### 4.4 NotificationProcessor — Process Jobs
 
-> **Appliance plugged into the power grid:** `NotificationProcessor` is a `@Injectable()` provider registered in `NotificationModule`. The DI container (the power grid) manages its lifetime. `@Processor(NOTIFICATION_QUEUE)` is the label that tells Bull which queue this class consumes. Each `@Process()` method is a handler for one specific job type — like different appliances each doing one job.
+> **Staff badge wired to the queue:** `NotificationProcessor` carries a staff badge (`@Injectable()`) so the staffing office can deliver it into `NotificationModule`. `@Processor(NOTIFICATION_QUEUE)` is the label that tells Bull which queue this staff member consumes. Each `@Process()` method handles one specific job type — one dedicated task per method.
 
-**Memory hook:** Processor = provider wired to a queue. `@Processor` names the queue; `@Process` names the job type. `@OnQueueFailed` is the safety net.
+**Memory hook:** Processor = staff member wired to a queue. `@Processor` names the queue; `@Process` names the job type. `@OnQueueFailed` is the safety net.
 
 ```typescript
 // apps/api/src/modules/notification/notification.processor.ts
@@ -626,11 +626,11 @@ The `docker-compose.dev.yml` from Part 02 already has Redis running on port 6379
 |---------|---------|-------------------|--------------|
 | Bull Queue | Kitchen ticket rail — waiter clips ticket, chef processes async | `Meteor.defer`, `synced-cron` — but in-memory, no retry | API enqueues and returns; worker processes in background; Redis persists jobs across restarts |
 | `@Processor` / `@Process` | Appliance plugged into the power grid | No direct equivalent — Meteor had no worker abstraction | `@Processor` names the queue; `@Process` names the job type; must match the queue name string exactly |
-| NotificationModule | Department in a company | `Email.send()` called inline anywhere | `exports: [NotificationService]` lends the service; the processor stays internal |
-| NotificationService | Doctor — prescribes the job, never runs it | Inline `Email.send()` in a method | `queue.add()` is non-blocking; actual sending is `NotificationProcessor`'s job |
+| NotificationModule | Hospital wing | `Email.send()` called inline anywhere | `exports: [NotificationService]` lends the service; the processor stays internal |
+| NotificationService | Specialist doctor — prescribes the job, never runs it | Inline `Email.send()` in a method | `queue.add()` is non-blocking; actual sending is `NotificationProcessor`'s job |
 | GraphQL Subscription | Explicit Meteor publication | `Meteor.publish` + DDP reactive graph | Always filter by `userId` or `tenantId`; without `filter`, all users receive all events |
 | Redis PubSub | Broadcast radio tower | In-memory Meteor reactive graph (single-server only) | Required for multi-pod deployments; in-process PubSub silently breaks at scale |
-| Subscription `filter` | Bouncer checking which patron the event belongs to | No direct equivalent — Meteor filtered at the publication cursor | Server-side; runs before event is pushed; missing filter = data leakage across users |
+| Subscription `filter` | Gate officer checking which patient the event belongs to | No direct equivalent — Meteor filtered at the publication cursor | Server-side; runs before event is pushed; missing filter = data leakage across users |
 
 ---
 

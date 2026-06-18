@@ -350,11 +350,11 @@ export class AuthService {
 }
 ```
 
-> **The doctor:** The `AuthService` is the doctor in the clinic. It examines the credentials (verifies password, checks account status), applies the rules (bcrypt rounds, uniqueness checks), and prescribes the result (tokens). It never answers the phone — that is the `AuthResolver`'s job. All security decisions live here, not in the resolver.
+> **The specialist doctor:** The `AuthService` is the specialist doctor in the Citadel hospital. It examines the credentials (verifies password, checks account status), applies the rules (bcrypt rounds, uniqueness checks), and prescribes the result (tokens). It never answers the front desk phone — that is the `AuthResolver`'s job. All security decisions live here, not in the resolver.
 
 > **From Meteor?** In Meteor, `Accounts.createUser()` and `Accounts.loginWithPassword()` were black-box framework calls — you got auth "for free" but had no visibility into what they did. NestJS `AuthService` is explicit: you see every step, every hashing round, every token generation. When a security audit asks "how do you hash passwords?", you open `auth.service.ts` and show them.
 
-**Memory hook:** AuthService = doctor. Hashes, verifies, generates tokens. All credential logic lives here, never in the resolver.
+**Memory hook:** AuthService = specialist doctor. Hashes, verifies, generates tokens. All credential logic lives here, never in the resolver.
 
 **Key security decisions:**
 
@@ -445,11 +445,11 @@ export class AuthJwtGuard extends AuthGuard('jwt') {
 }
 ```
 
-> **The bouncer:** A guard is the nightclub bouncer. Before you reach the dance floor, the bouncer checks: Do you have a wristband? Is your wristband for the VIP section? Are you on the banned list? He doesn't negotiate — it's pass or block. And you don't have one bouncer who does everything: `AuthJwtGuard` handles "is this a valid JWT?", `RolesGuard` handles "does this role allow this action?" Each bouncer has one job.
+> **The gate officer:** A guard is the gate officer at the hospital entrance. Before you reach any ward, the officer checks: Do you have a valid JWT? Is your pass for the correct zone? Is your pass still current? The officer doesn't negotiate — it's pass or block. And you don't have one gate officer who does everything: `AuthJwtGuard` handles "is this a valid JWT?", `RolesGuard` handles "does this role allow this action?" Each gate officer has one job.
 
 > **From Meteor?** Meteor's `.allow()` and `.deny()` rules ran at the collection layer — after your method had already executed. `AuthJwtGuard` runs before the resolver method even starts. A rejected request never reaches the handler.
 
-**Memory hook:** AuthJwtGuard = bouncer. One job: valid JWT or 401. Apply it to every mutation and sensitive query.
+**Memory hook:** AuthJwtGuard = gate officer. One job: valid JWT or 401. Apply it to every mutation and sensitive query.
 
 Usage in a resolver:
 
@@ -607,11 +607,11 @@ app.useGlobalPipes(
 );
 ```
 
-> **The water filter:** The `ValidationPipe` is a water purification system. Raw tap water (incoming JSON data) flows through the filter. Impurities (invalid fields, wrong types, unknown properties) are removed before the handler ever sees the data. `whitelist: true` strips undeclared fields. `forbidNonWhitelisted: true` rejects the entire request if unknown fields are present. Only clean, certified water reaches your resolver method.
+> **The customs hall:** The `ValidationPipe` is the customs hall at the hospital entrance. Every incoming intake form passes through inspection before reaching the specialist. Undeclared items (`whitelist: true`) are confiscated before entry. Contraband fields (`forbidNonWhitelisted: true`) turn the traveller away entirely — the request never reaches your resolver. Only cleared, certified intake forms reach the handler.
 
 > **From Meteor?** `check(input, String)` was the Meteor equivalent — optional, per-method, and it only validated type, not shape. It never stripped unknown fields. `ValidationPipe` with `whitelist: true` + `forbidNonWhitelisted: true` is global, automatic, and actively hostile to unknown fields.
 
-**Memory hook:** ValidationPipe = customs desk. `whitelist` strips unknown fields. `forbidNonWhitelisted` rejects the entire request. Both must be on to close the attack surface.
+**Memory hook:** ValidationPipe = customs hall. `whitelist` strips unknown fields. `forbidNonWhitelisted` rejects the entire request. Both must be on to close the attack surface.
 
 ### Why `forbidNonWhitelisted: true`?
 
@@ -1129,10 +1129,10 @@ export function useAuth() {
 | RS256 JWT | King's wax seal — private key signs, public key verifies | DDP session token (shared secret) | Use RS256, not HS256. Downstream breach cannot forge tokens. |
 | HS256 JWT | Master key — whoever has it can lock and unlock | — | Never use HS256 in multi-service arch |
 | Passport Strategy | ID verification lane at a border crossing | No equivalent — Meteor auth is a black box | Each strategy is one named lane. `validate()` returns `req.user`. |
-| AuthJwtGuard | Nightclub bouncer | `.allow()` / `.deny()` — runs at DB layer | Returns `true` or throws. Runs before the resolver. |
-| AuthService | Doctor | `Accounts.createUser()` / `Accounts.loginWithPassword()` | All credential logic here. Never in resolver. |
+| AuthJwtGuard | Gate officer | `.allow()` / `.deny()` — runs at DB layer | Returns `true` or throws. Runs before the resolver. |
+| AuthService | Specialist doctor | `Accounts.createUser()` / `Accounts.loginWithPassword()` | All credential logic here. Never in resolver. |
 | `@CurrentUser()` | Sticky label that retrieves typed user from `req.user` | `this.userId` inside a Meteor method | Only works after `AuthJwtGuard` has run. Returns `AccessTokenUser`. |
-| ValidationPipe | Customs desk at the airport | `check(input, String)` — optional, per-method | `whitelist: true` strips; `forbidNonWhitelisted: true` rejects. Both required. |
+| ValidationPipe | Customs hall | `check(input, String)` — optional, per-method | `whitelist: true` strips; `forbidNonWhitelisted: true` rejects. Both required. |
 | `@IsUndefined()` | Partial update contract | No equivalent | Omitted = skip field. Explicit `null` = 400. Use on required fields in update DTOs. |
 | Dual-auth | Two separate key rings | Single `Meteor.userId()` for all callers | User JWT and admin JWT use different RSA key pairs. Cannot cross lanes. |
 

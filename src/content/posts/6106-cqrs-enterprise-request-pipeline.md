@@ -569,9 +569,9 @@ Every handler follows the exact same pattern:
 
 The service is where work actually happens. All business rules, all database access, all side effects.
 
-> **The doctor:** The service is the **doctor** who examines, diagnoses, and prescribes. The resolver (receptionist) routes the request. The handler passes the note. The service does the actual work — business rules, DB calls, side effects. The doctor never answers the phone.
+> **The specialist doctor:** The service is the **specialist doctor** who examines, diagnoses, and prescribes. The resolver (front desk receptionist) routes the request. The handler passes the case file. The service does the actual work — business rules, DB calls, side effects. The specialist never answers the phone.
 
-> **The librarian:** When the service needs data from the database, it asks the repository — the **librarian** who fetches records from the stacks. The service never writes raw SQL. It asks the librarian, and the librarian fetches.
+> **The archivist:** When the service needs data from the database, it asks the repository — the **archivist** who fetches records from the archive stacks. The service never writes raw SQL. It asks the archivist, and the archivist fetches.
 
 > **From Meteor?** In Meteor, `TasksCollection.insertAsync()` was called directly inside the method body. Here, `this.repo.save()` and `this.repo.findOne()` are called only inside the service. The service is the single place where all DB access happens — making it fully mockable in tests.
 
@@ -715,7 +715,7 @@ export class TodoService extends TypeOrmQueryService<TodoEntity> {
 }
 ```
 
-**Memory hook:** Service = doctor. All `if` statements with business meaning live here. All repo calls live here. It never touches HTTP/GraphQL objects.
+**Memory hook:** Service = specialist doctor. All `if` statements with business meaning live here. All repo calls live here. It never touches HTTP/GraphQL objects.
 
 ---
 
@@ -886,7 +886,7 @@ Every name in the CQRS layer follows a strict convention. Consistency means any 
 
 ## 12. CQRS Events (Advanced)
 
-> **The office PA announcement:** Publishing a domain event is like a public announcement over the office PA: "New todo just created!" HR (the email handler) hears it and sends a notification. IT (the audit log handler) hears it and logs the action. The PA operator (command handler) broadcasts the fact and immediately moves on — it never manages who reacted or how.
+> **The hospital intercom:** Publishing a domain event is like a hospital-wide intercom announcement: "New appointment booked!" The pharmacy wing hears it and queues a medication prep. The billing wing hears it and opens a record. The command handler makes the announcement and immediately moves on — it never manages who heard it or what they did.
 
 Commands can emit events after execution. Events are processed asynchronously by event handlers.
 
@@ -927,7 +927,7 @@ Events are used for side effects that should not block the primary operation. Us
 
 > **From Meteor?** In Meteor, side effects (email, notifications) were called directly inside the method body — blocking the response. EventBus events run asynchronously after the command handler returns. The mutation completes immediately; the side effects happen independently.
 
-**Memory hook:** EventBus = office PA. Past-tense name (`TodoCreatedEvent`). Command handler publishes and walks away. Multiple independent handlers react. None of them block the original mutation.
+**Memory hook:** EventBus = hospital intercom. Past-tense name (`TodoCreatedEvent`). Command handler announces and walks away. Multiple independent handlers react. None of them block the original mutation.
 
 ---
 
@@ -977,10 +977,10 @@ find node_modules -path "*/reflect-metadata/package.json" | xargs grep '"version
 |---------|---------|-------------------|--------------|
 | CQRS | Two separate restaurant kitchens | `Meteor.methods` (writes) + `Meteor.publish` (reads) — mixed | Commands mutate, Queries only read. Never share a handler. |
 | CommandBus / QueryBus | Postal sorting facility | No equivalent — methods called by string name | Drop the message object; the bus routes to the registered handler. |
-| EventBus | Office PA announcement | Inline side effects in a method body | Past-tense event names. Handler publishes and walks away. |
+| EventBus | Hospital intercom | Inline side effects in a method body | Past-tense event names. Handler announces and walks away. |
 | CQRS Handler | Thin relay runner | `Meteor.methods` body | Always one line: `return this.service.methodName(args)`. Any `if` = wrong layer. |
-| Service | Doctor | Logic inside `Meteor.methods` body | All business rules, all repo calls. Never touches HTTP objects. |
-| Repository | Librarian | Direct `Collection.insertAsync()` calls | Only layer allowed to touch the database. Mock it to test the service. |
+| Service | Specialist doctor | Logic inside `Meteor.methods` body | All business rules, all repo calls. Never touches HTTP objects. |
+| Repository | Archivist | Direct `Collection.insertAsync()` calls | Only layer allowed to touch the database. Mock it to test the service. |
 | CQRS Input class | Typed letter for the postal slot | Method name string | Generic parameters encode input shape and return type — TypeScript enforces the contract. |
 | CQRS Index | Barrel file with handler arrays | N/A | Spread into `providers[]`. Adding a handler = one array entry. |
 | Module file | Wiring diagram | N/A | `TypeOrmModule.forFeature([Entity])` + spread handler arrays. `CqrsModule.forRoot()` in AppModule only. |
