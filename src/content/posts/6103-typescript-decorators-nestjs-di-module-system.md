@@ -241,8 +241,8 @@ Handler → Service → Repository → PostgreSQL
 Response (serialized GraphQL response)
 ```
 
-**Guards** decide if the request is allowed (authenticated?).
-**Pipes** validate and transform the input.
+**Guards** (the bouncer) decide if the request is allowed — check credentials, return true or throw. Every patron shows a wristband before reaching the dance floor.
+**Pipes** (the water filter) validate and transform input — strip impurities and wrong types before your handler ever sees the data.
 **The handler** is where your business logic starts — guards and pipes have already run by the time your `@Query()` or `@Mutation()` method executes.
 
 ---
@@ -263,6 +263,8 @@ GET /api/users/6        → { name: "Bob" }
 ```
 
 This is the N+1 problem at the API level.
+
+> **REST controller vs GraphQL Resolver:** A REST controller is a **traffic cop at fixed intersections** — every caller must pick one of the preset roads, even if reaching what they need takes three separate trips. A GraphQL Resolver is a **personal shopper**: the client says exactly what it wants ("give me the todo title, the assignee's name, and the last three comments — nothing else"), and the server returns precisely that shape in one round trip. No over-fetching. No under-fetching.
 
 ### GraphQL Solution
 
@@ -404,7 +406,13 @@ You have just built and registered a NestJS module. The full flow:
 
 ## 7. Understanding the Resolver
 
-The `Resolver` is the GraphQL equivalent of a REST Controller. Let's look at a more realistic one:
+The `Resolver` is the GraphQL equivalent of a REST Controller. It is the **entry point** for every GraphQL operation — it receives the request, runs guards, extracts inputs, and dispatches to the bus. That is all it does.
+
+> **The receptionist:** The Resolver is the **receptionist at a doctor's clinic**. She takes your name and reason for visit, decides which doctor to route you to, and hands you the answer. She does not examine you. She does not prescribe treatment. She routes and returns. If a resolver method is longer than a few lines, you are doing the doctor's job at the front desk — move that logic to the Service.
+
+> **Personal shopper vs traffic cop:** Compared to REST, a GraphQL Resolver works like a **personal shopper**. A REST endpoint is a fixed shelf — you take everything on it, or you make three separate trips to three endpoints. A GraphQL Resolver lets the client ask for exactly the fields it needs in one query. The shopper fetches that precise shape in one trip. No over-fetching, no under-fetching.
+
+Let's look at a more realistic resolver:
 
 ```typescript
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
@@ -477,7 +485,7 @@ export class TodoResolver {
 
 The service is where business logic lives.
 
-> **The doctor:** The controller is the **receptionist at a clinic** — she takes your name, routes you to the right room, and hands back the answer. She never prescribes treatment. The service is the **doctor** — she examines, diagnoses, and prescribes. She does not answer phones or handle paperwork. If your controller method is longer than two lines, you're doing the doctor's job at the front desk.
+> **The doctor:** The Resolver (the receptionist from Section 7) hands work off to the Service — the **doctor** who actually examines, diagnoses, and prescribes. The doctor does not answer phones or handle paperwork. She does medicine. If a service method references HTTP objects (`@Req`, `@Res`, `Request`) or routes requests to other services, something is in the wrong layer.
 
 Nothing else goes in here except:
 - Repository calls (read/write to the database)
@@ -599,7 +607,7 @@ You now understand:
 | Decorators | Functions that attach metadata to classes | NestJS reads this metadata to wire your app |
 | `@Module` | Declares a unit of organisation | Makes dependencies explicit and composable |
 | `@Injectable` | Marks a class as a DI-managed service | NestJS creates and injects it automatically |
-| `@Resolver` | GraphQL entry point (replaces `@Controller`) | Routes GraphQL queries/mutations to handlers |
+| `@Resolver` | GraphQL entry point — the **receptionist** (routes and returns, never prescribes) | Client fetches exactly the shape it needs (personal shopper). Zero business logic. |
 | Dependency Injection | Constructor parameters are provided by the framework | No globals, fully testable, decoupled |
 | Service | Business logic home | Reusable, independently testable, one clear job |
 | The layer rule | Resolver routes → Handler delegates → Service operates → Repo queries | Every layer has one job, every bug has one home |
