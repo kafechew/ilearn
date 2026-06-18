@@ -165,7 +165,13 @@ export class TodoEntity extends AbstractEntity {
 }
 ```
 
-> **Think of an entity as a government form template.** The template defines every field — name, type, whether it's required, the maximum length. Every filled-in form (database row) must match the template exactly. When the government revises the form (migration), all future submissions follow the new version. TypeORM reads these class definitions and generates the actual SQL for you.
+> **Company letterhead:** `AbstractEntity` is the **company letterhead**. Every letter (entity) is printed on paper that already has the logo, address, and date field (`id`, `createdAt`, `updatedAt`). Each letter only adds its own unique content. Nobody types the letterhead from scratch each time.
+
+> **Government form template:** Each entity class is a **government form template**. The template defines every field — name, type, whether it's required, the maximum length. Every filled-in form (database row) must match exactly. When the government revises the form (migration), all future submissions follow the new version. TypeORM reads these class definitions and generates the SQL for you.
+
+> **From Meteor?** `new Mongo.Collection('tasks')` had no guaranteed `id`, `createdAt`, or `updatedAt` — you could add them but it was optional and inconsistent across collections. `AbstractEntity` guarantees every entity has these columns, in the same format, in every table, automatically.
+
+**Memory hook:** `AbstractEntity` = company letterhead. `Entity` = government form template. Extend `AbstractEntity` on every entity. Never write `id`, `createdAt`, `updatedAt` by hand.
 
 ---
 
@@ -201,6 +207,12 @@ export class TodoDto extends AbstractDto {
   isChecked: boolean;
 }
 ```
+
+> **Standard response envelope:** If `AbstractEntity` is the company letterhead for database rows, `AbstractDto` is the **standard response envelope** for API responses. The client always knows where to find `id`, `createdAt`, and `updatedAt` — they are on every envelope, automatically exposed via the GraphQL `@Field()` decorators inherited from `AbstractDto`.
+
+> **From Meteor?** Meteor DDP publications returned whatever shape each `publish` function chose — no consistency between collections. `AbstractDto` guarantees every GraphQL type the client queries exposes `id`, `createdAt`, and `updatedAt` in a consistent format.
+
+**Memory hook:** `AbstractDto` = standard response envelope. Pairs with `AbstractEntity`. All `@ObjectType` DTOs extend it. Client always gets `id` + timestamps.
 
 ---
 
@@ -250,6 +262,8 @@ yarn add typeorm-naming-strategies
 **The exception:** `AbstractEntity` hardcodes `name: 'created_at'` in the `@CreateDateColumn` decorator. This means `createdAt` always maps to `created_at` regardless of any naming strategy. Why? To guarantee consistency — even if you swap naming strategies later, audit columns never change their DB name.
 
 **Rule: your entity columns follow the naming strategy. `created_at` and `updated_at` are always `created_at` and `updated_at`.**
+
+**Memory hook:** `SnakeNamingStrategy` = automatic translator. TypeScript `isChecked` → PostgreSQL `is_checked`. Exception: `AbstractEntity`'s timestamps are hardcoded — always `created_at`/`updated_at` regardless of strategy.
 
 ---
 
@@ -346,6 +360,8 @@ console.log(todo.user.fullname); // → "Alice"
 ```
 
 You will use `userId` constantly (for filtering, ownership checks). You will only load `todo.user` when you actually need to display user data — and even then, DataLoader batches the query (Part 09).
+
+> **Business card vs. the full person:** `@ManyToOne` is a reference to the **full person** — you can JOIN to their table and load everything about them. `@RelationId` gives you their **business card** (just the ID number), always available without any extra query. Use the business card for `WHERE` filters and ownership checks. Only load the full person when you actually need to display their data.
 
 ### ManyToMany
 
@@ -749,6 +765,10 @@ TypeOrmModule.forRootAsync({
 
 **Rule: set `synchronize: false` the moment you have real data, and use migrations from that point.**
 
+> **The unsupervised contractor:** `synchronize: true` is like giving a contractor a spare key and saying "fix anything that doesn't match the blueprint." Every morning they come in, compare your house to the plan, and make changes — without telling you, without a work order, without the ability to undo. If the blueprint has a mistake (a column you accidentally deleted from the entity), they demolish that wall. Migrations are you personally reviewing the blueprint, writing the work order, signing it, testing the teardown, and keeping the full paper trail.
+
+**Memory hook:** `synchronize: true` = unsupervised contractor. Fine for the first hour. Catastrophic in production. `synchronize: false` + migrations = always.
+
 ---
 
 ## 13. Migration Naming Convention
@@ -910,6 +930,22 @@ Expected output:
 | `null value in column "user_id" violates not-null constraint` | Running `NOT NULL` migration on a non-empty table                   | Add a default or backfill existing rows in the migration `up()`                         |
 | `FK_todo_user` constraint failed                              | Inserting a todo with a `userId` that doesn't exist in `user` table | Ensure the user exists first (seeder order)                                             |
 | `TypeORM metadata not found for TodoEntity`                   | Entity not in `entities` array                                      | Add to both `forRoot` entities AND `forFeature` in the module                           |
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Entity | Government form template | `new Mongo.Collection()` | Schema enforced at DB + TypeScript level in one class |
+| `AbstractEntity` | Company letterhead | Optional convention (inconsistent) | Every entity extends it — `id`, `createdAt`, `updatedAt` for free |
+| `AbstractDto` | Standard response envelope | Publication return shape (arbitrary) | Every `@ObjectType` DTO extends it — `id` + timestamps always present |
+| `SnakeNamingStrategy` | Automatic translator | (no equivalent) | TypeScript `camelCase` → SQL `snake_case` automatically |
+| Repository | Librarian | `Collection.find()` called directly anywhere | Only layer allowed to touch the database |
+| `@ManyToOne` | Reference to the full person | Manual `userId` field | Defines the FK + enables JOINs |
+| `@RelationId` | Business card (ID only) | (no equivalent) | Always available without a JOIN — use for `WHERE` filters |
+| Migration | Git commit for the database | (none — MongoDB schema-less) | `up()` applies · `down()` reverts · never edit past migrations |
+| `synchronize: true` | Unsupervised contractor | `meteor run` auto-sync | Never in production — migrations always |
 
 ---
 
