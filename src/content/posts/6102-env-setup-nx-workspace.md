@@ -294,9 +294,9 @@ Create `postcss.config.js` in the workspace root:
 ```js
 module.exports = {
   plugins: {
-    '@tailwindcss/postcss': {},
+    "@tailwindcss/postcss": {},
   },
-}
+};
 ```
 
 Replace the contents of `apps/web/src/app/global.css` with:
@@ -314,7 +314,7 @@ Finally, replace the Nx placeholder `apps/web/src/app/page.tsx` with a clean sta
 ```tsx
 export default function Index() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50">
+    <main className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-gray-900">entodo</h1>
         <p className="mt-2 text-gray-500">Frontend is up and running.</p>
@@ -370,6 +370,7 @@ yarn add @nestjs/jwt
 yarn add class-validator class-transformer
 yarn add bcrypt
 yarn add --dev @types/pg @types/passport-jwt @types/bcrypt
+yarn add helmet
 ```
 
 > **`reflect-metadata` gotcha:** After installing, check that `reflect-metadata` is `^0.2.2` in your root `package.json`. `typeorm` and `nestjs-dev-utilities` both bundle `^0.2.x` — if the root dep is `^0.1.x` (the Nx default), two separate `WeakMap` instances coexist and NestJS DI metadata breaks at runtime with `UnknownDependenciesException: Nest can't resolve dependencies of ConfigService`. Fix: set `"reflect-metadata": "^0.2.2"` in `package.json` and re-run `yarn install`.
@@ -814,11 +815,11 @@ VS Code's built-in Source Control is the right tool for visual staging. When you
 
 ### VS Code Source Control Shortcuts
 
-| Action | Mac | Windows/Linux |
-|---|---|---|
-| Open Source Control tab | `Cmd+Shift+G` | `Ctrl+Shift+G` |
-| Toggle integrated terminal | `Cmd+\`` | `Ctrl+\`` |
-| Stage specific lines only | Highlight in diff → right-click → **Stage Selected Ranges** | same |
+| Action                     | Mac                                                         | Windows/Linux  |
+| -------------------------- | ----------------------------------------------------------- | -------------- |
+| Open Source Control tab    | `Cmd+Shift+G`                                               | `Ctrl+Shift+G` |
+| Toggle integrated terminal | `Cmd+\``                                                    | `Ctrl+\``      |
+| Stage specific lines only  | Highlight in diff → right-click → **Stage Selected Ranges** | same           |
 
 **Stage Selected Ranges** is the most powerful one. If you edited a file but only want to commit part of it, highlight specific lines in the diff editor and stage only those. This makes it easy to keep commits focused without having to split your changes across multiple files manually.
 
