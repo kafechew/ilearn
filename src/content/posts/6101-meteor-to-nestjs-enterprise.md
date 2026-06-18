@@ -173,7 +173,7 @@ enterprise-todo/                    ← was: my-meteor-app/
         └── src/                    ← shared TypeScript types
 ```
 
-> **Think of the monorepo like this:** An Nx workspace is an **apartment building with strict bylaws**. Each apartment (app) has its own locked front door — `apps/api` and `apps/web` cannot reach into each other's code directly. Shared code travels through the building intercom: `libs/contracts`. The building's alarm system (`@nx/enforce-module-boundaries`) triggers the moment anyone tries to climb through a window instead.
+> **Think of the monorepo like this:** An Nx workspace is a **city district with zoning laws**. Each building in the district (`apps/api`, `apps/web`) has its own zoning permit — they cannot reach into each other's code directly. Shared code travels through the public post office: `libs/contracts`. The **City Inspector** (`@nx/enforce-module-boundaries`) blocks any illegal cross-zone import the moment it appears in CI, before it can merge.
 
 The critical insight: `apps/api` and `apps/web` are **separate processes**. They communicate only through a defined API contract — the GraphQL schema. This means:
 - You can deploy the backend without touching the frontend
@@ -187,15 +187,16 @@ Before diving into the translation tables, fix these analogies. You will encount
 
 | Layer | Real-world analogy | Meteor equivalent | The one rule |
 |-------|--------------------|-------------------|--------------|
-| **Module** | Department in a company | Flat `imports/` (everything global) | Declares what it owns, borrows, and lends — nothing implicit |
-| **Guard** | Bouncer at the club door | `.allow()` / `.deny()` — but at DB layer | Returns `true` or throws. Runs before anything else. |
-| **Pipe** | Customs desk at the airport | `check(input, String)` — optional | Validates + transforms input. Rejects bad requests before the handler sees them. |
-| **Resolver** | Receptionist at a clinic | `Meteor.methods` entry point | Routes only. Never prescribes. Two lines max. |
-| **CQRS Handler** | Message relay / dispatch window | The method body | Receives the message, calls one service method. One line. That is all. |
-| **Service** | Doctor | The method body (logic part) | All business logic lives here. Always. Every `if` statement. |
-| **Repository** | Librarian | `Collection.find()` / `Collection.insert()` | Only layer allowed to touch the database. Services never query directly. |
+| **Module** | Hospital wing | Flat `imports/` (everything global) | Declares what it owns, borrows, and lends — nothing implicit |
+| **Middleware** | Hallway CCTV camera | (no equivalent) | Stamps + logs every request. Cannot reject — only observe. Runs before guards. |
+| **Guard** | Gate officer | `.allow()` / `.deny()` — but at DB layer | Returns `true` or throws. Runs before anything else. |
+| **Pipe** | Customs hall | `check(input, String)` — optional | Validates + transforms input. Rejects bad requests before the handler sees them. |
+| **Resolver** | Front desk receptionist | `Meteor.methods` entry point | Routes only. Never prescribes. Two lines max. |
+| **CQRS Handler** | CQRS dispatch window | The method body | Receives the message, calls one service method. One line. That is all. |
+| **Service** | Specialist doctor | The method body (logic part) | All business logic lives here. Always. Every `if` statement. |
+| **Repository** | Archivist | `Collection.find()` / `Collection.insert()` | Only layer allowed to touch the database. Services never query directly. |
 
-> **The clinic story:** A request enters like a patient visiting a clinic. The **bouncer** (Guard) checks your ID at the door. The **customs desk** (Pipe) validates your intake form. The **receptionist** (Resolver) checks you in and routes you to the right room. The **dispatch window** (Handler) forwards the case file. The **doctor** (Service) examines and prescribes. The **librarian** (Repository) retrieves your medical records from storage. Each person does exactly one job. None of them does someone else's job.
+> **The Citadel patient journey:** A request arrives like a patient at the hospital. The **hallway CCTV** (Middleware) logs the arrival silently — it sees everything, stops nothing. The **gate officer** (Guard) checks your JWT at the outer wall — invalid token, no entry. The **customs hall** (ValidationPipe) validates your intake form and rejects any unknown fields. The **front desk receptionist** (Resolver) routes you to the right department. The **CQRS dispatch window** (Handler) forwards the case file to the right specialist — nothing more. The **specialist doctor** (Service) examines and prescribes. The **archivist** (Repository) retrieves your records from storage. Each professional does exactly one job. Arrows point only downward — no layer ever calls the layer above it.
 
 ## 4. The Complete Concept Translation Table
 
@@ -340,17 +341,18 @@ Every term you will encounter in this series. One row per concept — scan this 
 
 | Term | Analogy | Meteor equivalent | Why it exists |
 |------|---------|-------------------|---------------|
-| Module | Department in a company | Flat `imports/` (global) | Owns what it needs, never leaks internals |
-| Guard | Bouncer | `.allow()` / `.deny()` — but at entry | Auth runs before the handler, not after data access |
-| Pipe | Customs desk | `check(input, String)` — optional | Validates + transforms automatically on every request |
-| Resolver | Receptionist | `Meteor.methods` entry | Routes only — zero logic, zero DB calls |
-| CQRS Handler | Message relay | The method body | Thin bridge from bus to service. One line. |
-| Service | Doctor | The method body (logic) | All business rules live here. Mockable in isolation. |
-| Repository | Librarian | `Collection.find()` directly | Only layer touching the DB — services ask, repo fetches |
-| Entity | Government form template | `new Mongo.Collection()` | Schema enforced at DB + TypeScript level in one class |
-| DTO | Customs declaration form | `check()` arguments | Exact shape required to cross the API boundary |
+| Module | Hospital wing | Flat `imports/` (global) | Owns what it needs, never leaks internals |
+| Middleware | Hallway CCTV | (no equivalent) | Logs + stamps every request; cannot reject; runs before guards |
+| Guard | Gate officer | `.allow()` / `.deny()` — but at entry | Auth runs before the handler, not after data access |
+| Pipe | Customs hall | `check(input, String)` — optional | Validates + transforms automatically on every request |
+| Resolver | Front desk receptionist | `Meteor.methods` entry | Routes only — zero logic, zero DB calls |
+| CQRS Handler | CQRS dispatch window | The method body | Thin bridge from bus to service. One line. |
+| Service | Specialist doctor | The method body (logic) | All business rules live here. Mockable in isolation. |
+| Repository | Archivist | `Collection.find()` directly | Only layer touching the DB — services ask, repo fetches |
+| Entity | Official record template | `new Mongo.Collection()` | Schema enforced at DB + TypeScript level in one class |
+| DTO | Intake form | `check()` arguments | Exact shape required to cross the API boundary |
 | Decorator | Sticky label (`@Something`) | (no equivalent) | NestJS reads labels at startup to wire the application |
-| DI | Staffing agency | Globals (`Meteor.userId`, imports) | Constructor declares needs; container delivers; tests swap fakes |
+| DI | Staffing office | Globals (`Meteor.userId`, imports) | Constructor declares needs; staffing office delivers; tests swap fakes |
 | Migration | Git commit for the database | (no equivalent — MongoDB) | Every schema change is versioned, reversible, reviewable |
 
 ---

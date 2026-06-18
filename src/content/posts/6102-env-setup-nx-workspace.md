@@ -59,9 +59,9 @@ Enterprise development separates itself from amateur work by prioritising the **
 - **Maintainability** — code is read far more times than it is written. Names, boundaries, types, and documentation must make debugging and refactoring straightforward for anyone who opens a file.
 - **Reusability** — common configurations, logic gates, schema types, and validations are written once to eliminate cross-system synchronisation bugs from copy-paste patterns.
 
-### The Apartment Intercom Model
+### The City District Model
 
-The `entodo` monorepo is structured like a high-density apartment building:
+The `entodo` monorepo is structured like a city district with zoning laws:
 
 ```mermaid
 graph TD
@@ -76,9 +76,9 @@ graph TD
     WEB -.->|HTTP / GraphQL requests only| API
 ```
 
-`apps/api` is Apartment A. `apps/web` is Apartment B. They operate completely independently. `libs/contracts` is the intercom wiring — the only legal channel for sharing constants: interfaces and validation types.
+`apps/api` and `apps/web` are separate buildings in the district — each with its own zoning permit. They operate completely independently. `libs/contracts` is the public post office — the only legal channel for sharing constants: interfaces and validation types.
 
-> **The Rule of Boundaries:** `@nx/enforce-module-boundaries` is the building's alarm. The moment code tries to bypass the intercom and reach directly into another apartment's private files, the linter fires at IDE level and blocks the CI/CD pipeline.
+> **The Rule of Boundaries:** `@nx/enforce-module-boundaries` is the City Inspector. The moment code tries to bypass the post office and reach directly into another building's private files, the linter fires at IDE level and blocks the CI/CD pipeline.
 
 ---
 
@@ -269,7 +269,7 @@ apps/api/
 
 > **Meteor analogy:** `apps/api/src/main.ts` is your `server/main.js`. `app.module.ts` is the root of everything the server knows about — equivalent to all your `server/` imports combined.
 
-> **Opening day:** `main.ts` is the **building manager on opening day**. Before any tenant (module) can open for business, the manager unlocks the doors (NestJS.create), turns on the power (registers global pipes), checks permits (ConfigModule validates env vars), and opens reception. Once that's done, requests can start arriving.
+> **Ribbon-cutting:** `main.ts` is the **ribbon-cutting ceremony**. Before any wing (module) can open for business, the ceremony unlocks the doors (`NestFactory.create`), registers global pipes, validates the `.env` policy handbook (`ConfigModule`), and opens reception. Once the ribbon is cut, requests can start arriving.
 
 ### 3.3 Generate the Next.js Frontend
 
@@ -351,9 +351,9 @@ libs/contracts/
 
 > **Meteor analogy:** In Meteor you put isomorphic code in `imports/` and both client and server could import it. In the enterprise monorepo, `libs/contracts` is that shared space — but it exports _only what you explicitly export_, and only TypeScript types (no server code on the client, no client code on the server).
 
-> **The apartment building:** The full monorepo is like a well-managed apartment building. `apps/api` is one apartment, `apps/web` is another. `libs/contracts` is the intercom — the only legal way for apartments to share information. `@nx/enforce-module-boundaries` is the building's alarm: it fires before CI, at IDE level, the moment code tries to reach directly into another apartment.
+> **The city district:** The full monorepo is a city district with zoning laws. `apps/api` and `apps/web` are separate buildings — each with its own zoning permit. `libs/contracts` is the public post office — the only legal way for buildings to share information. The **City Inspector** (`@nx/enforce-module-boundaries`) blocks any illegal cross-zone import at IDE level, before CI even runs.
 
-**Memory hook:** Nx = apartment building. `apps/` = separate units. `libs/` = the intercom. `@nx/enforce-module-boundaries` = the alarm. Direct imports between apps = trespassing — lint error before CI even runs.
+**Memory hook:** Nx = city district. `apps/` = separate buildings. `libs/` = the public post office. `@nx/enforce-module-boundaries` = the City Inspector. Direct imports between apps = zoning violation — lint error before CI even runs.
 
 ---
 
@@ -669,7 +669,7 @@ export class AppResolver {
 | `GraphQLModule`              | Starts Apollo Server, auto-generates GraphQL schema from your decorators          |
 | `CqrsModule.forRoot()`       | Makes `CommandBus`, `QueryBus`, and `EventBus` available for injection everywhere |
 
-> **Policy handbook:** `ConfigModule` is the **company policy handbook in a locked cabinet**. Instead of each file hardcoding database URLs or API keys, every value lives in one `.env` file and any service requests it by name via `ConfigService`. The critical part: if a required entry is missing, the application refuses to start — fail loudly at startup, not silently at 2am in production when the missing value is first accessed.
+> **Policy handbook:** `ConfigModule` is the **hospital policy handbook**. Before any wing opens for business, the handbook is read in full and every required policy entry is confirmed present. Instead of each file hardcoding database URLs or API keys, every value lives in one `.env` file and any service requests it by name via `ConfigService`. The critical part: if a required entry is missing, the application refuses to start — fail loudly at startup, not silently at 2am in production when the missing value is first accessed.
 
 **Memory hook:** `ConfigModule` = policy handbook. Use `configService.getOrThrow('KEY')` not `get('KEY')` — throw at startup, not at runtime.
 
@@ -728,9 +728,9 @@ bootstrap();
 
 > **Meteor analogy:** In Meteor there was no explicit bootstrap — the framework handled startup. `main.ts` is where you explicitly configure every global behaviour of your server before it starts accepting requests.
 
-> **Customs desk:** `ValidationPipe` is the **customs desk at the airport**. Every incoming request must declare its exact contents before crossing the API boundary. `whitelist: true` confiscates undeclared fields. `forbidNonWhitelisted: true` turns back the entire request if unknown fields appear. `transform: true` converts `"42"` strings to real numbers. Without this, a malicious client can inject `tenantId`, `isAdmin`, or `createdAt` into any request body and your handlers will silently accept them.
+> **Customs hall:** `ValidationPipe` is the **customs hall**. Every incoming request must declare its exact contents before crossing the API boundary. `whitelist: true` confiscates undeclared fields. `forbidNonWhitelisted: true` turns back the entire request if unknown fields appear. `transform: true` converts `"42"` strings to real numbers. Without this, a malicious client can inject `tenantId`, `isAdmin`, or `createdAt` into any request body and your handlers will silently accept them.
 
-**Memory hook:** `ValidationPipe` = customs desk. Three flags: `whitelist` strips, `forbidNonWhitelisted` rejects, `transform` converts. Global in `main.ts` = enforced on every endpoint automatically.
+**Memory hook:** `ValidationPipe` = customs hall. Three flags: `whitelist` strips, `forbidNonWhitelisted` rejects, `transform` converts. Global in `main.ts` = enforced on every endpoint automatically.
 
 ---
 
@@ -922,13 +922,13 @@ Key concepts from this part — one row per concept.
 
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
-| Nx monorepo | Apartment building | Single `meteor create` directory | `apps/` = units · `libs/` = intercom · no direct cross-app imports |
-| `libs/contracts` | Building intercom | `imports/` (isomorphic) — but explicit | Only exports types; never server code on the client |
-| `@nx/enforce-module-boundaries` | Building alarm | (no equivalent) | Fires at IDE level before CI; direct app import = lint error |
+| Nx monorepo | City district with zoning laws | Single `meteor create` directory | `apps/` = separate buildings · `libs/` = public post office · no direct cross-app imports |
+| `libs/contracts` | Public post office | `imports/` (isomorphic) — but explicit | Only exports types; never server code on the client |
+| `@nx/enforce-module-boundaries` | City Inspector | (no equivalent) | Fires at IDE level before CI; direct app import = zoning violation |
 | Docker containers | Isolated service rooms | Meteor's embedded MongoDB | Each service starts, stops, and resets without touching your OS |
 | `.env` + `ConfigModule` | Policy handbook | `Meteor.settings` | App refuses to start if a required variable is missing |
-| `ValidationPipe` | Customs desk | `check(input, String)` — but optional | `whitelist` + `forbidNonWhitelisted` + `transform` — global, automatic |
-| `main.ts` | Building manager on opening day | Meteor auto-bootstrap | Configures every global behaviour before the first request |
+| `ValidationPipe` | Customs hall | `check(input, String)` — but optional | `whitelist` + `forbidNonWhitelisted` + `transform` — global, automatic |
+| `main.ts` | Ribbon-cutting ceremony | Meteor auto-bootstrap | Configures every global behaviour before the first request |
 | `CqrsModule.forRoot()` | Postal infrastructure installed | `Meteor.methods` mechanism | Registers `CommandBus`/`QueryBus`/`EventBus` globally — done once |
 
 ---

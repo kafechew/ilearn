@@ -155,11 +155,11 @@ NestJS reads the constructor types, checks the module registry, finds registered
 - Testing is trivial: pass mock objects into the constructor
 - The same `UserService` instance is shared across the module (singleton by default)
 
-> **The staffing agency:** DI works like a professional staffing agency. A chef (your class) tells the agency: "I need a sous chef, a pastry specialist, and a sommelier." On opening day, the agency sends the right people. The chef focuses entirely on cooking. In the test kitchen, the agency sends stand-ins (mocks). The chef cooks the same way regardless — never knowing whether the sommelier is real or a fake.
+> **The staffing office:** Every professional in the Citadel hospital wears a badge (`@Injectable()`). When a doctor (your class) walks into the staffing office and says "I need a head nurse, a pharmacist, and a lab tech," the office delivers exactly those people on opening day. The doctor focuses entirely on medicine. In the test ward, the office sends stand-ins (mocks). The doctor operates the same way regardless — never knowing whether the pharmacist is real or a fake.
 
 > **Meteor analogy:** In Meteor you accessed globals: `Meteor.userId()`, `Accounts`, `TasksCollection`. In NestJS, there are no globals. Every dependency arrives through the constructor — explicit, typed, testable.
 
-**Memory hook:** DI = staffing agency. Constructor lists what it needs; the container delivers. In tests, swap the real service for a fake — the class never knows the difference.
+**Memory hook:** `@Injectable()` = staff badge. DI = the staffing office delivers. Constructor lists what it needs; the office delivers. In tests, swap the real service for a fake — the class never knows the difference.
 
 ### Singleton vs Request-Scoped
 
@@ -171,7 +171,7 @@ By default, NestJS creates one instance of each provider per module (singleton).
 
 A NestJS module is a class decorated with `@Module()`. It is the unit of organisation — the equivalent of a Meteor package, but explicit and composable.
 
-> **Think of each module as a department in a company.** The HR Department owns its own staff and filing cabinets. It doesn't walk directly into Finance to grab payroll data — it formally requests it through a defined interface. In code: `imports` = what your department borrows, `providers` = your internal workers, `controllers` = your front-desk staff, `exports` = what you're willing to share with other departments.
+> **Think of each module as a hospital wing.** The Cardiology wing owns its own staff and patient records. It doesn't walk directly into Radiology to grab scan results — it formally requests them through a defined interface. In code: `imports` = what your wing borrows from others, `providers` = your internal staff, `controllers` = your front-desk staff, `exports` = what you're willing to share with other wings.
 
 ```typescript
 @Module({
@@ -214,7 +214,7 @@ AppModule (root)
 
 > **Meteor analogy:** In Meteor, `TasksCollection` was global — any file anywhere could access it. In NestJS, `Repository<TodoEntity>` is only available inside `TodoModule` (and modules it exports to). This prevents accidental cross-module data access.
 
-**Memory hook:** `@Module` = department. `imports` borrows, `providers` owns internal workers, `exports` lends to others. One feature = one module. Never one giant `AppModule` doing everything.
+**Memory hook:** `@Module` = hospital wing. `imports` borrows, `providers` owns internal workers, `exports` lends to other wings. One feature = one module. Never one giant `AppModule` doing everything.
 
 ---
 
@@ -253,8 +253,8 @@ Handler → Service → Repository → PostgreSQL
 Response (serialized GraphQL response)
 ```
 
-**Guards** (the bouncer) decide if the request is allowed — check credentials, return true or throw. Every patron shows a wristband before reaching the dance floor.
-**Pipes** (the water filter) validate and transform input — strip impurities and wrong types before your handler ever sees the data.
+**Guards** (the gate officer) decide if the request is allowed — check credentials, return true or throw. Every patient shows their JWT before passing the outer wall.
+**Pipes** (the customs hall) validate and transform input — strip undeclared fields and wrong types before your handler ever sees the data.
 **The handler** is where your business logic starts — guards and pipes have already run by the time your `@Query()` or `@Mutation()` method executes.
 
 > **From Meteor?** `.allow()` and `.deny()` on collections are the rough Guard equivalent — but they ran at the database layer, after your code had already executed. Guards run before your handler even starts. `check(input, String)` is the rough Pipe equivalent — but it was optional and per-method. NestJS `ValidationPipe` with `whitelist: true` is global, automatic, and rejects requests with fields you never declared.
@@ -625,13 +625,13 @@ Scan this when you forget where something belongs. One row per concept.
 | Concept | Analogy | Meteor equivalent | The one rule |
 |---------|---------|-------------------|--------------|
 | Decorator | Sticky label on a file folder | `Template.helpers({})`, `Meteor.methods({})` — implicit | No `@` label = invisible to NestJS |
-| `@Module` | Department in a company | `meteor add` — but you wire it manually | `imports` borrows · `providers` owns · `exports` lends |
-| `@Injectable` / Provider | Appliance with a plug | Globally imported file | Must be in `providers[]` to be DI-managed |
-| DI | Staffing agency | `Meteor.userId()`, `Accounts` globals | Constructor declares needs; container delivers |
-| Guard | Bouncer | `.allow()` / `.deny()` — but those run at DB layer | Returns `true` or throws. Runs before Pipe. |
-| Pipe | Water filter | `check(input, String)` — but optional | Validates/transforms. Returns 400 on failure. |
-| Resolver | Receptionist + personal shopper | `Meteor.methods` entry — but only the routing part | Routes only. Dispatches to bus. Two lines max. |
-| Service | Doctor | `Meteor.methods` logic body | All business logic lives here. Every `if` statement. |
+| `@Module` | Hospital wing | `meteor add` — but you wire it manually | `imports` borrows · `providers` owns · `exports` lends |
+| `@Injectable` / Provider | Staff badge | Globally imported file | Must be in `providers[]` to be DI-managed |
+| DI | Staffing office | `Meteor.userId()`, `Accounts` globals | Constructor declares needs; staffing office delivers |
+| Guard | Gate officer | `.allow()` / `.deny()` — but those run at DB layer | Returns `true` or throws. Runs before Pipe. |
+| Pipe | Customs hall | `check(input, String)` — but optional | Validates/transforms. Returns 400 on failure. |
+| Resolver | Front desk receptionist | `Meteor.methods` entry — but only the routing part | Routes only. Dispatches to bus. Two lines max. |
+| Service | Specialist doctor | `Meteor.methods` logic body | All business logic lives here. Every `if` statement. |
 
 ---
 
