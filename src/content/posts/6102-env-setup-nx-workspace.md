@@ -353,6 +353,8 @@ libs/contracts/
 
 > **The apartment building:** The full monorepo is like a well-managed apartment building. `apps/api` is one apartment, `apps/web` is another. `libs/contracts` is the intercom — the only legal way for apartments to share information. `@nx/enforce-module-boundaries` is the building's alarm: it fires before CI, at IDE level, the moment code tries to reach directly into another apartment.
 
+**Memory hook:** Nx = apartment building. `apps/` = separate units. `libs/` = the intercom. `@nx/enforce-module-boundaries` = the alarm. Direct imports between apps = trespassing — lint error before CI even runs.
+
 ---
 
 ## 4. Install Backend Dependencies
@@ -667,6 +669,10 @@ export class AppResolver {
 | `GraphQLModule`              | Starts Apollo Server, auto-generates GraphQL schema from your decorators          |
 | `CqrsModule.forRoot()`       | Makes `CommandBus`, `QueryBus`, and `EventBus` available for injection everywhere |
 
+> **Policy handbook:** `ConfigModule` is the **company policy handbook in a locked cabinet**. Instead of each file hardcoding database URLs or API keys, every value lives in one `.env` file and any service requests it by name via `ConfigService`. The critical part: if a required entry is missing, the application refuses to start — fail loudly at startup, not silently at 2am in production when the missing value is first accessed.
+
+**Memory hook:** `ConfigModule` = policy handbook. Use `configService.getOrThrow('KEY')` not `get('KEY')` — throw at startup, not at runtime.
+
 ### 7.1 Update main.ts
 
 Replace `apps/api/src/main.ts`:
@@ -721,6 +727,10 @@ bootstrap();
 ```
 
 > **Meteor analogy:** In Meteor there was no explicit bootstrap — the framework handled startup. `main.ts` is where you explicitly configure every global behaviour of your server before it starts accepting requests.
+
+> **Customs desk:** `ValidationPipe` is the **customs desk at the airport**. Every incoming request must declare its exact contents before crossing the API boundary. `whitelist: true` confiscates undeclared fields. `forbidNonWhitelisted: true` turns back the entire request if unknown fields appear. `transform: true` converts `"42"` strings to real numbers. Without this, a malicious client can inject `tenantId`, `isAdmin`, or `createdAt` into any request body and your handlers will silently accept them.
+
+**Memory hook:** `ValidationPipe` = customs desk. Three flags: `whitelist` strips, `forbidNonWhitelisted` rejects, `transform` converts. Global in `main.ts` = enforced on every endpoint automatically.
 
 ---
 
@@ -903,6 +913,23 @@ Before every commit, verify:
 4. [ ] Did I run `yarn lint --fix` before committing?
 5. [ ] Did I use `yarn cz` to format the commit message and include the task tracker handle?
 6. [ ] Is my Pull Request documented with a summary, ticket links, and screenshots of a successful local run?
+
+---
+
+## Quick Reference
+
+Key concepts from this part — one row per concept.
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Nx monorepo | Apartment building | Single `meteor create` directory | `apps/` = units · `libs/` = intercom · no direct cross-app imports |
+| `libs/contracts` | Building intercom | `imports/` (isomorphic) — but explicit | Only exports types; never server code on the client |
+| `@nx/enforce-module-boundaries` | Building alarm | (no equivalent) | Fires at IDE level before CI; direct app import = lint error |
+| Docker containers | Isolated service rooms | Meteor's embedded MongoDB | Each service starts, stops, and resets without touching your OS |
+| `.env` + `ConfigModule` | Policy handbook | `Meteor.settings` | App refuses to start if a required variable is missing |
+| `ValidationPipe` | Customs desk | `check(input, String)` — but optional | `whitelist` + `forbidNonWhitelisted` + `transform` — global, automatic |
+| `main.ts` | Building manager on opening day | Meteor auto-bootstrap | Configures every global behaviour before the first request |
+| `CqrsModule.forRoot()` | Postal infrastructure installed | `Meteor.methods` mechanism | Registers `CommandBus`/`QueryBus`/`EventBus` globally — done once |
 
 ---
 
