@@ -181,6 +181,22 @@ The critical insight: `apps/api` and `apps/web` are **separate processes**. They
 - A bug in the frontend cannot corrupt the backend
 - The backend can be tested without any browser
 
+### The Layers at a Glance
+
+Before diving into the translation tables, fix these analogies. You will encounter every one of them in the code — lock in the mental model now and every code pattern in later parts will click immediately.
+
+| Layer | Real-world analogy | Meteor equivalent | The one rule |
+|-------|--------------------|-------------------|--------------|
+| **Module** | Department in a company | Flat `imports/` (everything global) | Declares what it owns, borrows, and lends — nothing implicit |
+| **Guard** | Bouncer at the club door | `.allow()` / `.deny()` — but at DB layer | Returns `true` or throws. Runs before anything else. |
+| **Pipe** | Customs desk at the airport | `check(input, String)` — optional | Validates + transforms input. Rejects bad requests before the handler sees them. |
+| **Resolver** | Receptionist at a clinic | `Meteor.methods` entry point | Routes only. Never prescribes. Two lines max. |
+| **CQRS Handler** | Message relay / dispatch window | The method body | Receives the message, calls one service method. One line. That is all. |
+| **Service** | Doctor | The method body (logic part) | All business logic lives here. Always. Every `if` statement. |
+| **Repository** | Librarian | `Collection.find()` / `Collection.insert()` | Only layer allowed to touch the database. Services never query directly. |
+
+> **The clinic story:** A request enters like a patient visiting a clinic. The **bouncer** (Guard) checks your ID at the door. The **customs desk** (Pipe) validates your intake form. The **receptionist** (Resolver) checks you in and routes you to the right room. The **dispatch window** (Handler) forwards the case file. The **doctor** (Service) examines and prescribes. The **librarian** (Repository) retrieves your medical records from storage. Each person does exactly one job. None of them does someone else's job.
+
 ## 4. The Complete Concept Translation Table
 
 Every Meteor concept mapped to its enterprise equivalent with the reason for the change:
@@ -278,17 +294,25 @@ You will be asked "why did you choose X over Y?" in every senior interview. Know
 ### Why NestJS over Express?
 Express is a minimal HTTP library. NestJS is a full framework built on Express (or Fastify) that adds: modules, dependency injection, decorators, CQRS, guards, interceptors, pipes, and a testing module. It enforces structure. A 5-person team writing Express apps produces 5 different architectures. A 5-person team writing NestJS apps produces one.
 
+**Memory hook:** NestJS = one architecture for any team size. Express = as many architectures as developers.
+
 ### Why GraphQL over REST?
 REST requires multiple round trips for related data (`GET /todos`, then `GET /users/:id` for each). GraphQL lets clients request exactly the shape they need in one query. More importantly: the schema is the contract. Generate TypeScript types from it, and your frontend and backend are always in sync. Apollo's `nestjs-query` integration adds automatic filtering, sorting, and pagination without boilerplate.
 
+**Memory hook:** GraphQL = personal shopper (client orders exactly what it needs, one trip). REST = fixed shelf (take everything or make multiple trips).
+
 ### Why PostgreSQL over MongoDB?
 MongoDB's schema-less flexibility is exactly the problem at scale. You cannot enforce that every todo has a `userId`. Foreign key constraints, joins, transactions, and migrations are PostgreSQL features that prevent entire classes of bugs. PostGIS adds geospatial support for free. TypeORM generates migrations that let you change the schema safely.
+
+**Memory hook:** PostgreSQL = schema enforced at the database level. MongoDB = trust the application (until you can't).
 
 ### Why TypeORM over Prisma?
 Prisma is excellent but code-generates a separate client from a schema file. TypeORM uses TypeScript decorators directly on entity classes — the entity IS the schema. `AbstractEntity` and the migration system integrate tightly with NestJS. For teams already in TypeScript, TypeORM feels more natural.
 
 ### Why RS256 JWT over HS256?
 HS256 uses a single shared secret to both sign and verify tokens. Any service that can verify tokens can also forge them. RS256 uses a private key (only the auth service has it) to sign, and a public key (any service can have it) to verify. In a multi-service architecture, services can independently verify JWTs without ever having the ability to issue them. A compromised downstream service cannot forge auth tokens.
+
+**Memory hook:** RS256 = the king's wax seal. Only the king signs (private key). Anyone can check the seal is genuine (public key). No one can forge it without the signet ring.
 
 ### Why Nx over a standard monorepo?
 Nx understands your project graph. `nx affected:test` runs tests only for projects that changed. `nx run-many --target=build` builds everything in the right order. The `@nx/enforce-module-boundaries` lint rule prevents accidental cross-app imports at the IDE level, not just in CI.
@@ -309,6 +333,27 @@ By Part 13, you will be able to answer all of these at an interview level:
 - What makes a migration dangerous, and how do you make it safe?
 
 These are the questions that separate a developer who followed a tutorial from one who can architect a system.
+
+## Terminology Primer
+
+Every term you will encounter in this series. One row per concept — scan this before each part as a warm-up.
+
+| Term | Analogy | Meteor equivalent | Why it exists |
+|------|---------|-------------------|---------------|
+| Module | Department in a company | Flat `imports/` (global) | Owns what it needs, never leaks internals |
+| Guard | Bouncer | `.allow()` / `.deny()` — but at entry | Auth runs before the handler, not after data access |
+| Pipe | Customs desk | `check(input, String)` — optional | Validates + transforms automatically on every request |
+| Resolver | Receptionist | `Meteor.methods` entry | Routes only — zero logic, zero DB calls |
+| CQRS Handler | Message relay | The method body | Thin bridge from bus to service. One line. |
+| Service | Doctor | The method body (logic) | All business rules live here. Mockable in isolation. |
+| Repository | Librarian | `Collection.find()` directly | Only layer touching the DB — services ask, repo fetches |
+| Entity | Government form template | `new Mongo.Collection()` | Schema enforced at DB + TypeScript level in one class |
+| DTO | Customs declaration form | `check()` arguments | Exact shape required to cross the API boundary |
+| Decorator | Sticky label (`@Something`) | (no equivalent) | NestJS reads labels at startup to wire the application |
+| DI | Staffing agency | Globals (`Meteor.userId`, imports) | Constructor declares needs; container delivers; tests swap fakes |
+| Migration | Git commit for the database | (no equivalent — MongoDB) | Every schema change is versioned, reversible, reviewable |
+
+---
 
 ## Summary
 
