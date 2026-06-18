@@ -71,7 +71,63 @@ Format:
 [optional footer]
 ```
 
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
+- **type** — what kind of change
+- **scope** — where in the codebase (module, layer, or tool)
+- **description** — lowercase, imperative, no period, ≤72 chars
+- **footer** — `Closes #CLK-1234`, `BREAKING CHANGE: ...`
+
+| Type | When to use | Example |
+|---|---|---|
+| `feat` | New feature or module | `feat(auth): add refresh token rotation` |
+| `fix` | Bug correction | `fix(user): resolve null pointer on profile load` |
+| `refactor` | Code restructure, no behavior change | `refactor(payment): extract stripe logic to service` |
+| `perf` | Performance improvement | `perf(query): add index on tenantId column` |
+| `test` | Adding or fixing tests | `test(tag): add E2E tests for create and delete` |
+| `docs` | Documentation only | `docs(readme): add docker setup steps` |
+| `style` | Formatting, whitespace, lint | `style(lint): enforce single quotes across app` |
+| `build` | Dependencies or build tooling | `build(deps): upgrade @nestjs/graphql to 13.1.0` |
+| `ci` | CI/CD configuration | `ci(github): add E2E test step on pull request` |
+| `chore` | Routine upkeep that fits nowhere else | `chore(env): create .env.example template` |
+| `revert` | Rolling back a commit | `revert: feat(auth): add refresh token rotation` |
+
+### Scopes
+
+The scope answers **where** — keep it lowercase, one word or hyphenated. Quickest rule: match the folder name. Editing `src/modules/payment/` → scope is `payment`.
+
+**Backend**
+
+| Scope | Use for |
+|---|---|
+| `app` | `main.ts`, `app.module.ts`, root-level app wiring |
+| `auth` | Login, JWT, guards, strategies, 2FA |
+| `user` | User entity, profile, account management |
+| `db` | Migrations, seeders, TypeORM config |
+| `core` | Shared abstract classes, global utilities |
+| `api` | GraphQL resolvers, REST controllers |
+| `queue` | Bull processors, job definitions |
+| `config` | NestJS `ConfigModule`, env schema |
+
+**Infra / tooling**
+
+| Scope | Use for |
+|---|---|
+| `deps` | Adding / removing / upgrading packages |
+| `docker` | Dockerfiles, `docker-compose.yml` |
+| `scripts` | `package.json` script additions |
+| `repo` | `.gitignore`, `.editorconfig`, root config files |
+| `env` | `.env`, `.env.example` |
+| `lint` | ESLint, Prettier config |
+| `ci` | GitHub Actions, CI pipeline YAML |
+
+**Frontend (`apps/web`)**
+
+| Scope | Use for |
+|---|---|
+| `ui` | Reusable components (buttons, modals, inputs) |
+| `layout` | Page shell, header, sidebar, footer |
+| `pages` | Route-level page components |
+| `styles` | Global CSS, Tailwind theme |
+| `store` | State management (Zustand, Context, Apollo cache) |
 
 Examples:
 ```
@@ -95,7 +151,7 @@ yarn add -D commitizen cz-conventional-changelog
   },
   "config": {
     "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
+      "path": "cz-conventional-changelog"
     }
   }
 }
@@ -211,14 +267,14 @@ A message like `"fixed stuff"` is rejected at the commit-msg stage:
 ```
 main             ──────────────●──────────────●──────────────→
                                ↑ squash       ↑ squash
-feature/add-tag  ──●──●──●────╯              |
+feat/add-tag     ──●──●──●────╯              |
                                              |
-feature/auth-2fa          ──●──●──●──●──────╯
+fix/auth-timing           ──●──●──●──●──────╯
 ```
 
 Rules:
 - `main` is always deployable
-- Feature branches: `feature/<ticket-or-description>`
+- Feature branches: `feat/<description>` or `feature/<ticket>-description`
 - Bugfix branches: `fix/<description>`
 - PRs squash-merged to main — one commit per feature in history
 - No direct pushes to main (enforced via branch protection — see §4)
@@ -569,3 +625,20 @@ git push origin feature/add-tag ──→ open PR
 ```
 
 Part 20 — Production Deployment covers deploying both NestJS apps to AWS ECS Fargate with RDS, ElastiCache, and a zero-downtime migration strategy using the one-off ECS task pattern introduced here.
+
+---
+
+## Quick Reference
+
+| Action | Type | Scope | Example |
+|---|---|---|---|
+| Add new NestJS module | `feat` | module name | `feat(agent): scaffold agent module with CQRS` |
+| Fix broken DI / import | `fix` | `app` | `fix(app): resolve circular dependency in auth module` |
+| Add database migration | `feat` | `db` | `feat(db): add tenantId to agent table` |
+| Install packages | `build` | `deps` | `build(deps): add @nestjs/bull and bull` |
+| Add Docker compose file | `chore` | `docker` | `chore(docker): add dev compose for postgres and redis` |
+| Add env var | `chore` | `env` | `chore(env): add REDIS_BULL_HOST to env example` |
+| Add convenience script | `chore` | `scripts` | `chore(scripts): add backend:dev shortcut` |
+| Clean up unused imports | `refactor` | module name | `refactor(auth): remove unused passport imports` |
+| Add unit tests | `test` | module name | `test(user): add unit tests for update handler` |
+| Update GitHub Actions | `ci` | `github` | `ci(github): add e2e test job on pull request` |

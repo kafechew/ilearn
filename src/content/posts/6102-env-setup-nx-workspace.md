@@ -822,6 +822,8 @@ VS Code's built-in Source Control is the right tool for visual staging. When you
 
 **Stage Selected Ranges** is the most powerful one. If you edited a file but only want to commit part of it, highlight specific lines in the diff editor and stage only those. This makes it easy to keep commits focused without having to split your changes across multiple files manually.
 
+> **Pro tip — combine Explorer + Source Control in a single pane:** Click and hold the **"SOURCE CONTROL"** header at the top of the Source Control panel, drag it onto the **Explorer** icon in the activity bar, and drop it. Both views merge into one — your file tree and staged changes side by side without switching tabs.
+
 ### The Commit Loop
 
 ```mermaid
@@ -896,7 +898,7 @@ Before every commit, verify:
 
 1. [ ] Did I run `git checkout -b feat/your-feature` before modifying files?
 2. [ ] Is `reflect-metadata` pinned to `^0.2.2` in `package.json`?
-3. [ ] Did I review diffs visually in GitHub Desktop — no debug logs, no unexpected files, `.env` excluded?
+3. [ ] Did I review diffs visually in VS Code Source Control — no debug logs, no unexpected files, `.env` excluded?
 4. [ ] Did I run `yarn lint --fix` before committing?
 5. [ ] Did I use `yarn cz` to format the commit message and include the task tracker handle?
 6. [ ] Is my Pull Request documented with a summary, ticket links, and screenshots of a successful local run?
