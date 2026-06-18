@@ -39,6 +39,9 @@ description: By the end of this part, you will learn about async queues, Bull, R
 | Send email | Inline `Email.send()` blocking the method | Bull job → email worker |
 | Real-time updates | DDP publication + reactive query | GraphQL Subscription + Redis PubSub |
 | Multi-instance scaling | Broken — each Meteor server has its own reactive graph | Bull: single queue, any worker picks up; PubSub: Redis fan-out to all instances |
+| Subscription data isolation | Meteor publish cursors filtered per user | GraphQL Subscription `filter` function — server-side, runs before push |
+| Job retry on failure | None — failed `Meteor.defer` is lost | Bull `attempts` + exponential `backoff` + dead-letter queue |
+| Inspect queued jobs | None | `bull-board` UI at `/queues` — view, retry, and debug jobs |
 
 The core problem with Meteor's inline DDP and `Meteor.defer`: when the process crashes mid-operation, the work is lost. Bull persists jobs in Redis — if your API pod restarts, the job is still there waiting to be picked up.
 
@@ -70,6 +73,10 @@ A Bull queue guarantees:
 - Concurrency control (process N jobs at once, not infinite)
 - Dead letter queue (inspect failed jobs with `bull-board`)
 - Scheduled/delayed jobs (`delay: 60_000` = run in 1 minute)
+
+> **From Meteor?** `Meteor.setTimeout`, `Meteor.defer`, and `synced-cron` were the closest Meteor equivalents — but none persisted jobs to storage. If the Meteor process restarted mid-job, the work was silently lost with no retry. Bull persists every job to Redis before the API handler returns, so a pod restart never loses work.
+
+**Memory hook:** Bull = kitchen ticket rail. API clips the ticket and returns. Worker processes async. Redis-backed means tickets survive a shift change (pod restart).
 
 ---
 
@@ -150,7 +157,19 @@ import { NotificationService } from './notification.service';
 export class NotificationModule {}
 ```
 
+> **Department in a company:** `NotificationModule` is a self-contained department. It owns `NotificationService` and `NotificationProcessor` as internal workers, borrows the Bull queue configuration from `BullModule`, and lends `NotificationService` to other departments (like `TodoModule`) via `exports`. `TodoModule` cannot reach inside and use `NotificationProcessor` directly — only what is explicitly exported is shared.
+
+> **From Meteor?** In Meteor, email sending was typically `Email.send()` called inline in a method — no module boundary, no ownership, no export contract. Any file could call it. NestJS requires `TodoModule` to formally import `NotificationModule` and use only what `NotificationModule` chooses to expose.
+
+**Memory hook:** Module = department. `exports: [NotificationService]` lends the service to others; the processor stays internal.
+
 ### 4.3 NotificationService — Enqueue Jobs
+
+> **The doctor who writes prescriptions, not the waiter:** `NotificationService` is the service layer for notifications. It knows *what jobs to enqueue and with what parameters* — but it never processes them. It delegates to the Bull queue (the ticket rail) and returns immediately. The actual email sending happens in `NotificationProcessor`, a completely separate class.
+
+> **From Meteor?** In Meteor, `Email.send()` was called directly inside a method body — synchronous, blocking, and if it failed the whole method failed with no retry. `NotificationService.notifyTodoCreated()` enqueues a job in milliseconds and returns. Bull handles retries with exponential backoff independently of the HTTP request.
+
+**Memory hook:** Service = doctor. Enqueues the job and walks away. Never processes it. Retry logic lives in the queue options, not the service.
 
 ```typescript
 // apps/api/src/modules/notification/notification.service.ts
@@ -191,6 +210,10 @@ export class NotificationService {
 ```
 
 ### 4.4 NotificationProcessor — Process Jobs
+
+> **Appliance plugged into the power grid:** `NotificationProcessor` is a `@Injectable()` provider registered in `NotificationModule`. The DI container (the power grid) manages its lifetime. `@Processor(NOTIFICATION_QUEUE)` is the label that tells Bull which queue this class consumes. Each `@Process()` method is a handler for one specific job type — like different appliances each doing one job.
+
+**Memory hook:** Processor = provider wired to a queue. `@Processor` names the queue; `@Process` names the job type. `@OnQueueFailed` is the safety net.
 
 ```typescript
 // apps/api/src/modules/notification/notification.processor.ts
@@ -322,6 +345,10 @@ export class TodoService {
 
 Subscriptions are a GraphQL transport feature — the browser opens a WebSocket connection and the server pushes events as they happen. This is Meteor's "reactive queries" equivalent, but explicit and controlled.
 
+> **From Meteor?** Meteor's DDP publications (`Meteor.publish`) gave live data automatically — any write to the collection instantly updated every subscriber. GraphQL Subscriptions are the explicit equivalent: you call `pubSub.publish(event, payload)` yourself, and only the clients who called `useSubscription()` for that event receive it. Explicit control means no accidental data leakage and no magic reactive graph that breaks across multiple server instances.
+
+**Memory hook:** GraphQL Subscription = explicit Meteor publication. You publish manually; the `filter` function controls who receives it. Redis PubSub required for multi-pod deployments.
+
 ### 5.1 Why Redis PubSub (not in-process)
 
 ```
@@ -338,6 +365,8 @@ Redis PubSub (correct):
 ```
 
 > **Broadcast tower vs walkie-talkie:** In-process PubSub is a **walkie-talkie** — only people within direct radio range (the same server process) receive the message. Redis PubSub is a **broadcast radio tower** — one station transmits, every radio in the country picks up the same signal simultaneously. When your API scales to multiple pods, every pod subscribes to the same Redis channel. One pod publishes an event, Redis fans it out to all pods, and each pod forwards it to its own WebSocket clients.
+
+**Memory hook:** Redis PubSub = broadcast tower. In-process PubSub = walkie-talkie. Always use Redis in production; in-process breaks the moment you have more than one API pod.
 
 ### 5.2 Install Redis PubSub
 
@@ -496,6 +525,8 @@ export class TodoResolver {
 
 **The `filter` function is critical.** Without it, every connected user would receive every other user's Todo events — a serious data leakage bug. The filter runs server-side before the event is pushed to the client.
 
+**Memory hook:** Subscription resolver = `pubSub.asyncIterator(event)` + a `filter` function. No filter = every user sees every other user's events. Always filter by `userId` or `tenantId`.
+
 ### 5.7 Frontend Subscription (Apollo Client)
 
 ```typescript
@@ -586,6 +617,20 @@ REDIS_PORT=6379
 ```
 
 The `docker-compose.dev.yml` from Part 02 already has Redis running on port 6379.
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Bull Queue | Kitchen ticket rail — waiter clips ticket, chef processes async | `Meteor.defer`, `synced-cron` — but in-memory, no retry | API enqueues and returns; worker processes in background; Redis persists jobs across restarts |
+| `@Processor` / `@Process` | Appliance plugged into the power grid | No direct equivalent — Meteor had no worker abstraction | `@Processor` names the queue; `@Process` names the job type; must match the queue name string exactly |
+| NotificationModule | Department in a company | `Email.send()` called inline anywhere | `exports: [NotificationService]` lends the service; the processor stays internal |
+| NotificationService | Doctor — prescribes the job, never runs it | Inline `Email.send()` in a method | `queue.add()` is non-blocking; actual sending is `NotificationProcessor`'s job |
+| GraphQL Subscription | Explicit Meteor publication | `Meteor.publish` + DDP reactive graph | Always filter by `userId` or `tenantId`; without `filter`, all users receive all events |
+| Redis PubSub | Broadcast radio tower | In-memory Meteor reactive graph (single-server only) | Required for multi-pod deployments; in-process PubSub silently breaks at scale |
+| Subscription `filter` | Bouncer checking which patron the event belongs to | No direct equivalent — Meteor filtered at the publication cursor | Server-side; runs before event is pushed; missing filter = data leakage across users |
 
 ---
 

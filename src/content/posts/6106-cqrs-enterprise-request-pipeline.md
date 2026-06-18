@@ -150,6 +150,8 @@ Problems:
 
 > **Two kitchens that never share a stove.** The order kitchen (Commands) accepts new orders, cooks food, and changes the state of the menu. The reading kitchen (Queries) only describes what's available — it never starts the oven. A waiter from the reading kitchen cannot place new orders. There is zero confusion about which kitchen does what. This is CQRS: reads and writes have fundamentally different requirements, so they get separate handlers.
 
+> **From Meteor?** `Meteor.methods({ createTask })` puts auth checks, validation, business logic, and DB access in one function body. CQRS forces those into four separate, independently testable units: Resolver (routing) → CommandBus (dispatching) → Handler (thin delegation) → Service (logic).
+
 CQRS — Command Query Responsibility Segregation — separates **writes** (Commands) from **reads** (Queries). Instead of one `createTask` method that does everything, you have:
 
 - A **Command** class: a typed message representing the _intent_ ("I want to create a todo")
@@ -177,6 +179,8 @@ TypeORM Repository → PostgreSQL
 ```
 
 Every layer has one job. Every layer is independently testable.
+
+**Memory hook:** CQRS = two separate restaurant kitchens. Commands mutate state, Queries only read. Handlers are always one-liners — logic belongs in the Service.
 
 ---
 
@@ -254,6 +258,10 @@ Client receives:
 
 The key insight: **each step only knows about its own responsibility**. The resolver doesn't know how todos are created. The handler doesn't know about validation. The service doesn't know about JWT or GraphQL. This separation is what makes the system testable, maintainable, and refactorable.
 
+> **From Meteor?** In Meteor, one method body did all nine steps above — auth check, validation, business logic, DB call, and return. In NestJS each step is a separate layer with its own file. Changing Step 7 (the service business rule) never touches Steps 2–4 (guards, pipes, resolver).
+
+**Memory hook:** Request lifecycle = MG²IPHS. Middleware → Guards → Interceptor (pre) → Pipe → Handler → Service. Guards reject, Pipes transform, Handler routes, Service decides.
+
 ---
 
 ## 4. `nestjs-typed-cqrs` — Type-Safe Commands and Queries
@@ -306,6 +314,10 @@ At the call site:
 const { data } = await this.queryBus.execute(new FindOneTodoQuery({ ... }));
 //      ^^^^ TypeScript knows this is TodoEntity | null
 ```
+
+> **From Meteor?** Meteor methods return `any` — a typo in `result.userId` vs `result.useId` goes undetected until runtime. `nestjs-typed-cqrs` makes the return type flow from the Query class definition all the way to the call site, so TypeScript catches the typo at compile time.
+
+**Memory hook:** `nestjs-typed-cqrs` = the return type lives inside the Query/Command class. `QueryResult<T>` resolves to the exact shape — no more `any`.
 
 ---
 
@@ -394,6 +406,10 @@ For `AbstractCqrsCommandInput<Entity, InputType, isUpdateOne?, OptionsType?, Ret
 - `InputType` — the input data shape
 - `isUpdateOne` — `true` means the command has both a `query` (to find the record) and `input` (the update data)
 
+> **From Meteor?** Meteor has no typed message classes — a method is just a string name. Here, the Command or Query class IS the message. Its generic parameters encode the input shape and return type, so the compiler enforces the contract end-to-end.
+
+**Memory hook:** Command/Query class = the typed letter you drop in the postal slot. Generic parameters = the address and expected reply format. One class per operation.
+
 ---
 
 ## 6. CQRS Index (`cqrs/index.ts`)
@@ -441,6 +457,10 @@ providers: [
 ```
 
 When you add a new handler, you add it to the array in `index.ts`. The module and the bus registration update automatically.
+
+> **From Meteor?** In Meteor you'd add a new method to the methods object. Here you add a handler class to an exported array — the module spreads it in automatically. No manual registration per handler.
+
+**Memory hook:** CQRS index = barrel file. Two arrays: `QueryHandlers` and `CommandHandlers`. Spread them into `providers[]`. Adding a handler = one line in the index.
 
 ---
 
@@ -539,11 +559,21 @@ Every handler follows the exact same pattern:
 
 **The thin handler rule:** If you find yourself writing logic in a handler (`if` statements, repository calls, calculations), you are doing it wrong. Move it to the service.
 
+> **From Meteor?** The Meteor method body IS the handler AND the service AND the repo call in one block. Here the handler is always exactly one line — `return this.service.methodName(args)`. The service is a separate file. The separation is enforced by convention and code review.
+
+**Memory hook:** Handler = one line. `return this.service.methodName(command.args)`. Any `if` statement in a handler is a bug — move it to the service.
+
 ---
 
 ## 8. The Service
 
 The service is where work actually happens. All business rules, all database access, all side effects.
+
+> **The doctor:** The service is the **doctor** who examines, diagnoses, and prescribes. The resolver (receptionist) routes the request. The handler passes the note. The service does the actual work — business rules, DB calls, side effects. The doctor never answers the phone.
+
+> **The librarian:** When the service needs data from the database, it asks the repository — the **librarian** who fetches records from the stacks. The service never writes raw SQL. It asks the librarian, and the librarian fetches.
+
+> **From Meteor?** In Meteor, `TasksCollection.insertAsync()` was called directly inside the method body. Here, `this.repo.save()` and `this.repo.findOne()` are called only inside the service. The service is the single place where all DB access happens — making it fully mockable in tests.
 
 `TodoService` **extends `TypeOrmQueryService<TodoEntity>`** from `@ptc-org/nestjs-query-typeorm` (the public API). This does three things at once:
 
@@ -685,6 +715,8 @@ export class TodoService extends TypeOrmQueryService<TodoEntity> {
 }
 ```
 
+**Memory hook:** Service = doctor. All `if` statements with business meaning live here. All repo calls live here. It never touches HTTP/GraphQL objects.
+
 ---
 
 ## 9. The 9-Step Module Pattern
@@ -707,6 +739,10 @@ Step 9: Module         → TypeOrmModule.forFeature([Entity]) + providers spread
 ```
 
 You will run through this checklist completely in Part 10 (Tag module) and Part 11 (Todo module).
+
+> **From Meteor?** Meteor had no equivalent checklist — a feature was "done" when the method and publication worked. In NestJS, "done" means all 9 steps completed, entity registered in AppModule, migration reviewed and run, and unit tests passing.
+
+**Memory hook:** 9-step pattern = Entity → Constants → DTOs → CQRS Inputs → Handlers → Index → Service → Resolver → Module. Run it in this order every time. Never skip steps.
 
 ---
 
@@ -815,6 +851,10 @@ Rule: every entity in every future module must be **explicitly imported and list
 
 `CqrsModule.forRoot()` registers `CommandBus`, `QueryBus`, and `EventBus` as **global providers**. This is why `TodoModule` does not import `CqrsModule` — the buses are already in scope for the entire application once `AppModule` calls `forRoot()`. Feature modules that import plain `CqrsModule` (without `forRoot`) will get a separate, isolated bus instance that has no handlers registered — a subtle bug that is hard to diagnose.
 
+> **From Meteor?** In Meteor, `Meteor.methods` and `Meteor.publish` were globally registered the moment their file loaded. In NestJS, `CqrsModule.forRoot()` in AppModule is the equivalent global registration point for the buses. Feature modules do not re-register — they just export their handlers.
+
+**Memory hook:** Module file = the wiring diagram. `TypeOrmModule.forFeature([Entity])` registers the repo. Spread handler arrays into `providers[]`. `CqrsModule.forRoot()` lives in AppModule only — never in feature modules.
+
 ---
 
 ## 11. Naming Conventions
@@ -839,6 +879,8 @@ Every name in the CQRS layer follows a strict convention. Consistency means any 
 | Service method (delete)     | `deleteOne<Entity>`                  | `deleteOneTodo`               |
 | Event                       | `<Entity><Action>Event`              | `TodoCreatedEvent`            |
 | Event handler               | `<Entity><Action>EventHandler`       | `TodoCreatedEventHandler`     |
+
+**Memory hook:** Naming = `<Verb><Entity><Type>`. `FindOneTodoQuery`, `CreateOneTodoCommand`, `TodoCreatedEvent`. Any developer can find any file in any module without opening a directory listing.
 
 ---
 
@@ -883,6 +925,10 @@ export class TodoCreatedEventHandler implements IEventHandler<TodoCreatedEvent> 
 
 Events are used for side effects that should not block the primary operation. Use them for: sending emails, creating notifications, updating analytics, triggering background jobs. You will implement this pattern with Bull queues in Part 13.
 
+> **From Meteor?** In Meteor, side effects (email, notifications) were called directly inside the method body — blocking the response. EventBus events run asynchronously after the command handler returns. The mutation completes immediately; the side effects happen independently.
+
+**Memory hook:** EventBus = office PA. Past-tense name (`TodoCreatedEvent`). Command handler publishes and walks away. Multiple independent handlers react. None of them block the original mutation.
+
 ---
 
 ## 13. Troubleshooting: `reflect-metadata` Version Conflict
@@ -922,6 +968,24 @@ find node_modules -path "*/reflect-metadata/package.json" | xargs grep '"version
 ```
 
 `@nestjs/common` declares `"peerDependencies": { "reflect-metadata": "^0.1.12 || ^0.2.0" }` so both versions are supported; upgrading is safe.
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| CQRS | Two separate restaurant kitchens | `Meteor.methods` (writes) + `Meteor.publish` (reads) — mixed | Commands mutate, Queries only read. Never share a handler. |
+| CommandBus / QueryBus | Postal sorting facility | No equivalent — methods called by string name | Drop the message object; the bus routes to the registered handler. |
+| EventBus | Office PA announcement | Inline side effects in a method body | Past-tense event names. Handler publishes and walks away. |
+| CQRS Handler | Thin relay runner | `Meteor.methods` body | Always one line: `return this.service.methodName(args)`. Any `if` = wrong layer. |
+| Service | Doctor | Logic inside `Meteor.methods` body | All business rules, all repo calls. Never touches HTTP objects. |
+| Repository | Librarian | Direct `Collection.insertAsync()` calls | Only layer allowed to touch the database. Mock it to test the service. |
+| CQRS Input class | Typed letter for the postal slot | Method name string | Generic parameters encode input shape and return type — TypeScript enforces the contract. |
+| CQRS Index | Barrel file with handler arrays | N/A | Spread into `providers[]`. Adding a handler = one array entry. |
+| Module file | Wiring diagram | N/A | `TypeOrmModule.forFeature([Entity])` + spread handler arrays. `CqrsModule.forRoot()` in AppModule only. |
+| 9-step pattern | Assembly checklist | Ad-hoc feature additions | Entity → Constants → DTOs → Inputs → Handlers → Index → Service → Resolver → Module. In this order. Every time. |
+| Request lifecycle | 9-step relay race | Single method body | Each step has one job. Guards reject. Pipes transform. Handler routes. Service decides. |
 
 ---
 

@@ -350,6 +350,12 @@ export class AuthService {
 }
 ```
 
+> **The doctor:** The `AuthService` is the doctor in the clinic. It examines the credentials (verifies password, checks account status), applies the rules (bcrypt rounds, uniqueness checks), and prescribes the result (tokens). It never answers the phone — that is the `AuthResolver`'s job. All security decisions live here, not in the resolver.
+
+> **From Meteor?** In Meteor, `Accounts.createUser()` and `Accounts.loginWithPassword()` were black-box framework calls — you got auth "for free" but had no visibility into what they did. NestJS `AuthService` is explicit: you see every step, every hashing round, every token generation. When a security audit asks "how do you hash passwords?", you open `auth.service.ts` and show them.
+
+**Memory hook:** AuthService = doctor. Hashes, verifies, generates tokens. All credential logic lives here, never in the resolver.
+
 **Key security decisions:**
 
 1. `bcrypt.hash(password, 12)` — bcrypt with 12 rounds. Higher rounds = harder to brute-force. 12 is the production standard.
@@ -408,6 +414,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
 > **Lanes at the border crossing:** Each Passport strategy is a different verification lane at the same border. Lane 1 checks JWTs (the `'jwt'` strategy). A future `'local'` lane checks username and password. OAuth lanes delegate to Google or GitHub. The border agent (guard) picks the lane based on the traveller's situation. A passport token doesn't get you through the API key lane — different lane, different check.
 
+> **From Meteor?** Meteor's DDP session token was validated server-side by the Meteor framework invisibly. You never wrote a `validate()` method. In NestJS, `JwtStrategy.validate()` is explicit — you see every check: signature verified, user loaded from DB, status checked. You own the auth logic entirely.
+
+**Memory hook:** JwtStrategy = border crossing lane named `'jwt'`. `validate()` returns `req.user`. Re-query the DB on every request to catch banned accounts.
+
 **The validate flow:**
 1. Request arrives with `Authorization: Bearer eyJ...`
 2. Passport extracts the JWT from the header
@@ -436,6 +446,10 @@ export class AuthJwtGuard extends AuthGuard('jwt') {
 ```
 
 > **The bouncer:** A guard is the nightclub bouncer. Before you reach the dance floor, the bouncer checks: Do you have a wristband? Is your wristband for the VIP section? Are you on the banned list? He doesn't negotiate — it's pass or block. And you don't have one bouncer who does everything: `AuthJwtGuard` handles "is this a valid JWT?", `RolesGuard` handles "does this role allow this action?" Each bouncer has one job.
+
+> **From Meteor?** Meteor's `.allow()` and `.deny()` rules ran at the collection layer — after your method had already executed. `AuthJwtGuard` runs before the resolver method even starts. A rejected request never reaches the handler.
+
+**Memory hook:** AuthJwtGuard = bouncer. One job: valid JWT or 401. Apply it to every mutation and sensitive query.
 
 Usage in a resolver:
 
@@ -471,6 +485,12 @@ export const CurrentUser = createParamDecorator(
 ```
 
 **Why a custom decorator?** NestJS's default `@Request()` decorator gives you the raw Express request object. `@CurrentUser()` gives you the typed `AccessTokenUser` from `req.user` — already verified by the guard, fully typed, with the `UserEntity` attached.
+
+> **The sticky label:** `@CurrentUser()` is a custom sticky label that NestJS reads at the parameter level. It tells the framework: "inject the authenticated user here, not the raw request object." The guard placed the user on `req.user`; the decorator retrieves it with the correct TypeScript type. Without the guard having run first, there is nothing to retrieve.
+
+> **From Meteor?** `this.userId` inside a Meteor method gave you the current user's ID — implicitly, from the DDP session. `@CurrentUser()` is the explicit equivalent: the user object is injected into the resolver parameter, fully typed, and only available because `AuthJwtGuard` verified the JWT first. No session magic.
+
+**Memory hook:** `@CurrentUser()` = typed extraction of `req.user`. Only works after `AuthJwtGuard` has run. Returns `AccessTokenUser`, not the raw request.
 
 ---
 
@@ -589,6 +609,10 @@ app.useGlobalPipes(
 
 > **The water filter:** The `ValidationPipe` is a water purification system. Raw tap water (incoming JSON data) flows through the filter. Impurities (invalid fields, wrong types, unknown properties) are removed before the handler ever sees the data. `whitelist: true` strips undeclared fields. `forbidNonWhitelisted: true` rejects the entire request if unknown fields are present. Only clean, certified water reaches your resolver method.
 
+> **From Meteor?** `check(input, String)` was the Meteor equivalent — optional, per-method, and it only validated type, not shape. It never stripped unknown fields. `ValidationPipe` with `whitelist: true` + `forbidNonWhitelisted: true` is global, automatic, and actively hostile to unknown fields.
+
+**Memory hook:** ValidationPipe = customs desk. `whitelist` strips unknown fields. `forbidNonWhitelisted` rejects the entire request. Both must be on to close the attack surface.
+
 ### Why `forbidNonWhitelisted: true`?
 
 Without it:
@@ -650,6 +674,10 @@ In practice:
 - Field set to `null` → not `undefined` → 400 Bad Request
 - Field set to a valid string → `@IsString()` validates normally → field is updated
 
+> **From Meteor?** MongoDB's flexible schema means a document field could silently be `null` when you expected a string — there was no equivalent of `@IsUndefined()`. The NestJS pattern of using `@IsUndefined()` on partial update inputs is a deliberate contract: omitted = "don't change this", explicit null = "rejected".
+
+**Memory hook:** `@IsUndefined()` vs `@IsOptional()` — omitted is safe, null is rejected. Use `@IsUndefined()` on required fields in update DTOs.
+
 ---
 
 ## 13. Dual Auth: User vs Admin Portal
@@ -666,6 +694,10 @@ The codebase maintains two separate auth stacks:
 The admin portal has its own `portal-auth` module, its own resolver, its own strategy. The two stacks are completely independent.
 
 **Why this matters:** A stolen user JWT cannot be replayed against admin endpoints. The `PortalAuthJwtGuard` uses `PortalJwtStrategy` which verifies against `ADMIN_JWT_PUBLIC_KEY`. The user JWT was signed with `JWT_PRIVATE_KEY` — the signature verification against `ADMIN_JWT_PUBLIC_KEY` will fail.
+
+> **From Meteor?** Meteor had a single auth layer — `Meteor.userId()` was the same whether the caller was a customer or an internal admin tool. NestJS dual-auth uses completely separate RSA key pairs, separate Passport strategies, and separate guards. A customer JWT literally cannot pass the admin guard — the cryptographic key pair is different.
+
+**Memory hook:** Dual-auth = two separate key rings. User JWT signed with `JWT_PRIVATE_KEY`; admin JWT signed with `ADMIN_JWT_PRIVATE_KEY`. Stolen user token cannot forge admin access.
 
 The admin strategy also checks roles:
 
@@ -1087,6 +1119,22 @@ export function useAuth() {
 ```
 
 > **Token storage:** `localStorage` is fine for development. For production, store the `accessToken` in memory (React ref or Zustand) and the `refreshToken` in an `httpOnly` cookie — this prevents XSS from stealing long-lived tokens.
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| RS256 JWT | King's wax seal — private key signs, public key verifies | DDP session token (shared secret) | Use RS256, not HS256. Downstream breach cannot forge tokens. |
+| HS256 JWT | Master key — whoever has it can lock and unlock | — | Never use HS256 in multi-service arch |
+| Passport Strategy | ID verification lane at a border crossing | No equivalent — Meteor auth is a black box | Each strategy is one named lane. `validate()` returns `req.user`. |
+| AuthJwtGuard | Nightclub bouncer | `.allow()` / `.deny()` — runs at DB layer | Returns `true` or throws. Runs before the resolver. |
+| AuthService | Doctor | `Accounts.createUser()` / `Accounts.loginWithPassword()` | All credential logic here. Never in resolver. |
+| `@CurrentUser()` | Sticky label that retrieves typed user from `req.user` | `this.userId` inside a Meteor method | Only works after `AuthJwtGuard` has run. Returns `AccessTokenUser`. |
+| ValidationPipe | Customs desk at the airport | `check(input, String)` — optional, per-method | `whitelist: true` strips; `forbidNonWhitelisted: true` rejects. Both required. |
+| `@IsUndefined()` | Partial update contract | No equivalent | Omitted = skip field. Explicit `null` = 400. Use on required fields in update DTOs. |
+| Dual-auth | Two separate key rings | Single `Meteor.userId()` for all callers | User JWT and admin JWT use different RSA key pairs. Cannot cross lanes. |
 
 ---
 

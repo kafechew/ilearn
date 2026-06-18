@@ -148,6 +148,12 @@ Remove `PROJECT_DB_HOST` from your `.env` temporarily, then run `yarn api:dev`:
 
 The process exits immediately with a clear message pointing to the exact variable. Restore the value and the API boots normally.
 
+> **ConfigModule = company policy handbook:** Instead of each employee keeping private sticky notes (hardcoded values), one locked handbook holds all the rules. Every service requests a policy by name. Before the company opens each morning, the manager checks the handbook is complete — a missing page keeps the office closed until it is fixed. Joi is the morning checklist.
+
+> **From Meteor?** `Meteor.settings` loaded from `settings.json` is the closest equivalent — but Meteor silently starts with missing values. NestJS with a Joi `validationSchema` refuses to start at all, giving you a precise error on the exact variable name.
+
+**Memory hook:** ConfigModule = policy handbook. Joi `validationSchema` = required page check at startup. Missing variable = office stays closed.
+
 > **The contract:** Every variable in `validationSchema` is now documented and enforced. When a new developer clones the repo or a DevOps engineer provisions a new environment, they get an explicit list of what is missing — not a runtime error three seconds after the first API call.
 
 **Verify:** Temporarily comment out `PROJECT_DB_HOST=` in `.env`, run `yarn api:dev`, confirm the Joi error appears. Restore the line, re-run, confirm normal boot.
@@ -317,7 +323,7 @@ TypeOrmModule.forRootAsync({
       password: db.password,
       database: db.database,
       entities: [TodoEntity, UserEntity],
-      synchronize: false,
+      synchronize: false, // never true in production — unsupervised contractor that makes schema changes without asking and provides no undo
       logging: db.debug,
       namingStrategy: new SnakeNamingStrategy(),
     };
@@ -342,6 +348,10 @@ GraphQLModule.forRootAsync<ApolloDriverConfig>({
 }),
 ```
 
+> **From Meteor?** `Meteor.settings` gives typed access only if you cast manually. The NestJS typed config mapper (`configuration()`) converts the flat `.env` structure into a nested `AppConfig` object — every path is compile-time verified, never `string | undefined`.
+
+**Memory hook:** Typed config mapper = structured handbook. `config.get<AppConfig['jwt']>('jwt')` returns a fully typed object. `config.get('JWT_PRIVATE_KEY')` returns `string | undefined`. Use the typed path.
+
 > **Why `load: [configuration]` over raw keys?** When you use `load`, ConfigService returns a fully typed nested object. `config.get<AppConfig['jwt']>('jwt')` returns `{ privateKey: string; publicKey: string; ... }` — never `string | undefined`. Services that inject ConfigService get compile-time errors if they access a non-existent key. Raw key access (`config.get('JWT_PRIVATE_KEY')`) always returns `string | undefined`, requiring defensive checks everywhere.
 
 **Verify:** Run `yarn api:dev`. The API should boot normally with all typed paths resolving correctly. TypeScript compilation should pass — run `yarn api:build` to confirm no type errors.
@@ -353,6 +363,8 @@ GraphQLModule.forRootAsync<ApolloDriverConfig>({
 `nestjs-dev-utilities` is already installed (it provides `AbstractEntity` and `AbstractDto`). It also exports `LoggingInterceptor`, which logs method, URL, status code, and response time for every request.
 
 ### 4.1 Add to main.ts
+
+> **main.ts bootstrapping = building manager on opening day:** `NestFactory.create(AppModule)` builds the entire DI container from the module tree. Calling `app.useGlobalPipes()`, `app.useGlobalInterceptors()`, and `app.useGlobalFilters()` is the manager turning on the power, verifying permits, and unlocking the doors. Once `app.listen()` is called, business starts. Every global middleware registered here is inherited by every route automatically.
 
 ```typescript
 // apps/api/src/main.ts
@@ -374,6 +386,9 @@ async function bootstrap() {
       transform: true,
     })
   );
+  // ValidationPipe = customs desk at the airport. Every incoming request must
+  // declare its exact contents. Unknown fields are confiscated (whitelist: true)
+  // or the whole request is detained (forbidNonWhitelisted: true).
 
   // Log every request: method, path, status, duration
   app.useGlobalInterceptors(new LoggingInterceptor());
@@ -406,6 +421,12 @@ After adding the interceptor, every GraphQL operation produces a log line simila
 ```
 
 The short response time on 401s confirms the guard short-circuits before any DB work. Slow queries become immediately visible without adding any per-resolver instrumentation.
+
+> **Interceptor = sandwich:** Code before `next.handle()` is the top slice of bread (pre-handler: start timer, check cache). `next.handle()` is the filling (the actual handler). Code in `.pipe()` after it is the bottom slice (post-handler: log duration, transform response). `LoggingInterceptor` wraps every request in this sandwich to record method, URL, status, and duration.
+
+> **From Meteor?** Meteor had no equivalent interceptor layer — you added timing and logging via `console.log` scattered across method bodies or used the DDP inspector. A global `LoggingInterceptor` gives structured request/response visibility in every environment with zero per-resolver code.
+
+**Memory hook:** Interceptor = sandwich. Top bread = before handler. Bottom bread = after. Register globally in `main.ts` so every route inherits it.
 
 > **Why global?** Interceptors registered via `app.useGlobalInterceptors()` run for every route without being declared on any individual controller or resolver. Adding per-module interceptors would require touching every feature module whenever the logging format changes. Global registration means one change, one place.
 
@@ -481,6 +502,12 @@ bootstrap();
 | `Strict-Transport-Security`       | Forces HTTPS for subsequent requests (production only)                 |
 | `X-Download-Options: noopen`      | Prevents IE from executing downloaded files in the context of the site |
 | `Content-Security-Policy`         | Restricts sources for scripts, styles, and other resources             |
+
+> **Middleware = airport body scanner:** Helmet wires in as Express middleware — raw `req`/`res`, before guards or pipes run. It is the airport body scanner that checks every passenger before they reach the boarding gate. Helmet sets the HTTP security headers that browsers use to block common attacks: frame embedding, MIME sniffing, XSS. You never touch the logic inside guards or resolvers to add these headers.
+
+> **From Meteor?** Meteor/Galaxy had no built-in HTTP header hardening. You added headers via an Nginx config in front of the server. In NestJS, `helmet()` in `main.ts` applies the same headers to every response in one line — no Nginx required.
+
+**Memory hook:** Helmet = airport scanner applied at the transport layer. Runs before guards. Disable CSP in dev only so the GraphQL Playground can load its inline scripts.
 
 > **The GraphQL Playground caveat:** Apollo Sandbox / GraphQL Playground loads inline scripts, which a strict CSP blocks. The `contentSecurityPolicy: false` in development disables that check only in `development` mode. In production where `playground: false`, CSP can remain enabled without any issue. Never ship to production with `contentSecurityPolicy: false`.
 
@@ -608,6 +635,12 @@ After 20 requests within 60 seconds from the same IP, the 21st returns:
 ```
 
 The HTTP status code is `429 Too Many Requests`.
+
+> **Guard = bouncer at the club door:** `ThrottlerGuard` is a guard — it runs before your resolver method executes. It checks the request count per IP from Redis. If the caller has exceeded the limit, the guard throws `ThrottlerException` and the request never reaches your handler. No handler code runs, no database is touched.
+
+> **From Meteor?** Meteor had no built-in rate limiting. You added it via a community package or configured `limit_req` in Nginx. `@nestjs/throttler` gives you per-route rate limiting in code — visible, version-controlled, and testable.
+
+**Memory hook:** ThrottlerGuard = bouncer. Counts requests per IP per window. Throws 429 when the limit is exceeded. Use `@SkipThrottle()` on health checks and read-heavy public queries.
 
 > **Choosing limits:** 20 requests per 60 seconds is a starting point for auth mutations. Adjust based on your expected legitimate traffic. A mobile app that auto-retries token refresh may legitimately send 5-10 requests per minute. A public read API may need a much higher limit. The key is to pick a number that blocks automated attacks while not affecting real users.
 
@@ -766,6 +799,12 @@ The GraphQL response the client receives is unchanged — Apollo still formats i
   ]
 }
 ```
+
+> **Exception Filter = customer service desk:** Something went wrong on the shop floor. Instead of the customer witnessing an internal meltdown, the desk catches the situation and hands back a calm, professional response with a reference number. `AllExceptionsFilter` is that desk — it catches every throw, logs the full stack trace, and returns a consistent error shape. For GraphQL requests it re-throws so Apollo can format the `errors` array correctly.
+
+> **From Meteor?** Uncaught exceptions in Meteor methods crashed the method and returned a generic `Meteor.Error`. There was no centralised logging of stack traces. `AllExceptionsFilter` gives you one place to log, shape, and gracefully handle all errors — with full stack traces visible in your terminal.
+
+**Memory hook:** AllExceptionsFilter = customer service desk. Catches all throws. Logs the stack. Re-throws for GraphQL so Apollo formats the `errors` array correctly. Never swallow for GraphQL.
 
 > **Why re-throw for GraphQL?** Apollo's error formatting middleware runs after the resolver. If the filter consumes the exception and writes an HTTP response directly, Apollo never sees the error — the client receives a `200 OK` with `{ "data": null }` and no `errors` array. The re-throw lets Apollo format the error correctly while still giving you the logging.
 
@@ -968,6 +1007,22 @@ Confirm all of the following in order:
 - GraphQL Playground loads in browser
 - A query produces a `LoggingInterceptor` log line
 - Response headers include `x-frame-options`
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| ConfigModule + Joi | Company policy handbook in a locked cabinet | `Meteor.settings` — but silently starts with missing values | Joi `validationSchema` → app refuses to start on missing var |
+| Typed config mapper | Structured handbook with typed sections | Manual cast of `Meteor.settings` | Use `config.get<AppConfig['jwt']>('jwt')`, never raw string keys |
+| ValidationPipe | Customs desk at the airport | `check(input, String)` — optional, per-method | `whitelist: true` + `forbidNonWhitelisted: true` — global and automatic |
+| LoggingInterceptor | Sandwich (before + after handler) | `console.log` + DDP inspector | Register globally in `main.ts`; wraps every route automatically |
+| Helmet (middleware) | Airport body scanner — runs before guards | Nginx headers config outside the app | Disable CSP in dev so GraphQL Playground loads; re-enable in prod |
+| ThrottlerGuard | Bouncer at the club door | Nginx `limit_req` or community package | Throws 429 before handler runs. `@SkipThrottle()` on health checks. |
+| AllExceptionsFilter | Customer service desk | Uncaught exceptions crash Meteor methods silently | Re-throw for GraphQL so Apollo formats the `errors` array correctly |
+| main.ts bootstrapping | Building manager on opening day | N/A — Meteor auto-bootstrapped | `NestFactory.create` → global pipes/filters/interceptors → `listen` |
+| `synchronize: false` | Supervised contractor who runs migrations | Meteor MongoDB auto-migrates nothing | Never `synchronize: true` in production — use TypeORM migrations |
 
 ---
 

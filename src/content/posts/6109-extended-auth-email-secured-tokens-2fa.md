@@ -43,6 +43,11 @@ In Part 8 we built JWT RS256 auth with guards. Now we extend it with email verif
 | Email verification    | `Accounts.sendVerificationEmail()`                                   | Same `SecuredTokenEntity` pattern, type `EMAIL_VERIFICATION`        |
 | Two-factor auth       | No native 2FA in Meteor — third-party packages only                  | `otplib` TOTP + QR code binding flow, stored secret on `UserEntity` |
 | Token expiry          | Manual `expiresAt` field in user document                            | `expiresAt` on `SecuredTokenEntity`, enforced in every query        |
+| Background jobs       | `Meteor.setTimeout` / `synced-cron` — in-memory, lost on restart     | Bull queue — Redis-backed, retried, survives pod crashes            |
+| Schema definition     | Schema-less MongoDB document (`new Mongo.Collection`)                | `@Entity()` class — schema enforced at DB and TypeScript level      |
+| Method routing        | Logic mixed into `Meteor.methods` body                               | CQRS: Command/Query classes routed via `CommandBus` / `QueryBus`    |
+| Schema migrations     | No migrations — schema changes happen silently                       | TypeORM migrations — every change versioned, reversible, reviewable |
+| Auth token signing    | DDP session token — opaque string, no cryptographic claims           | RS256 JWT — private key signs, public key verifies, cannot be forged|
 
 Meteor's `Accounts` package handled all of this in one opaque bundle you could not extend. The NestJS pattern breaks it into composable, testable pieces — each with a clear responsibility.
 
@@ -69,6 +74,12 @@ With a queue:
 ```
 
 Bull jobs survive process restarts. If your API pod crashes between enqueue and delivery, the job is still in Redis waiting to be processed.
+
+> **Bull Queue — kitchen ticket rail:** The waiter (web process) takes your order, clips the ticket to the rail, and immediately returns to serve the next table. The chef (worker) processes tickets at their own pace. The web process never stands next to the stove watching the email send — it enqueues and returns in 2ms.
+
+> **From Meteor?** `Meteor.setTimeout` and `synced-cron` were the closest patterns in Meteor — but both were in-memory and lost jobs on restart. Bull gives you: retry with backoff, job priorities, dead-letter queues, job progress tracking, and a Bull Board UI — all backed by Redis so jobs survive pod restarts.
+
+**Memory hook:** Bull Queue = ticket rail. Web enqueues and returns immediately. Worker processes async. Redis-backed = survives restarts.
 
 ### 1.2 Install Dependencies
 
@@ -403,11 +414,21 @@ export class SecuredTokenEntity extends AbstractEntity {
 
 `onDelete: 'CASCADE'` means deleting a user deletes all their pending tokens. The `token` column is unique — no two rows can hold the same token string. The `@Index()` on `userId` speeds up "find all tokens for this user" queries.
 
+> **Entity — government form template:** Every field is defined — name, type, required, max length. Every filled-in form (database row) must match. `SecuredTokenEntity` is the form; each issued token is a filled-in copy. When the government revises the form (migration), all future submissions follow the new version.
+
+> **AbstractEntity — company letterhead:** `SecuredTokenEntity` extends `AbstractEntity`, which pre-prints `id`, `createdAt`, `updatedAt`, and `deletedAt` on every entity. No one types the letterhead from scratch — each entity just adds its unique content.
+
+> **From Meteor?** In Meteor, password reset tokens lived as nested fields on the user document — no type system, no expiry enforcement, no audit trail. `SecuredTokenEntity` is a separate table with typed enums, a hard `expiresAt` column, a `CLAIMED` status for audit, and `ON DELETE CASCADE` for clean teardown when a user is removed.
+
+**Memory hook:** Entity = government form template. Schema + TypeScript type in one class. Never `synchronize: true` in prod.
+
 ---
 
 ## 3. SecuredToken Module (Full 9-Step Pattern)
 
 ### 3.1 DTOs
+
+> **AbstractDto — standard response envelope:** `SecuredTokenDto` extends `AbstractDto`, which pre-prints `id`, `createdAt`, and `updatedAt` as `@Field()` on every response type. The client always knows where to find the id and timestamps — they're on every envelope. The raw `token` string is intentionally excluded from `@Field()` so it never appears in the GraphQL schema.
 
 ```typescript
 // apps/api/src/modules/secured-token/dto/secured-token.dto.ts
@@ -466,7 +487,17 @@ export class CreateSecuredTokenInput {
 }
 ```
 
+**Memory hook:** AbstractDto = response envelope. Pairs with AbstractEntity. All output DTOs extend it. Sensitive fields (like raw tokens) stay off `@Field()`.
+
 ### 3.2 CQRS Inputs
+
+> **CQRS — two separate kitchens:** `CreateOneSecuredTokenCommand` and `ClaimSecuredTokenCommand` are the order kitchen — they mutate state. `FindOneActiveSecuredTokenQuery` is the reading kitchen — it only describes what exists without changing anything. Neither kitchen touches the other's stove.
+
+> **CommandBus / QueryBus — postal sorting facility:** The resolver drops a Command or Query object into the bus. The bus reads the class name, routes it to the registered handler, and delivers the result. The resolver never imports the handler directly — it just drops the letter in the slot.
+
+> **From Meteor?** `Meteor.methods` mixed the routing, the logic, and the database call in one block. CQRS separates these into three distinct files: the input class (the message), the handler (routing), and the service (logic). Each is independently testable.
+
+**Memory hook:** CQRS = two kitchens. Commands mutate, Queries read. Handlers are thin one-liners. Logic lives in the Service.
 
 ```typescript
 // apps/api/src/modules/secured-token/cqrs/secured-token.cqrs.input.ts
@@ -564,6 +595,10 @@ export const SecuredTokenCqrsHandlers = [
 
 The service does three things: create a token with an expiry, find an active unexpired token, and claim a token.
 
+> **Service — the doctor:** `SecuredTokenService` examines the request, diagnoses the expiry and type, and prescribes the right action. It never answers phones (no HTTP concepts) and never does paperwork (no GraphQL concerns). It does the medicine: create tokens, find active tokens, claim them.
+
+> **From Meteor?** In Meteor, this logic would live scattered across method bodies — no clear "this is where token logic lives" file. In NestJS, "where is the token logic?" is always `secured-token.service.ts`.
+
 ```typescript
 // apps/api/src/modules/secured-token/secured-token.service.ts
 import { Injectable, NotFoundException } from "@nestjs/common";
@@ -637,7 +672,15 @@ export class SecuredTokenService {
 }
 ```
 
+**Memory hook:** Service = doctor. All business logic lives here. Never imports HTTP or GraphQL objects.
+
 ### 3.6 Module
+
+> **Module — department in a company:** `SecuredTokenModule` owns its internal workers (`SecuredTokenService`, the CQRS handlers) and borrows the database connection via `TypeOrmModule.forFeature`. It lends `SecuredTokenService` via `exports` so `AuthModule` can import and use it without knowing how tokens are created internally.
+
+> **From Meteor?** In Meteor, token logic would be a global function available everywhere. In NestJS, `SecuredTokenModule` makes a deliberate decision: only `exports: [SecuredTokenService]`. The CQRS handlers are internal workers — other modules cannot access them directly.
+
+**Memory hook:** Module = department. `imports` borrows, `providers` owns workers, `exports` lends. One feature = one module.
 
 ```typescript
 // apps/api/src/modules/secured-token/secured-token.module.ts
@@ -664,6 +707,12 @@ yarn api:migration:generate apps/api/src/migrations/CreateSecuredTokenTable
 ```
 
 Review the generated SQL — it should create a `secured_token` table with `token VARCHAR UNIQUE`, three enum columns, `expires_at TIMESTAMPTZ`, and a FK to `user` with `ON DELETE CASCADE`.
+
+> **Migration — git commit for the database:** This migration is `up()` = create the `secured_token` table, `down()` = drop it. Every schema change is a reversible commit in your database's history. Never edit old migrations — add a new one.
+
+> **From Meteor?** MongoDB has no migrations — schema changes just happen (or silently don't). When you have 50,000 users and need to add a required column, no-migration becomes a production incident. Every NestJS schema change is visible, reversible, and reviewable.
+
+**Memory hook:** Migration = git commit for DB. `up()` applies, `down()` reverts. Never edit old migrations. Test both directions.
 
 ```bash
 yarn api:migration:run
@@ -883,6 +932,12 @@ async register(input: RegisterInput): Promise<UserEntity> {
 ```
 
 ### 5.3 Gate Login on ACTIVE Status
+
+> **Guard — bouncer at the club door:** The status checks below are the login gate equivalent of a guard. Before the dance floor (token generation), every patron must pass: valid credentials, active account, not suspended. The checks are explicit, ordered, and individually readable — no implicit Meteor magic.
+
+> **From Meteor?** Meteor's `Accounts` package handled status gating inside an opaque bundle you could not inspect. Here each gate is an explicit `if` statement in `auth.service.ts` — readable, testable, and extendable.
+
+**Memory hook:** Guard = bouncer. Returns true or throws. Chain them in order. Every gate is visible in code.
 
 ```typescript
 // apps/api/src/modules/auth/auth.service.ts — login() method
@@ -1157,6 +1212,12 @@ async unbindTwoFactor(
 
 When `twoFactorSecret` is set, the login flow must not issue a full access token on password alone. The standard approach is a two-step response:
 
+> **RS256 JWT — the king's wax seal:** The auth service holds the private key (the signet ring) and signs the pre-auth `twoFactorToken`. Any downstream service can verify the seal using only the public key — but they cannot forge a new one. The pre-auth token has `typ: 'twofa'` in its payload, which is cryptographically protected. Even if an attacker intercepts it, they cannot modify the claim without breaking the seal.
+
+> **From Meteor?** Meteor's DDP session token was a simple opaque string — no cryptographic claims, no expiry enforcement, no multi-service verification. RS256 JWTs carry signed claims that any service can verify independently without a central auth lookup.
+
+**Memory hook:** RS256 = king's wax seal. Private key signs (auth service only), public key verifies (anyone). A downstream breach cannot forge tokens.
+
 1. Password correct + 2FA enabled → return a short-lived "pre-auth" token with a restricted claim (`typ: 'twofa'`)
 2. User submits TOTP code with the pre-auth token → returns a full access token
 
@@ -1346,6 +1407,24 @@ mutation {
 ```
 
 Returns full tokens without needing the authenticator app.
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Bull Queue | Kitchen ticket rail — waiter clips ticket, chef processes async | `Meteor.setTimeout` / `synced-cron` — in-memory, lost on restart | Web enqueues and returns immediately. Worker processes in background. Redis-backed. |
+| Entity | Government form template — every field typed at DB and TypeScript level | Schema-less MongoDB document | Never `synchronize: true` in production. Use migrations. |
+| AbstractEntity | Company letterhead — id + timestamps pre-printed | Manual `_id`, `createdAt` fields per collection | All entities extend it. Never repeat those columns. |
+| AbstractDto | Standard response envelope — id + timestamps as `@Field()` | N/A | All output DTOs extend it. Sensitive fields (raw token) stay off `@Field()`. |
+| CQRS | Two separate kitchens — Commands mutate, Queries read, no shared stove | `Meteor.methods` body (routing + logic + DB in one block) | Handlers are thin one-liners. All logic lives in the Service. |
+| CommandBus / QueryBus | Postal sorting facility — drop the letter, facility routes it | Direct method call inside a Meteor method | Resolver never imports the handler directly. |
+| Service | Doctor — examines, diagnoses, prescribes | Logic inside `Meteor.methods` | All business logic lives here. Never touches HTTP objects. |
+| Module | Department in a company — owns workers, lends via `exports` | `meteor add` — global, implicit | `imports` borrows, `providers` owns, `exports` lends. One feature = one module. |
+| Migration | Git commit for the database — `up()` applies, `down()` reverts | No migrations in MongoDB | Never edit old migrations. Test both directions. |
+| Guard | Bouncer at the club door — returns true or throws | `.allow()` / `.deny()` — ran at DB layer after your code | Explicit, ordered, runs before handler. Chain them left to right. |
+| RS256 JWT | King's wax seal — private key signs, public key verifies, cannot be forged | DDP session token — opaque string, no cryptographic claims | Auth service signs with private key. Any service verifies with public key. Downstream breach cannot forge. |
 
 ---
 

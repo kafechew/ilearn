@@ -42,12 +42,18 @@ After establishing multi-tenancy and RBAC in Part 15, we now split the API into 
 | Shared types         | Same codebase — no boundary                        | `libs/contracts` imported by both apps                      |
 | Shared config        | Same `settings.json`                               | `libs/core` `CoreConfigModule`, both apps import it         |
 | Admin authentication | Same `accounts` package, `isAdmin` role check      | `PortalJwtStrategy` using a completely different key pair   |
+| Interceptor          | No equivalent — cross-cutting logic in method bodies | `RequestPlatformInterceptor` — global, wraps every handler |
+| DB schema change     | No migrations — schema changes just happen          | TypeORM migration — versioned, reversible, reviewed        |
+| Module               | `meteor add` + implicit auto-load                  | `@Module({ imports, providers, exports })` — explicit wiring |
+| RS256 JWT            | Single shared session token, no structured claims  | Signed payload with `platform` + `tenantId` claims        |
 
 Meteor's single-app model meant that a role check was the only thing standing between a regular user and an admin operation. If a developer called the wrong method from the client, or if a method forgot its `check(this.userId, Roles.userIsInRole(...))` call, the operation succeeded. The NestJS dual-app model makes that class of mistake structurally impossible: the wrong key pair is rejected at the cryptographic level before any application code runs.
 
 ---
 
 ## 1. Why Two Apps, Not One App with Two Guards?
+
+> **From Meteor?** Meteor's single-app model had no structural boundary between user-facing and admin-facing code — the same server, same port, same methods list. The NestJS dual-app model puts them in completely separate processes with separate JWT key pairs, separate ports, and separate DNS entries in production.
 
 ### The Threat Model
 
@@ -63,6 +69,8 @@ async deleteUser(@Args('id') id: number) {
 ```
 
 The problem is disciplinary, not technical. Every new admin resolver requires the developer to remember to add `@UseGuards(PortalAuthGuard)`. Forget it once — perhaps during a late-night incident response — and a regular user JWT can reach the admin mutation. The only protection is developer discipline applied consistently across every future change.
+
+**Memory hook:** Two apps = two bouncers at two separate venues. A wristband from Venue A does not get you into Venue B — the venues don't share a list.
 
 The two-app model makes this structurally impossible:
 
@@ -97,6 +105,12 @@ Separate ports means separate DNS records in production (`api.example.com` vs `p
 ---
 
 ## 2. Generate portal-api
+
+> **Nx monorepo — apartment building with strict bylaws:** An Nx monorepo is one Git repo containing multiple apps and shared libraries. Each app is a locked unit. Shared items travel only through `libs/`. The `@nx/enforce-module-boundaries` ESLint rule is the building alarm — it triggers the moment any app tries to import directly from another app instead of going through a library.
+
+> **`libs/contracts` — building intercom:** `libs/contracts` is the only legal communication channel between apps. It holds shared TypeScript types like `JwtPayload` and `Platform`. `apps/api` and `apps/portal-api` both import from it, but neither can import from the other directly.
+
+**Memory hook:** Nx monorepo = apartment building. `libs/contracts` = intercom. `@nx/enforce-module-boundaries` = the alarm that fires if you climb through a window.
 
 ### Run the Nx Generator
 
@@ -139,6 +153,10 @@ The generated `AppModule` is a minimal skeleton. You will replace it with `Porta
 ```
 
 ### Update main.ts to Use Port 3334
+
+> **main.ts bootstrapping — building manager on opening day:** `NestFactory.create(PortalAppModule)` builds the entire DI container from the module tree, applies global config (pipes, interceptors, CORS), then opens the doors. The global `ValidationPipe` and `createPlatformInterceptor` are wired here — every request that enters the building is subject to them, with no per-resolver configuration required.
+
+**Memory hook:** `main.ts` = opening day. Global pipes and interceptors go here. Once done, every request inherits them automatically.
 
 > **Before the import works:** Make sure `libs/core/src/index.ts` exports the interceptor factory:
 > ```typescript
@@ -255,6 +273,12 @@ Both apps can run simultaneously in separate terminals. `yarn api:dev` on port 3
 ---
 
 ## 3. Shared Libs in portal-api
+
+> **Module — department in a company:** `PortalAppModule` is a department that borrows config from `CoreConfigModule` (imports), owns its internal workers like `PortalAuthModule` and `PortalHealthModule` (providers/imports), and does not share anything back (no exports needed at the root level). Critically, it does NOT import `AuthModule` from `apps/api` — that module belongs to a different department in a different building.
+
+> **From Meteor?** In Meteor, a single `Meteor.settings` object was shared across the entire app. `CoreConfigModule` provides the same single source of truth, but it is explicitly imported by both apps rather than globally ambient — you can see exactly which apps depend on it.
+
+**Memory hook:** `@Module` = department. `imports CoreConfigModule` = borrowing from shared services. No `AuthModule` import = the portal dept does not share a staff list with the user dept.
 
 ### PortalAppModule
 
@@ -384,6 +408,12 @@ If this fails with `Cannot find module '@enterprise-todo/core'`, verify that `ts
 
 ## 4. Platform Claim in JWT
 
+> **RS256 JWT — king's wax seal:** The `platform` claim is part of the JWT payload, which is signed with the RS256 private key. Only the server that holds the private key can produce a valid signature. To forge `platform: 'portal'` in a user token, an attacker needs the `ADMIN_JWT_PRIVATE_KEY` — the signet ring that never leaves the king's possession. Anyone with the public key can inspect the seal to confirm it's genuine, but cannot produce a forgery.
+
+> **From Meteor?** Meteor's DDP session token carried no structured claims — role checks were done by querying the database inside the method body. The RS256 JWT carries `platform`, `tenantId`, and `roles` as cryptographically signed claims. The server trusts these without a database lookup because the signature proves they were set by the server itself.
+
+**Memory hook:** RS256 = king's wax seal. Private key signs (server only). Public key verifies (anyone). `platform` claim in the payload is trusted because the signature proves it was set by the server, not the client.
+
 ### Update JwtPayload Type
 
 The `platform` claim is the key that ties everything together. Add it to the shared type in `libs/contracts`:
@@ -471,6 +501,12 @@ This means the interceptor check is not a second authentication step — it is a
 ---
 
 ## 5. RequestPlatformInterceptor
+
+> **Interceptor — the sandwich:** The `RequestPlatformInterceptor` wraps every authenticated request. Code before `next.handle()` = top bread: checks `user.platform` against `expectedPlatform`. The handler (filling) only executes if the check passes. For unauthenticated requests (no `req.user`), the top bread is skipped and the request passes through to auth guards. There is no "bottom bread" here — the interceptor does not transform the response.
+
+> **From Meteor?** Meteor had no interceptor layer. Cross-cutting concerns like correlation IDs or session checks were either buried in method bodies or handled by middleware packages. The NestJS interceptor is a first-class lifecycle hook: register it once globally in `main.ts` and every handler in the app inherits it automatically.
+
+**Memory hook:** Interceptor = sandwich. Top bread runs before the handler (platform check). Bottom bread runs after (response shaping). Factory pattern closes `expectedPlatform` in scope so the class has no constructor parameters.
 
 ### Create the Interceptor in libs/core
 
@@ -603,6 +639,12 @@ curl http://localhost:3333/graphql -X POST \
 
 ## 6. Admin RS256 Key Pair
 
+> **RS256 — two separate wax seals:** Generating a second RSA key pair for the portal means the king has two signet rings stored in two separate vaults. A message sealed with Ring 1 (user) cannot be verified against Ring 2 (portal) — the seals are mathematically distinct. Even if an attacker steals Ring 1, they cannot produce a Ring 2 seal. This is the core of the dual-app security model.
+
+> **From Meteor?** Meteor's `accounts` package used a single shared secret for all login tokens. There was no mechanism to issue structurally different tokens for admin vs user sessions. The dual-key-pair model here makes the separation cryptographic, not just a convention in code.
+
+**Memory hook:** Two key pairs = two wax seals. Seal 1 cannot be verified by Ring 2. Cryptographic separation, not logical separation.
+
 ### Generate the Portal Key Pair
 
 ```bash
@@ -638,9 +680,23 @@ The user API does not use these keys. Only `apps/portal-api`'s `PortalAuthModule
 
 ## 7. PortalAuthModule in portal-api
 
+> **Guard — bouncer at the club door:** `PortalAuthJwtGuard` is the bouncer for the portal app. It checks the portal-specific wristband (the RS256 signature against `ADMIN_JWT_PUBLIC_KEY`). If the wristband is from a different venue (wrong key pair), the bouncer rejects it before any resolver runs. The bouncer doesn't negotiate — it returns true or throws.
+
+> **Passport Strategy — ID verification lanes:** `PortalJwtStrategy` is a dedicated lane at the border crossing named `'portal-jwt'`. Passport routes tokens to this lane by name. A user-JWT-bearing traveller who arrives at the portal-jwt lane will fail the signature check because the lane verifies against the admin public key, not the user public key.
+
+> **From Meteor?** `Meteor.userId()` returned the current user's ID from the shared Accounts system — there was only one authentication system. NestJS supports multiple named strategies simultaneously. The `'portal-jwt'` strategy runs in `apps/portal-api` only; `apps/api` does not register it.
+
+**Memory hook:** Named strategy = named lane at the border. `'portal-jwt'` is the lane name. Guard calls it by that name. `validate()` returns `req.user`.
+
 ### PortalUserEntity
 
 The portal user is a separate entity from the user-facing `UserEntity`. Portal users are your internal operations team — a different table, different password policies, different onboarding flow.
+
+> **Entity — government form template:** `PortalUserEntity` is the form template for the `portal_user` table. Every column is declared — name, type, constraints. Every row in the database must match this template. When the template changes (migration), all future rows follow the new version.
+
+> **AbstractEntity — company letterhead:** `PortalUserEntity extends AbstractEntity` means the `id`, `createdAt`, `updatedAt`, and `deletedAt` columns are pre-printed on the letterhead. You only add the portal-specific fields (`fullname`, `email`, `password`, `role`, `isActive`) — the common columns are inherited, never repeated.
+
+**Memory hook:** Entity = form template. AbstractEntity = letterhead with id + timestamps pre-printed. Every entity extends it. Never repeat those columns.
 
 ```typescript
 // apps/portal-api/src/modules/portal-auth/portal-user.entity.ts
@@ -953,6 +1009,12 @@ This is the defense-in-depth value of the interceptor: even in the worst-case mi
 
 ## 9. Migration for portal_user Table
 
+> **Migration — git commit for the database:** The `CreatePortalUserTable` migration is a reversible database change tracked in the `migrations` table. `up()` creates the `portal_user` table; `down()` drops it. Like git commits, you never edit a migration that has already run — you add a new one. The smoke test in Section 10 that runs `revert` then `run` confirms both directions work cleanly.
+
+> **`synchronize: false` — no unsupervised contractor:** `PortalAppModule` sets `synchronize: false`. This means TypeORM will not automatically alter the `portal_user` table to match `PortalUserEntity`. Every schema change goes through a migration that is reviewed, committed, and applied deliberately. `synchronize: true` is the unsupervised contractor who makes changes without asking and leaves no undo trail.
+
+**Memory hook:** Migration = git commit for DB. `up()` applies, `down()` reverts. `synchronize: false` always. Never edit an old migration.
+
 ### Generate the Migration
 
 Add `PortalUserEntity` to `apps/portal-api`'s TypeORM config (either in `PortalAppModule`'s `TypeOrmModule.forRootAsync` or a separate datasource file), then generate:
@@ -1154,6 +1216,27 @@ curl -s http://localhost:3333/graphql -X POST \
 ```
 
 All four cases pass. The platform boundary is enforced at the cryptographic level (key pair mismatch) and at the semantic level (platform claim check).
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Nx monorepo | Apartment building with strict bylaws | Single Meteor app — no boundary | Apps communicate only through `libs/` |
+| `libs/contracts` | Building intercom | `imports/` isomorphic files — no enforced boundary | Only legal channel between apps |
+| `@Module` | Department in a company | `meteor add` — but implicit | `imports` borrows · `providers` owns · `exports` lends |
+| Interceptor | Sandwich (before + after handler) | No equivalent — cross-cutting logic buried in methods | Register globally in `main.ts`; wraps every handler |
+| Guard | Bouncer at the club door | `.allow()` / `.deny()` — ran at DB layer | Returns `true` or throws. Runs before pipes. |
+| Passport Strategy | ID verification lane at border crossing | Single `Accounts` system — one lane only | Named string. Guard calls it by name. `validate()` returns `req.user`. |
+| RS256 JWT | King's wax seal | Single shared session token — no structured claims | Private key signs (server only). Public key verifies (anyone). |
+| Dual key pairs | Two separate wax seals | No native support — single `accounts` secret | Different key pairs = cryptographic separation, not logical |
+| Entity | Government form template | `new Mongo.Collection()` — schema-less | Schema enforced at DB and TypeScript level |
+| AbstractEntity | Company letterhead | No equivalent | Provides `id` + timestamps. All entities extend it. |
+| Migration | Git commit for the database | No migrations in MongoDB | `up()` applies · `down()` reverts · never edit old migrations |
+| `synchronize: false` | No unsupervised contractor | N/A — MongoDB has no schema sync | Always `false` in production. Use migrations. |
+| ValidationPipe | Customs desk at the airport | `check(input, String)` — optional, per-method | Global, automatic. `whitelist: true` strips unknowns. |
+| `main.ts` bootstrap | Building manager on opening day | `Meteor.startup()` | Global pipes and interceptors wired here. Every request inherits them. |
 
 ---
 

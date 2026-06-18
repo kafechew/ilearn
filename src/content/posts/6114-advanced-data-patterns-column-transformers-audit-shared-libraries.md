@@ -40,6 +40,10 @@ This tutorial addresses four architectural refinements that separate toy project
 | Slug fields               | `percolate:synced-cron` + custom transform             | `SlugTransformer` at `@Column`, enforced by TypeORM             |
 | Human-readable IDs        | Custom Meteor method with `findOne` + increment        | `RunningNumberService` with `SELECT FOR UPDATE`                 |
 | Shared config across apps | Not applicable (single-app model)                      | `libs/core` library, imported by any NestJS app in the monorepo |
+| Request-scoped state      | `this.userId` inside a Meteor fiber (implicit)        | `Scope.REQUEST` provider — explicit, per-request, cascades up   |
+| Pre-save hooks            | Not available across all collections                   | TypeORM `EntitySubscriber` — fires before every insert/update   |
+| Schema changes            | No migrations (MongoDB schema-less)                    | TypeORM migrations — versioned, reversible, reviewable          |
+| Monorepo / shared code    | Not applicable (single-app model)                      | `libs/core` with Nx module boundary enforcement                 |
 
 Meteor's `accounts` package automatically tracked `createdAt` and `userId` on documents inserted via `Accounts.createUser`. The NestJS equivalent requires explicit wiring — but it works across all entities, not just user documents.
 
@@ -52,6 +56,10 @@ Meteor's `accounts` package automatically tracked `createdAt` and `userId` on do
 Without transformers, you need to remember to call `.toLowerCase()` on every email address before saving — in the registration handler, in the login handler, in the admin update handler, in every seeder. When you forget once, you get `User@example.com` and `user@example.com` stored as two different users.
 
 A TypeORM `ValueTransformer` moves the normalization to the entity's `@Column` definition. TypeORM calls `to()` before every write and `from()` after every read. It becomes structurally impossible to store an email that violates the invariant.
+
+> **From Meteor?** In Meteor you would call `email.toLowerCase()` inside each method body, or use `aldeed:simple-schema` with a `trim`/`lowercase` option — but both relied on discipline. A new developer adding a mutation could forget. The TypeORM `ValueTransformer` enforces the rule at the column definition; there is no method body to forget.
+
+**Memory hook:** Column transformer = one-way valve on the pipe. `to()` normalizes on write; the invariant is structural, not disciplinary.
 
 ### Create the Transformer File
 
@@ -289,6 +297,12 @@ export class UserContext {
 
 `Scope.REQUEST` is the critical annotation. Without it, `UserContext` would be a singleton shared across all requests — a data leak waiting to happen.
 
+> **Scope.REQUEST analogy:** `Scope.DEFAULT` is a **shared coffee maker in the office kitchen** — one machine, everyone uses it, state is shared. `Scope.REQUEST` is a **fresh cup brewed per visitor** — each HTTP request gets its own `UserContext` instance, filled with that request's user ID, discarded when the request ends. Using `DEFAULT` here would mean Request A's user ID overwrites Request B's mid-flight.
+
+> **From Meteor?** Meteor's `this.userId` inside a method was implicitly request-scoped — each fiber (coroutine) had its own `this`. NestJS has no implicit fiber context; you must explicitly declare `Scope.REQUEST` to get the same per-request isolation.
+
+**Memory hook:** `Scope.REQUEST` = fresh cup per visitor. Use it for anything that holds per-request state. It cascades — every class that injects a REQUEST-scoped provider becomes REQUEST-scoped too.
+
 ### Step 2 — Create AuditInterceptor
 
 ```typescript
@@ -323,6 +337,10 @@ export class AuditInterceptor implements NestInterceptor {
 ```
 
 The interceptor runs before the resolver. By the time TypeORM's subscriber fires (during `repo.save()`), `userContext.userId` is already populated.
+
+> **Interceptor analogy:** The `AuditInterceptor` is the **top slice of a sandwich** — it runs before the handler executes (top bread), writes the user ID into `UserContext`, then `next.handle()` lets the handler and TypeORM subscriber run (filling), and the sandwich closes. The subscriber reads what the top bread prepared.
+
+**Memory hook:** Interceptor = sandwich. Code before `next.handle()` = top bread. `AuditInterceptor` writes to `UserContext` in the top bread so the subscriber can read it during the filling.
 
 ### Step 3 — Create AuditSubscriber
 
@@ -372,6 +390,10 @@ export class AuditSubscriber implements EntitySubscriberInterface {
 ```
 
 The subscriber has no `listenTo()` method, which means TypeORM applies it to all entities. You can optionally add `listenTo() { return TodoEntity; }` to scope it to a single entity type.
+
+> **From Meteor?** In Meteor you would set `createdBy: this.userId` manually inside every `Meteor.method` that inserted a document — there was no hook that ran automatically across all collections. The TypeORM `EntitySubscriber` fires before every `save()` across all entities without touching a single handler.
+
+**Memory hook:** `EntitySubscriber` = silent co-worker who stamps every document before it's filed. One place, zero handler changes.
 
 > **Scope gotcha:** `AuditSubscriber` uses `Scope.REQUEST` DI to access `ClsService`. But TypeORM subscribers are registered globally at datasource level. If the NestJS DI container creates a new subscriber instance per request (via CLS integration) and it keeps pushing to `dataSource.subscribers`, you'll accumulate duplicate subscribers. Verify your integration registers the subscriber once at module init, not once per request — if using `@EventSubscriber()` with TypeORM's decorator, TypeORM manages the lifecycle and avoids duplicates automatically.
 
@@ -618,6 +640,10 @@ export class RunningNumberService {
 
 The `pessimistic_write` lock mode maps to `SELECT ... FOR UPDATE` in PostgreSQL. The transaction blocks any other transaction that tries to lock the same row until the first one commits. This guarantees sequential, gap-free numbers even under concurrent load.
 
+> **From Meteor?** A common Meteor pattern was `findOne({ module })` + `update({ $inc: { current: 1 } })` in a method. Under concurrent load two requests could read the same value before either incremented it — both would get `TODO-0001`. The `SELECT FOR UPDATE` transaction makes that race condition impossible.
+
+**Memory hook:** `SELECT FOR UPDATE` = one cashier drawer, one customer at a time. The next request waits for the lock to release before reading the counter.
+
 ### Step 3 — RunningNumberModule
 
 ```typescript
@@ -634,6 +660,10 @@ import { RunningNumberService } from "./running-number.service";
 })
 export class RunningNumberModule {}
 ```
+
+> **Module analogy:** `RunningNumberModule` is its own **department in a company** — it owns the `RunningNumberEntity` table access and the `RunningNumberService` worker. By exporting `RunningNumberService`, it lends that worker to any other module (like `TodoModule`) that imports it. `TodoModule` borrows without knowing how the service is implemented internally.
+
+**Memory hook:** Module = department. `exports` lends a worker to another department. The borrowing module never sees the internals — only the exported interface.
 
 ### Step 4 — Add referenceNumber to TodoEntity
 
@@ -813,6 +843,16 @@ mutation {
 Currently, the `ConfigModule` setup — with its Joi validation schema and `configuration()` factory — lives entirely inside `apps/api`. When you add a second NestJS app to the monorepo (a common progression: you might add `apps/portal-api` for admin endpoints, `apps/jobs-worker` for Bull queue consumers, or `apps/webhooks` for incoming webhook handling), that app needs identical database config, identical Redis config, identical JWT config.
 
 Duplicating the config setup across two apps means updates to environment variable names must be made in two places. `libs/core` is the escape hatch: shared infrastructure code that any app in the monorepo can import.
+
+> **Nx monorepo analogy:** The monorepo is an **apartment building with strict bylaws**. Each app (`apps/api`, `apps/portal-api`) is a locked unit — tenants cannot enter each other's units directly. Shared items travel through `libs/core`, which acts as the **building intercom** — the only legal channel between apps. The Nx module boundary rule is the alarm that triggers if anyone tries to climb through a window instead.
+
+> **ConfigModule analogy:** `CoreConfigModule` is the **company policy handbook in a locked cabinet**. Instead of each developer keeping private sticky notes with environment variable names, one handbook that all apps consult. Before the company opens each morning (app startup), the Joi validation schema checks the handbook is complete — a missing required variable keeps the office closed until it is fixed.
+
+> **From Meteor?** `Meteor.settings` was a single-app concept — there was no monorepo, no second app to share config with. `libs/core` solves a problem Meteor never had: giving two independently deployable NestJS apps identical config without copy-paste.
+
+**Memory hook:** `libs/core` = building intercom. The only legal bridge between apps. Config lives here once; both apps read from it.
+
+> **`synchronize: false` note:** The `AppModule` above uses `synchronize: false`. This is correct for any environment beyond local dev throwaway. `synchronize: true` is an **unsupervised contractor** — it makes schema changes without asking, with no undo. Use migrations instead.
 
 ### Generate the Library
 
@@ -1139,6 +1179,12 @@ If the build fails with `Cannot find module '@enterprise-todo/core'`, verify tha
 
 This tutorial added several columns to existing tables. The general strategy for production-safe additive migrations:
 
+> **Migration analogy:** Every migration in this section is a **git commit for the database**. `up()` applies the change; `down()` reverts it. You never edit a migration that has already run in production — you add a new one. The `migration:revert` command is your `git revert`.
+
+> **From Meteor?** MongoDB has no migrations — schema changes just happen (or silently don't). When you need to add a required column to a 50,000-row table in PostgreSQL, no-migration becomes a production incident. Every schema change in NestJS is visible, reversible, and reviewable.
+
+**Memory hook:** Migration = git commit for DB. `up()` applies, `down()` reverts. Never edit old migrations. Test both directions locally first.
+
 ### Rule 1: Nullable Columns Are Always Safe
 
 Adding a nullable column to a table with existing data is always backward compatible. Existing rows get `NULL`. No application downtime required.
@@ -1296,6 +1342,24 @@ curl http://localhost:3333/graphql -X POST \
 ```
 
 **Pass criteria:** `yarn api:build` and `yarn api:dev` succeed with no module resolution errors.
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Column Transformer | One-way valve on the column | `aldeed:simple-schema` trim/lowercase — but optional | `to()` normalizes on write; query WHERE clauses are also transformed |
+| `AbstractEntity` | Company letterhead | `collection2` auto-timestamps | All entities extend it; never repeat `id` or timestamps |
+| `Scope.REQUEST` | Fresh cup brewed per visitor | `this.userId` in Meteor fiber (implicit) | Must be explicit in NestJS; cascades up the dependency tree |
+| Interceptor | Sandwich (top bread = before, bottom = after) | No direct equivalent | Code before `next.handle()` runs pre-handler; `.pipe()` runs post-handler |
+| TypeORM EntitySubscriber | Silent co-worker who stamps every document | Manual `createdBy = this.userId` in every method | No `listenTo()` = fires on all entities automatically |
+| Migration | Git commit for the database | No migrations in Meteor/MongoDB | `up()` applies, `down()` reverts; never edit old migrations |
+| `synchronize: true` | Unsupervised contractor | Not applicable | Never in production; use migrations |
+| Repository / RunningNumberService | Librarian | `findOne` + manual increment in a method | Only layer touching DB; `SELECT FOR UPDATE` prevents race conditions |
+| `RunningNumberModule` | Department in a company | Single-app, no module system | `exports` lends `RunningNumberService`; `TodoModule` imports to borrow |
+| Nx monorepo / `libs/core` | Apartment building with strict bylaws | Not applicable (single-app model) | Cross-app sharing only through `libs/`; direct imports between apps are banned |
+| `CoreConfigModule` | Company policy handbook in a locked cabinet | `Meteor.settings` — no startup validation | Joi schema fails startup if any required variable is missing |
 
 ---
 

@@ -96,6 +96,12 @@ Build in the 9-step order: entity → DTOs → CQRS inputs → CQRS handlers →
 
 This order matters. The entity defines the schema. DTOs depend on the entity. CQRS inputs depend on DTOs. The service depends on CQRS inputs. The resolver depends on everything above. Building out of order causes circular dependency errors and forces rework.
 
+> **Two separate kitchens:** CQRS keeps commands (state changes) and queries (reads) in completely separate handlers. They never share a "stove" — a command handler never returns a read, and a query handler never mutates state. The CommandBus and QueryBus are the postal sorting facility: drop a command or query object in the slot, the bus routes it to the registered handler, and the resolver never imports the handler directly.
+
+> **From Meteor?** `Meteor.methods({ createTask })` is a single block that handles routing, validation, and database writes in one place. CQRS separates these into four testable units: resolver (routes) → bus (dispatches) → handler (delegates) → service (executes). Each file has one job.
+
+**Memory hook:** CQRS = two kitchens. Commands mutate, queries read, no shared stove. Handlers are one-liners — all logic is in the service.
+
 ### Phase 3: Verify Locally
 
 Every point must be green before the PR opens.
@@ -373,6 +379,12 @@ export class ProductEntity extends AbstractEntity {
 }
 ```
 
+> **Government form template:** A TypeORM entity is a government form template — every field defined, named, typed, required or optional. Every database row is a filled-in form; it must match the template exactly. `AbstractEntity` is the company letterhead: `id`, `createdAt`, `updatedAt`, and `deletedAt` are pre-printed on every form so you never type them from scratch.
+
+> **From Meteor?** `new Mongo.Collection('tasks')` is schema-less — any shape goes in. An `@Entity()` class enforces a schema at the PostgreSQL level and at the TypeScript level simultaneously. A field that doesn't match won't compile.
+
+**Memory hook:** Entity = government form template. AbstractEntity = company letterhead with id + timestamps pre-printed. Every entity extends it.
+
 Register it in `AppModule` immediately — TypeORM won't load it otherwise.
 
 **Step 2 — Constants**
@@ -416,6 +428,12 @@ If this returns data, the entity, module registration, resolver, and service are
 ```bash
 yarn api:migration:generate apps/api/src/migrations/AddProductModule
 ```
+
+> **Git commits for your database:** A migration is a TypeScript file with `up()` (apply) and `down()` (revert). Every schema change is a migration — tracked, reversible, reviewable. Never alter a past migration; add a new one. This is exactly git commits for the database: full history, rollback to any point, nothing changed without a record.
+
+> **From Meteor?** MongoDB has no migrations — schema changes just happen (or don't). When you have 50,000 rows and need to add a required column, no-migration becomes a production incident. Every NestJS schema change is visible, reversible, and requires a teammate's review.
+
+**Memory hook:** Migration = git commit for DB. `up()` applies, `down()` reverts. Test both directions locally before pushing.
 
 Read the generated SQL before running it:
 
@@ -651,6 +669,12 @@ Questions worth asking every sprint:
 [ ] Validation decorators on all input fields
 ```
 
+> **Bouncer at the door:** A Guard runs before the handler and returns `true` (allow) or throws (deny). Every mutation that doesn't have `@UseGuards(AuthJwtGuard)` has no bouncer — anyone can walk in. Guards chain left to right: all must pass in declared order. A ValidationPipe on inputs is the customs declaration desk: undeclared fields are stripped (`whitelist: true`), unknown fields rejected (`forbidNonWhitelisted: true`).
+
+> **From Meteor?** `.allow()` and `.deny()` rules ran at the database layer — after your code had already executed. NestJS guards run at the API entry point, before any business logic starts. `check(input, String)` was optional and per-method; `ValidationPipe` with `whitelist: true` is global and automatic.
+
+**Memory hook:** Guard = bouncer. Runs before pipe. Every mutation needs one. Pipe = customs desk. Returns 400 on bad input.
+
 **Architecture:**
 ```
 [ ] Entity extends AbstractEntity
@@ -659,6 +683,12 @@ Questions worth asking every sprint:
 [ ] Resolver does not import Repository directly
 ```
 
+> **Module = department in a company:** Each module owns its providers (internal workers), borrows from other modules via `imports`, and decides what to lend via `exports`. A resolver that imports `Repository` directly has bypassed the department boundary — the repository belongs to the service, not the front desk.
+
+> **From Meteor?** In Meteor, `TasksCollection` was a global — any file anywhere could call `insertAsync`. In NestJS, `Repository<ProductEntity>` is only available inside `ProductModule` and modules it explicitly shares with. This prevents accidental cross-module data access.
+
+**Memory hook:** Module = department. `imports` borrows, `providers` owns workers, `exports` lends. Resolver imports the bus, never the repository.
+
 **Database:**
 ```
 [ ] @Index() on every FK column
@@ -666,6 +696,10 @@ Questions worth asking every sprint:
 [ ] Migration generated (not synchronize: true)
 [ ] Migration run + revert tested locally
 ```
+
+> **Unsupervised contractor:** `synchronize: true` is like an unsupervised contractor with keys to the building — it auto-alters the live database to match your entities without a migration review, and it can silently drop columns. It has no undo. Use migrations for every environment where data matters.
+
+**Memory hook:** `synchronize: true` = unsupervised contractor with no undo. Never in production. Always use migrations.
 
 **Tests:**
 ```
@@ -746,6 +780,12 @@ No inline async work in mutation handlers.
 - Jobs survive API restarts
 - Automatic retry with exponential backoff
 ```
+
+> **Kitchen ticket rail:** The waiter (web process) clips the ticket to the rail and immediately returns to serve the next table. The chef (worker process) reads tickets at their own pace. The waiter never stands next to the stove watching the steak cook. Bull queues back this rail with Redis so jobs survive API restarts.
+
+> **From Meteor?** `Meteor.setTimeout` and `synced-cron` were the common async patterns — but both lose their jobs on process restart and have no retry. Bull gives you retry with exponential backoff, job priorities, dead-letter queues, progress tracking, and a Bull Board UI out of the box.
+
+**Memory hook:** Bull = kitchen ticket rail. Web enqueues and returns immediately. Worker processes async. Redis-backed = jobs survive restarts.
 
 Store ADRs in:
 ```
@@ -836,6 +876,25 @@ Technical debt is not bad code — it's a tradeoff between speed and quality, ma
 | Knows the codebase | Maintains the knowledge systems so the whole team moves fast safely |
 
 The last row is the most important for AI-assisted development. **A senior developer in 2026 is not the person who writes the most code — it's the person who maintains the highest quality signal in the knowledge systems so both human and AI can move fast without breaking things.**
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Entity | Government form template | `new Mongo.Collection()` — schema-less | Schema enforced at DB and TypeScript level simultaneously |
+| AbstractEntity | Company letterhead (id + timestamps pre-printed) | No equivalent | All entities extend it — never repeat id/timestamps |
+| CQRS (Command/Query) | Two separate restaurant kitchens | `Meteor.methods` body (routing + logic in one block) | Commands mutate, queries read — never share a stove |
+| CommandBus / QueryBus | Postal sorting facility | Direct method call inside `Meteor.methods` | Drop the object; the bus routes it. Resolver never imports handler. |
+| Service | Doctor | Logic inside `Meteor.methods` body | All `if` statements and repository calls live here |
+| Resolver | Receptionist + personal shopper | `Meteor.methods` entry point (routing only) | Routes and returns. Dispatches to bus. Two lines max. |
+| Module | Department in a company | Flat `imports/` directory (isomorphic) | `imports` borrows · `providers` owns · `exports` lends |
+| Guard | Bouncer at the club door | `.allow()` / `.deny()` — but those run at DB layer | Returns `true` or throws. Every mutation needs one. |
+| Pipe / ValidationPipe | Customs declaration desk at the airport | `check(input, String)` — optional, per-method | Validates/transforms before handler. Returns 400 on failure. |
+| Migration | Git commit for the database | No migrations — schema changes just happen | `up()` applies, `down()` reverts. Test both directions. |
+| `synchronize: true` | Unsupervised contractor (no undo) | No equivalent — Mongo is schema-less | Never in production. Always use migrations. |
+| Bull Queue | Kitchen ticket rail | `Meteor.setTimeout` / `synced-cron` (lost on restart) | Web enqueues and returns. Worker processes async. Redis-backed. |
 
 ---
 

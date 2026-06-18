@@ -73,6 +73,10 @@ E2E      ─── Full stack, real database
 
 > **Two kinds of truth:** Unit tests verify one doctor's diagnostic decisions in a mock clinic — no real patients, no real equipment, just the decision logic under controlled conditions. E2E tests run the full clinic with real patients: real building, real reception desk, real lab equipment (PostgreSQL), real pharmacy (Redis). The unit test catches the wrong diagnosis. The E2E test catches the broken door that prevents the patient from reaching the doctor at all.
 
+> **From Meteor?** Meteor's testing story required a running Meteor server even for basic logic tests — no isolation was possible. In NestJS, unit tests run in plain Node with zero infrastructure: no HTTP server, no database, no real dependencies. E2E tests use a real NestJS app with a real PostgreSQL database, mirroring Meteor's full-server tests but with full control over setup and teardown.
+
+**Memory hook:** Unit test = mock clinic (milliseconds, no infra). E2E test = real clinic with real patients (seconds, needs Docker). Test your code, not the framework.
+
 **Test your code, not the framework.**
 
 Don't test:
@@ -104,6 +108,12 @@ const service = module.get<TagService>(TagService);
 ```
 
 > **The staffing agency in test mode:** `Test.createTestingModule()` is the staffing agency in test mode. Instead of the real `UserRepository` (which needs a database), the agency sends a stand-in — a `jest.fn()` mock that returns whatever you tell it to. The class under test (`TagService`) never knows the difference. It receives what looks like a repository, calls its methods, and your assertions verify the decisions made with those responses.
+
+> **Repository = librarian:** When `TagService` calls `this.repo.findOne(...)`, it's asking the librarian to fetch a book. In unit tests, you replace the real librarian with a mock who always returns the book you specify — no stacks, no SQL, no database. `getRepositoryToken(TagEntity)` is the token NestJS uses to register that librarian so your mock replaces exactly the right one.
+
+> **From Meteor?** In Meteor, `TasksCollection` was a global — mocking it required overwriting global state and carefully restoring it after each test. In NestJS, the repository is injected via DI, so you swap it cleanly per test module with zero global side effects.
+
+**Memory hook:** `getRepositoryToken(Entity)` = the librarian's name tag. Use it as the `provide` key so your mock replaces the right dependency.
 
 **Why `getRepositoryToken(TagEntity)` instead of `Repository<TagEntity>`?**
 
@@ -284,6 +294,12 @@ describe('TagService', () => {
 
 Handler tests verify the thin delegation rule — nothing more.
 
+> **CQRS = two separate kitchens:** Commands mutate state, Queries read state — they never share a stove. A handler test verifies only one thing: does `execute()` call the correct service method with the correct args? There is no business logic to test in the handler — if there were, it would be in the wrong kitchen.
+
+> **From Meteor?** In Meteor, `Meteor.methods({ createTask })` mixed routing, logic, and DB calls in one block — untestable in isolation. In NestJS, the handler is a thin one-liner; you can test it without a database, without a bus, without any infrastructure at all.
+
+**Memory hook:** Handler test = verify the postal sorting facility routes to the right driver. One assertion: `serviceMethod` was called with `message.args`.
+
 ```typescript
 // apps/api/src/modules/tag/test/tag.cqrs.spec.ts
 import {
@@ -385,6 +401,10 @@ describe('Tag CQRS Handlers', () => {
 ## 5. E2E Test Setup
 
 E2E tests use a **real NestJS application** connected to a **real test database**. They verify the complete stack — guards, pipes, bus routing, service logic, TypeORM queries, and PostgreSQL constraints — all together.
+
+> **ValidationPipe = customs desk:** The global setup applies the same `ValidationPipe` config as `main.ts` — `whitelist: true, forbidNonWhitelisted: true, transform: true`. Without this line in the E2E setup, your E2E tests run against a different configuration than production, making them meaningless. The customs desk must match the one at the real border.
+
+> **From Meteor?** Meteor's full-stack tests required a running Meteor server with no way to reset state between tests. NestJS E2E tests spin up a full app, run against a dedicated test database, and reset between suites with a `TRUNCATE` — fast, isolated, and deterministic.
 
 ### 5.1 Global Setup
 
@@ -700,7 +720,15 @@ describe('Tag API (e2e)', () => {
 
 ---
 
+**Memory hook:** E2E global setup = building manager on opening day. Apply the same pipes as `main.ts`. Expose app and dataSource globally. Create one test user and token once.
+
 ## 7. E2E Test: Auth Guard Integration
+
+> **Guard = bouncer:** The Auth E2E tests verify the bouncer layer directly — no token means the bouncer turns you away before your request reaches the dance floor (the resolver). The unit tests for the service never exercised this; only the full-stack E2E test can confirm the bouncer is actually in place and wired correctly.
+
+> **From Meteor?** In Meteor, `if (!this.userId) throw new Meteor.Error('not-authorized')` was scattered inside method bodies — easy to forget on one method. In NestJS, `@UseGuards(AuthJwtGuard)` is at the resolver level, and the E2E test catches any mutation where you forgot to add it.
+
+**Memory hook:** Auth E2E = the bouncer test. Verify unauthenticated requests get 401, not just that authenticated ones succeed.
 
 ```typescript
 // apps/api-e2e/src/api/auth.e2e-spec.ts
@@ -870,6 +898,21 @@ E2E tests:
 ```
 
 ---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Unit test philosophy | Mock clinic — no real patients, no real equipment | Velocity / mocha tests required a running Meteor server | Test your code, not the framework |
+| `Test.createTestingModule()` | Staffing agency in test mode — sends stand-ins instead of real workers | No equivalent — Meteor had no DI container to mock | Register only what the class under test needs |
+| `getRepositoryToken(Entity)` | The librarian's name tag | Global `TasksCollection` overwrite | Use as `provide` key so mock replaces the right dependency |
+| Service unit test | Doctor tested in a mock clinic | Logic buried inside method body — untestable in isolation | Mock the repository; never hit a real DB in unit tests |
+| CQRS handler unit test | Postal sorting facility routing test | `Meteor.methods` body mixed routing + logic | One assertion: handler called `service.method` with `message.args` |
+| E2E global setup | Building manager on opening day | Full Meteor server start — no state reset between tests | Apply the same `ValidationPipe` config as `main.ts` |
+| E2E database reset | `TRUNCATE` between tests | No equivalent — state leaked between Meteor tests | Truncate in FK-safe order; keep the global test user |
+| Auth guard E2E | Bouncer test — verify the door is actually locked | `if (!this.userId)` scattered in method bodies | Always test the 401 case, not just the 200 case |
+| Guard | Bouncer at the club door | `.allow()` / `.deny()` at DB layer | Returns `true` or throws. Runs before Pipe. |
+| ValidationPipe (E2E setup) | Customs desk at the airport | `check(input, String)` — optional, per-method | Must match `main.ts` config exactly or E2E results are meaningless |
 
 ## Summary
 

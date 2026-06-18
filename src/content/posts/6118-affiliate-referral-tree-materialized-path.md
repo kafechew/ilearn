@@ -44,6 +44,12 @@ Meteor had no native tree or hierarchy support. Developers typically stored a fl
 | Circular reference check | Manual application check before saving                                     | `wouldCreateCircle()` — check if userId appears in the candidate parent's path |
 | Commission calculation   | Application-level loop fetching each ancestor                              | Fetch ancestor IDs from `path` string, batch-load users in one query           |
 | Referral code            | Custom field — no standard pattern                                         | `referralCode` unique indexed column, generated via `crypto.randomBytes`       |
+| Data schema              | Schema-less MongoDB document — any shape accepted                          | `UserEntity` TypeORM class — schema enforced at DB and TypeScript level        |
+| Schema changes           | No migrations — fields added/removed at will                               | `AddReferralColumns` migration — versioned, reversible, reviewable             |
+| Business logic location  | Mixed into `Meteor.methods` body alongside routing and DB calls            | `ReferralService` — isolated, independently testable                           |
+| API entry point          | `Meteor.methods({ myReferralStats })` — routing + logic in one block       | `ReferralResolver` — routes only, dispatches to service via guards             |
+| Auth check               | `if (!this.userId) throw new Meteor.Error('not-authorized')` inside method | `@UseGuards(AuthJwtGuard, ACPermissionGuard)` — runs before handler            |
+| Module boundaries        | Global flat namespace — any file accesses any collection                   | `ReferralModule` — only modules that import it can use `ReferralService`       |
 
 Meteor's single-document model worked for simple `referredBy` tracking but collapsed under any tree traversal requirement. Every "who referred whom" report became a multi-request waterfall. The materialized path pattern moves the tree topology into the data itself, making subtree queries as cheap as a string prefix match.
 
@@ -135,6 +141,14 @@ User 1 (root):                       path = '1.'
 ## 2. Update UserEntity
 
 `UserEntity` already carries `id`, `email`, `username`, `password`, `status`, `twoFactorSecret`, a `roles` ManyToMany to `RoleEntity`, and `tenantId`. Add three columns.
+
+> **Entity = government form template:** `UserEntity` is the form template — every field defined with its type, constraints, and indexes. Every database row (filled-in form) must match. Adding `referralCode`, `referredByCode`, and `path` revises the template. Existing rows are migrated via `up()` in Section 7 — no silent alterations.
+
+> **AbstractEntity = company letterhead:** `UserEntity extends AbstractEntity` inherits `id`, `createdAt`, `updatedAt`, and `deletedAt` pre-printed on every row. You never repeat those columns across entity files.
+
+> **From Meteor?** `Meteor.users` was a MongoDB collection — schema-less. Any shape could be written at any time. TypeScript + TypeORM means the compiler rejects code that assigns a field not declared on the entity, and PostgreSQL rejects rows that violate the column constraints.
+
+**Memory hook:** Entity = government form template. AbstractEntity = letterhead (id + timestamps pre-printed). Never use `synchronize: true` in production — use migrations.
 
 ### The Three New Columns
 
@@ -256,6 +270,14 @@ If you see `column "referral_code" of relation "user" does not exist`, the migra
 ## 3. ReferralService
 
 The service handles all tree operations. It is injected into `AuthService` for registration and into the resolver for GraphQL queries.
+
+> **Service = the doctor:** The service examines the data, diagnoses the problem (circular references, missing referrers), and prescribes the treatment (setting the correct path). It never answers phones or handles HTTP concerns. All tree logic — depth calculation, ancestor parsing, circle detection — lives here and nowhere else.
+
+> **From Meteor?** In Meteor, referral tree logic would live scattered across Meteor methods, possibly with direct `Meteor.users.find()` calls inside those methods mixing routing and logic together. In NestJS, `ReferralService` is the single home for all tree operations — every method is independently testable by injecting a mock repository.
+
+> **Repository = the librarian:** `ReferralService` never writes raw SQL or calls the database directly. It asks the injected `Repository<UserEntity>` — the librarian — for records by referral code or by ID. The service describes what it needs; the repository fetches it from the stacks.
+
+> **From Meteor?** `Meteor.users.find({ referralCode: code })` was called directly from anywhere. In NestJS, `this.userRepo.findOne({ where: { referralCode } })` is the only route to the database, injected and mockable.
 
 ### Full ReferralService
 
@@ -408,6 +430,8 @@ export class ReferralService {
 }
 ```
 
+**Memory hook:** Service = doctor. All tree logic (depth, ancestors, circle detection) lives here. Repository = librarian, the only layer touching the DB.
+
 > **Path depth calculation:** Direct children have exactly `parent_depth + 1` segments in their path. The `array_length(string_to_array(...))` expression counts dot-separated segments after trimming the trailing dot, ensuring we don't accidentally include grandchildren. For user 42 with path `'1.42.'` (depth 1), direct children have depth 2 (paths like `'1.42.107.'`), while grandchildren have depth 3 (paths like `'1.42.107.500.'`) and are excluded.
 
 ### ReferralModule
@@ -426,6 +450,12 @@ import { ReferralService } from "./referral.service";
 })
 export class ReferralModule {}
 ```
+
+> **Module = department in a company:** `ReferralModule` owns `ReferralService` (its internal worker) and exports it to `AuthModule` and any other module that needs referral operations. `TypeOrmModule.forFeature([UserEntity])` borrows the database connection for `UserEntity` from the root connection. No other module can reach `ReferralService` unless `ReferralModule` explicitly exports it.
+
+> **From Meteor?** In Meteor there were no modules — any file could import any other file directly. NestJS modules enforce that `AuthModule` can only use `ReferralService` if `ReferralModule` lists it in `exports` and `AuthModule` lists `ReferralModule` in `imports`. Accidental cross-module access is a lint error, not a runtime surprise.
+
+**Memory hook:** Module = department. `imports` borrows the DB connection, `providers` owns internal workers, `exports` lends `ReferralService` to other departments.
 
 Import `ReferralModule` in `AppModule` and in any feature module that needs it.
 
@@ -566,6 +596,12 @@ Expected response after the migration has run:
 ---
 
 ## 5. GraphQL Queries
+
+> **Resolver = receptionist at a clinic + personal shopper:** `ReferralResolver` takes the authenticated user's identity, routes to the right service methods, and returns exactly the fields the client asked for. It contains zero business logic — no depth calculations, no path parsing. Those belong in `ReferralService`. A resolver method longer than a few lines is doing the doctor's job at the front desk.
+
+> **Guard = bouncer at the club door:** `@UseGuards(AuthJwtGuard, ACPermissionGuard)` ensures both guards must pass before the resolver method executes. `AuthJwtGuard` checks the JWT signature. `ACPermissionGuard` checks the `view-referrals` permission. If either fails, the request is rejected before any tree query runs.
+
+> **From Meteor?** `Meteor.methods({ myReferralStats })` would mix the auth check (`if (!this.userId) throw...`), the permission check, and the actual query logic in one block. In NestJS, auth is `AuthJwtGuard`, permissions are `ACPermissionGuard`, and the query logic is in `ReferralService` — three separate, independently testable pieces.
 
 ### ReferralStats ObjectType
 
@@ -726,6 +762,8 @@ import { ReferralResolver } from "./referral.resolver";
 export class ReferralModule {}
 ```
 
+**Memory hook:** Resolver = receptionist + personal shopper. Guard = bouncer (both must pass before any tree query runs). Resolver never calculates depth or parses paths.
+
 ### Smoke Test — Section 5
 
 ```bash
@@ -885,6 +923,12 @@ After seeding, query `myReferralStats` as the root user:
 
 ## 7. Migration
 
+> **Migration = git commit for the database:** `AddReferralColumns` is a reversible, timestamped change to the schema. `up()` applies it (adds columns, indexes, backfills data). `down()` reverts it cleanly. The migration is tracked in the `migrations` table — TypeORM never reruns it. You never edit this file after it has run in production; you write a new migration instead.
+
+> **From Meteor?** MongoDB had no migrations. Adding a field to Meteor user documents meant updating your code and hoping existing documents behaved. With TypeORM migrations, the moment `up()` runs, every existing user row is backfilled with a deterministic `referralCode` and a root `path` — the database and the code are always in sync.
+
+**Memory hook:** Migration = git commit for DB. `up()` applies, `down()` reverts. Never edit old migrations. Always test both directions.
+
 ### Generate and Run
 
 ```bash
@@ -1039,6 +1083,19 @@ Invalidate the cache key for a user's ancestors whenever a new user registers un
 Each registration triggers one `SELECT` (look up referrer by code) and one `UPDATE` (set path and referralCode). No parent rows are touched. This scales linearly with registration volume regardless of tree depth.
 
 ---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Entity (`UserEntity`) | Government form template | `Meteor.users` MongoDB collection (schema-less) | Schema enforced at DB + TypeScript level. Never `synchronize: true` in prod. |
+| AbstractEntity | Company letterhead (id + timestamps pre-printed) | No equivalent — fields repeated manually | All entities extend it. Never repeat `id`, `createdAt`, `updatedAt`. |
+| Service (`ReferralService`) | Doctor — examines, diagnoses, prescribes | Logic mixed inside `Meteor.methods` body | All tree logic lives here. Never touches HTTP objects. |
+| Repository (`userRepo`) | Librarian — you ask, it fetches | Direct `Meteor.users.find()` calls anywhere | Only layer touching the DB. Mock it in tests, test service in isolation. |
+| Module (`ReferralModule`) | Department in a company | No equivalent — global flat namespace | `imports` borrows · `providers` owns · `exports` lends `ReferralService`. |
+| Resolver (`ReferralResolver`) | Receptionist + personal shopper | `Meteor.methods` entry (but mixed with logic) | Routes only. Dispatches to service. No business logic, no DB calls. |
+| Guard (`AuthJwtGuard`, `ACPermissionGuard`) | Bouncer at the club door | `if (!this.userId) throw` inside the method | Returns `true` or throws. Runs before the resolver method. Chain left to right. |
+| Migration (`AddReferralColumns`) | Git commit for the database | No migrations — schema changes just happened | `up()` applies, `down()` reverts. Never edit old migrations after they run. |
 
 ## Summary: Flat referredBy vs Materialized Path
 

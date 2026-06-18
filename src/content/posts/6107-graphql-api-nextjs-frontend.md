@@ -62,6 +62,10 @@ Database → Entity → (mapped) → OutputDTO → Client response
 
 The `@ObjectType` DTO defines what GraphQL returns to clients.
 
+> **AbstractDto — the standard response envelope:** `AbstractDto` (from `nestjs-dev-utilities`) is the base class all output DTOs extend. It exposes `id`, `createdAt`, and `updatedAt` as `@Field()` automatically. If `AbstractEntity` is the company letterhead for database rows, `AbstractDto` is the **standard response envelope** for API responses — the client always knows where to find the id and timestamps because they appear on every envelope.
+
+> **From Meteor?** Minimongo documents had no fixed shape — any fields could be present or absent. `@ObjectType` with `AbstractDto` enforces a contract: only the fields you declare with `@Field()` or `@FilterableField()` are visible to clients. Every other property is invisible, even if it exists on the underlying entity.
+
 ```typescript
 // apps/api/src/modules/todo/dto/todo.dto.ts
 import { Field, Int, ObjectType } from "@nestjs/graphql";
@@ -98,6 +102,8 @@ export class TodoDto extends AbstractDto {
 > **Security rule:** Only add `@FilterableField` to columns you explicitly support filtering on. Never add it to internal columns like `password`, `twoFactorSecret`, or FK IDs that expose data from other tenants.
 
 > **Customs declaration:** The DTO is the **customs declaration form at the API border**. Before anything enters your service, it must declare its exact contents. The customs officer (`ValidationPipe`) checks the form. Undeclared items? Confiscated (`whitelist: true`). Unknown items? Detained (`forbidNonWhitelisted: true`). Malformed form? Turned back at the border. Only clean, certified data reaches your handler.
+
+**Memory hook:** `@FilterableField` = field appears in responses AND is filterable by clients. `@Field` = appears in responses only. Neither = invisible to clients entirely.
 
 ### 1.2 Input DTOs (`@InputType`)
 
@@ -152,6 +158,10 @@ export class UpdateTodoInput {
 }
 ```
 
+> **From Meteor?** `check(input, String)` inside a Meteor method is the rough equivalent — but it was optional, per-method, and didn't strip unknown fields. `class-validator` decorators on an `@InputType` combined with the global `ValidationPipe({ whitelist: true })` are automatic, global, and reject requests with undeclared fields before your resolver method even starts.
+
+**Memory hook:** `@InputType` = order form (what clients can write). `class-validator` decorators = the rules printed on the form. `ValidationPipe` = the customs officer who enforces them globally.
+
 > **Note: `userId` is a `@Field()` for now — Part 08 fixes this.**
 >
 > In production, exposing `userId` as a client-supplied field is a security risk: a malicious client could send `userId: 999` and create todos that appear to belong to another user. Part 08 adds JWT authentication — at that point `userId` is removed from `@Field()` and injected server-side from the verified token instead. For this part, the endpoints are public and `userId` is passed explicitly so you can test without auth.
@@ -185,6 +195,10 @@ export const TodoQueryConnection = TodosQuery.ConnectionType;
 - `paging: CursorPaging` — cursor-based pagination (first, after, last, before)
 
 This means you get **free filtering, sorting, and pagination** on every list query — with zero extra code.
+
+> **From Meteor?** `Collection.find({}, { sort: { createdAt: -1 }, limit: 20 })` gave you basic sorting and limiting, but no cursor pagination, no typed filter objects, and no auto-generated GraphQL argument types. `QueryArgsType` generates a full GraphQL filter/sort/paging argument schema from your DTO's `@FilterableField` declarations — zero boilerplate.
+
+**Memory hook:** `QueryArgsType(TodoDto)` = auto-generated filter + sort + paging args for every `@FilterableField`. `ConnectionType` = the Relay cursor response wrapper. One declaration, full pagination.
 
 ---
 
@@ -252,11 +266,17 @@ To get the next page, pass `endCursor` as `after`:
 }
 ```
 
+> **From Meteor?** Meteor's `Collection.find()` with `skip` and `limit` is offset pagination — it scans and discards rows. There was no built-in cursor pagination. `PagingStrategies.CURSOR` uses the index to jump directly to the cursor position; cost is constant whether you are on page 1 or page 10,000.
+
+**Memory hook:** Cursor pagination = jump to position via index (constant cost). Offset pagination = scan and skip (cost grows with depth). Use `PagingStrategies.CURSOR` for all list queries.
+
 ---
 
 ## 3. The Resolver
 
 > **The personal shopper:** A REST controller is a traffic cop at a fixed intersection — five routes, all cars must choose one, you often need multiple trips to assemble what you want. A GraphQL resolver is a personal shopper at a department store. The client tells the shopper exactly what it wants: "Give me the product name, its category, and the three most recent reviews — nothing else." The shopper fetches that precise shape in one trip. No over-fetching. No under-fetching. No three separate API calls.
+
+> **From Meteor?** `Meteor.methods({ createTodo })` handled both reads and writes in one block, and `Meteor.publish('todos')` handled live data. In NestJS, `@Mutation()` = the write path (Meteor method), `@Query()` = the read path (Meteor publication) — but both are explicit, typed, transported over standard HTTPS, and separated into their own decorated methods.
 
 The resolver is the GraphQL entry point — the Meteor Method and Publication combined into one class, but separated into `@Query` (reads) and `@Mutation` (writes).
 
@@ -351,6 +371,8 @@ export class TodoResolver {
 }
 ```
 
+**Memory hook:** Resolver = personal shopper + receptionist. `@Query` reads, `@Mutation` writes. Dispatches to `CommandBus`/`QueryBus`. Zero business logic — if a resolver method has an `if` statement, it belongs in the Service.
+
 **What Part 08 changes in `updateTodo`:**
 
 After auth is added, the filter will be:
@@ -395,6 +417,10 @@ const single = await builder.getOne();
 ```
 
 The `select(query)` method handles all the filter/sort translation automatically. You never write `queryBuilder.where('text LIKE :text', { text })` by hand.
+
+> **From Meteor?** Minimongo's query operators (`{ text: { $regex: /milk/ } }`) were translated client-side and matched against in-memory data. `FilterQueryBuilder` translates the equivalent GraphQL filter objects into real SQL on the server — with index-backed queries, tenant isolation via `@Authorize`, and support for complex nested AND/OR conditions.
+
+**Memory hook:** `FilterQueryBuilder` = smart search desk. Hand it a nestjs-query filter/sort/paging spec; it produces a TypeORM query builder with `@Authorize` filters merged in automatically. You never write raw WHERE clauses.
 
 ---
 
@@ -1119,6 +1145,19 @@ This is less magical than Meteor's reactive subscriptions — and far more predi
 
 ---
 
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| `@ObjectType` / `AbstractDto` | Standard response envelope | Minimongo document shape | Only `@Field` / `@FilterableField` properties are visible to clients |
+| `@InputType` + `class-validator` | Order form with printed rules | `check(input, String)` — but optional | Never accept `id`, `tenantId`, `userId`, `createdAt` from the client |
+| `@Field` | Listed on the menu | Any document property | Clients can read it but cannot filter by it |
+| `@FilterableField` | Menu item with a filter toggle | Minimongo query key | Only expose on columns you explicitly support filtering on |
+| `QueryArgsType` + `ConnectionType` | Auto-generated filter/sort/page form | `find()` cursor with sort/limit | One `@ArgsType` declaration gives you filtering, sorting, and cursor pagination |
+| Cursor pagination (`PagingStrategies.CURSOR`) | Jump to bookmark (constant cost) | No equivalent — Meteor used offset | Use cursor pagination for all production list queries |
+| Resolver | Receptionist + personal shopper | `Meteor.methods` entry (routing only) | Zero business logic; dispatches to `CommandBus`/`QueryBus` |
+| `FilterQueryBuilder` | Smart search desk | Minimongo query operators | Translates GraphQL filters to TypeORM SQL; merges `@Authorize` automatically |
+
 ## Summary
 
 **Backend GraphQL:**
@@ -1126,7 +1165,10 @@ This is less magical than Meteor's reactive subscriptions — and far more predi
 | Concept                    | Decorator/Tool                     | Meteor equivalent           |
 | -------------------------- | ---------------------------------- | --------------------------- |
 | Return type                | `@ObjectType()`                    | Minimongo document shape    |
+| Base output type           | `AbstractDto`                      | No equivalent               |
 | Input type                 | `@InputType()`                     | Method argument             |
+| Input validation           | `class-validator` decorators       | `check(input, String)` — optional |
+| Exposed field              | `@Field()`                         | Any document property       |
 | Filterable field           | `@FilterableField()`               | Minimongo query key         |
 | List query with pagination | `QueryArgsType` + `ConnectionType` | `find()` cursor             |
 | Cursor pagination          | `PagingStrategies.CURSOR`          | No equivalent               |

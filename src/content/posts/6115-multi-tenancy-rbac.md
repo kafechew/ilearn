@@ -41,6 +41,9 @@ Meteor had no native multi-tenancy or RBAC story. Common approaches:
 | Tenant isolation | Manually add `organizationId` to every query | `tenantId` FK on entity + `TenantGuard` + handler filter |
 | Row-level auth | Manual `if user._id !== doc.userId` checks | `@Authorize` decorator from `nestjs-query` |
 | Roles | `alanning:roles` package | `RolesGuard` + `@Roles()` decorator |
+| Fine-grained permissions | No standard pattern — manual per-method checks | `ACPermissionGuard` + permission slugs seeded in DB |
+| Tenant context propagation | Thread `organizationId` as a parameter | REQUEST-scoped `TenantContext` — inject anywhere, no threading |
+| Auth token | Server-side DDP session token | Stateless RS256 JWT — `tenantId` + roles travel in the payload |
 | Admin vs user auth | Same system, different user flag | Separate JWT key pairs + `PortalAuthJwtGuard` |
 
 The Meteor pattern scattered auth logic across Methods — easy to miss one. The NestJS pattern centralizes it in guards and decorators that compose without the developer thinking about it.
@@ -130,6 +133,10 @@ export class TodoEntity extends AbstractEntity {
 
 **`tenantId` comes from the JWT** — just like `userId`. Neither is ever accepted as a client-provided field.
 
+> **From Meteor?** In Meteor, `organizationId` (or equivalent tenant FK) had to be manually added to every `Collection.find()` call in every method and publication — easy to miss one. The NestJS pattern stamps `tenantId` on the entity itself and enforces it at three independent architectural layers, so a developer cannot accidentally forget it on a single query and open a data breach.
+
+**Memory hook:** tenantId = unit number on everything. Every domain entity carries it. From the JWT only. Never from the client.
+
 ---
 
 ## 4. Tenant in the JWT
@@ -167,6 +174,12 @@ async validate(payload: JwtPayload): Promise<RequestUser> {
   return { ...user, tenantId: payload.tenantId };
 }
 ```
+
+> **RS256 JWT — the king's wax seal:** Only the auth service holds the private key (the signet ring). Any service can inspect the seal to verify it's genuine (public key) — but they cannot produce a forgery. Even if a user decodes their JWT and crafts a payload with a different `tenantId`, the RS256 signature verification fails. The key ring itself is the guarantee.
+
+> **From Meteor?** Meteor's DDP session token was a server-side lookup — the server held session state mapping token to userId. JWT is stateless: the token contains all claims, cryptographically signed. No database lookup needed to verify the token, and the `tenantId` travels with every request automatically.
+
+**Memory hook:** RS256 JWT = king's wax seal. Private key signs, public key verifies. `tenantId` in the payload = comes with every authenticated request for free.
 
 ---
 
@@ -220,6 +233,14 @@ Register both in `AppModule` providers. Apply `TenantGuard` globally — after `
 },
 ```
 
+> **Guard = bouncer at the club door:** `TenantGuard` is a bouncer that doesn't reject anyone — it reads the wristband (JWT) and stamps the visitor's hand with their unit number (`tenantId`) before they enter. Every handler downstream sees that stamp without asking for ID again.
+
+> **TenantContext = automatic unit key:** `TenantContext` is REQUEST-scoped — each HTTP request gets its own fresh instance. If it were a singleton, a request from Tenant A could overwrite the `tenantId` that Tenant B's concurrent request is reading. The `Scope.REQUEST` is the lock that keeps the unit keys separate.
+
+> **From Meteor?** In Meteor, tenant identity had to be threaded through every method call manually as a parameter or looked up from a user document inside every method. Here `TenantGuard` runs once globally and `TenantContext` carries the result through the entire request chain automatically — any class that needs it just injects it.
+
+**Memory hook:** TenantGuard = bouncer that stamps the hand. TenantContext = REQUEST-scoped vault holding that stamp. Never singleton — each request owns its own copy.
+
 ---
 
 ## 6. Using tenantId in Handlers
@@ -265,6 +286,10 @@ async findMany({ query }: FindManyTodoCqrsInput['args']) {
 
 If you forget `tenantId` in the filter, Tenant A can read Tenant B's data. This is why the rule is enforced architecturally (code review + the checklist at the end of this part) rather than relying on developers to remember.
 
+> **From Meteor?** In Meteor you would write `TasksCollection.find({ organizationId: this.userId /* wrong! */ })` in every method and publication — a copy-paste pattern that broke silently when missed. The NestJS pattern injects `TenantContext` once per handler and the `@Authorize` decorator adds a second safety net at the query builder level.
+
+**Memory hook:** Every handler that touches domain data must inject `TenantContext` and pass `this.tenantContext.tenantId` into every create/query/update/delete operation. Missing it = cross-tenant data leak.
+
 ---
 
 ## 7. RBAC — Roles & Permissions
@@ -281,6 +306,10 @@ Production apps use two guards in combination:
 `RolesGuard` answers "what level is this user?" — `ACPermissionGuard` answers "can this user perform this action?". Use `RolesGuard` for coarse tenant-level gates; use `ACPermissionGuard` for feature/action-level gates. Both are guards, so they compose with `@UseGuards()` without coupling to business logic.
 
 > **The VIP wristband system:** Think of RBAC like a nightclub with multiple zones. Your wristband determines which doors open for you: general admission wristband = public areas only, staff wristband = back of house, VIP wristband = the VIP lounge. `RolesGuard` checks your wristband tier (OWNER, ADMIN, MEMBER, VIEWER). `ACPermissionGuard` checks specific door slugs (`create-todo`, `delete-user`). A "Tag Manager" role can have the `create-tag` door without having the full ADMIN wristband.
+
+> **From Meteor?** `alanning:roles` provided `Roles.userIsInRole(userId, 'admin')` — a runtime check you called manually inside each method. Nothing enforced you to call it. Here `RolesGuard` and `ACPermissionGuard` are applied via decorators on the resolver method — they run automatically before the handler, and a missing decorator is visible in code review.
+
+**Memory hook:** Two-tier RBAC: `RolesGuard` checks the wristband tier (coarse, fast), `ACPermissionGuard` checks specific door slugs (fine-grained, DB-backed). Both are guards — they compose with `@UseGuards()` and never pollute business logic.
 
 ### 7.2 UserRole Enum
 
@@ -364,6 +393,8 @@ roles: RoleEntity[];
 
 Eager loading on roles means every user fetch also loads their roles + permissions in one query. That's acceptable for auth checks. If you're listing many users (e.g. an admin user list page), use a DataLoader instead to avoid N+1.
 
+**Memory hook:** PermissionEntity = rows in the DB. Each permission has a unique kebab-case slug (`create-todo`, `delete-user`). Roles group permissions. Users hold roles. Guards check slugs.
+
 ### 7.6 ACPermissionGuard
 
 The guard flattens all permission slugs from the user's roles and checks them against the decorator's required slugs:
@@ -437,6 +468,12 @@ export class ACPermissionGuard implements CanActivate {
 }
 ```
 
+> **SetMetadata/Reflector = labels only supervisors can read:** `UseACGuard` calls `SetMetadata` to attach `{ module, permissions }` metadata to the resolver method. Inside `ACPermissionGuard`, `this.reflector.getAllAndOverride()` reads that label. End users never see the metadata — only the guard can read it, like a label printed in supervisor-only ink.
+
+> **From Meteor?** In Meteor there was no equivalent of `Reflector` — you called `Roles.userIsInRole()` imperatively inside the method body. Here the guard reads declarative metadata from the decorator, so permission requirements are visible at the resolver method signature rather than buried in the method body.
+
+**Memory hook:** `ACPermissionGuard` = Reflector reads the `@UseACGuard` label, flattens all role permission slugs into a Set, checks every required slug is present. Missing one slug = 403.
+
 ### 7.7 Using @UseACGuard on Resolvers
 
 ```typescript
@@ -460,6 +497,10 @@ async publicTags(...) {}
 ```
 
 The slug `'create-tag'` is seeded into `PermissionEntity`. Any role that holds that permission slug can execute this mutation — regardless of whether they're ADMIN or MEMBER. This decouples authorization from role names: you can create a "Tag Manager" role that has `create-tag` and `delete-tag` without giving that role full ADMIN access.
+
+> **From Meteor?** In Meteor you might check `Roles.userIsInRole(this.userId, ['admin', 'owner'])` at the top of a method. That ties the check to role names — change the role structure and you grep-hunt every method. Here the check is against a permission slug (`'create-tag'`), and which roles carry that slug is managed in the database. Roles change without touching resolver code.
+
+**Memory hook:** `@UseACGuard('MODULE', ['slug'])` on the resolver + seed the slug in `PermissionEntity` + assign the permission to a role. Three steps, zero grep-hunting when roles change.
 
 ### 7.8 Seeding Roles and Permissions
 
@@ -492,6 +533,10 @@ yarn api:seed:run
 ```
 
 **Verify:** Boot the API. Create a user, assign the "Super Admin" role in Adminer, call the `createTag` mutation → succeeds. Remove the role, retry → `403 Forbidden`.
+
+> **From Meteor?** There was no standard migration tool for MongoDB in Meteor — schema changes happened at the application layer, silently, with no rollback. Here every schema change (new `role`, `permission`, `role_permission`, `user_role` tables) is a TypeORM migration: versioned, reviewable, and reversible with `migration:revert`.
+
+**Memory hook:** RBAC schema changes = TypeORM migrations. Permission slugs = seeder. Idempotent seeders mean re-running them never creates duplicates.
 
 ---
 
@@ -533,6 +578,10 @@ export class TodoDto extends AbstractDto {}
 ```
 
 Now even if a handler forgets to add `tenantId` to its filter, the `@Authorize` decorator injects it at the TypeORM query builder level. **Defense in depth.**
+
+> **From Meteor?** In Meteor, row-level auth was `if (doc.userId !== this.userId) throw new Meteor.Error('not-authorized')` inside each method — manual, per-operation, easy to forget. `@Authorize` is declared once on the DTO and applies to every query that type participates in, automatically, forever.
+
+**Memory hook:** `@Authorize(TodoAuthorizer)` on the `@ObjectType` DTO = one declaration protects every query touching that type. Defense in depth — the second lock after the guard pipeline.
 
 > **The turnstile inside the corridor:** Guards at the front door are your first layer. But `@Authorize` is a **turnstile built into the database corridor itself** — after the guards, before the rows. Even if a handler forgets to add `tenantId` to its filter (a code review miss), the `@Authorize` decorator merges `WHERE tenant_id = $1` at the TypeORM query builder level. It is impossible to bypass by crafting a clever GraphQL query. You cannot bribe a turnstile.
 
@@ -600,6 +649,10 @@ async adminDeleteTodo(
 
 Notice the admin mutation accepts `tenantId` as an argument — admins need to operate across tenants. Regular user mutations NEVER expose `tenantId` as a `@Field()`.
 
+> **From Meteor?** Meteor had one user system — "admin" users were just users with a special role flag, using the same auth token as regular users. Here two physically separate RSA key pairs enforce the boundary: a compromised user JWT cannot be used to call admin mutations, because `PortalAuthJwtGuard` verifies against a completely different public key.
+
+**Memory hook:** Dual-auth = two separate key rings. User JWT (RS256 key pair A) cannot open admin portal (verifies against key pair B). Two key pairs = mathematical separation, not just a role flag.
+
 ---
 
 ## 10. The Multi-tenant + RBAC Compose
@@ -641,6 +694,10 @@ A developer building a new module only needs to:
 4. Add `TodoAuthorizer`-style authorizer to the DTO
 
 The guards run automatically because they're globally registered.
+
+> **From Meteor?** In Meteor every method was its own island — you had to remember to add the `organizationId` check, the role check, and the ownership check in every single method. Here the guard pipeline and `@Authorize` compose automatically: a developer building a new module only needs to wire four things (entity FK, handler injection, authorizer on DTO, permission seed) and all the layers run without further thought.
+
+**Memory hook:** Four wiring steps for a new multi-tenant module: (1) `tenantId` FK on entity, (2) `TenantContext` injected in handler, (3) `@Authorize(XxxAuthorizer)` on DTO, (4) permission slug in seeder. Everything else runs automatically.
 
 ---
 
@@ -728,6 +785,23 @@ Tests:
 │  Bull Queues (Redis)    Redis PubSub    DataLoaders (REQUEST)     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Multi-tenancy | Cloud storage unit facility — every unit shares the building, each tenant can only access their own | Manually add `organizationId` to every query (DIY) | Every operation must check the unit number first. Every time. |
+| tenantId | Unit number stamped on every item stored in the system | Manual `organizationId` field on documents | Never from the client — always from `TenantContext` (from JWT) |
+| TenantGuard | Bouncer who stamps the visitor's hand with their unit number | No equivalent — manual per-method | Runs globally after `AuthJwtGuard`; stores `tenantId` in `TenantContext` |
+| TenantContext | Automatic unit key — REQUEST-scoped, one per request | Thread `organizationId` as a parameter through every function | Must be `Scope.REQUEST` — singleton would let tenants overwrite each other |
+| RS256 JWT | King's wax seal — private key signs, public key verifies | DDP session token (server-side session lookup) | Private key signs (auth service only); public key verifies (any service) |
+| RolesGuard | VIP wristband tier check — OWNER, ADMIN, MEMBER, VIEWER | `alanning:roles` + `Roles.userIsInRole()` manual check | Coarse, fast, in-memory; use for tenant-level gates |
+| ACPermissionGuard | Specific door slug check — `create-tag`, `delete-user` | Manual per-method role check | Fine-grained, DB-backed; decouples auth from role names |
+| SetMetadata / Reflector | Labels only supervisors can read | No equivalent — permissions were imperative checks in method bodies | `SetMetadata` attaches; `Reflector.getAllAndOverride()` reads inside a guard |
+| @Authorize | Turnstile inside the database corridor — cannot be bypassed | Manual `if (doc.userId !== this.userId)` per method | Declared once on the `@ObjectType` DTO; protects every query that type touches |
+| Dual-auth (user vs admin JWT) | Two separate key rings for two separate buildings | Same user system with a role flag | Two RSA key pairs = mathematical separation; a user JWT cannot open admin routes |
 
 ---
 

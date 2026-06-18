@@ -201,6 +201,14 @@ yarn api:dev
 
 The entity models the full lifecycle of an uploaded file. Each row starts as `PENDING` when the browser requests an upload URL, transitions to `UPLOADED` when the browser confirms the S3 PUT completed, and then transitions to `READY` or `FAILED` when the Bull processor validates and processes the file.
 
+> **Entity = government form template:** Every field is defined — name, type, required, max length. Every filled-in form (database row) must match. When the government revises the form (migration), all future submissions follow the new version. `MediaEntity` is that template for the `media` table.
+
+> **AbstractEntity = company letterhead:** `id`, `createdAt`, `updatedAt`, and `deletedAt` are pre-printed on every letter. `MediaEntity` just adds its unique content — `fileKey`, `mimeType`, `status` — on top. Nobody types the letterhead from scratch each time.
+
+> **From Meteor?** `new Mongo.Collection('media')` is schema-less — any shape goes in. `@Entity()` enforces the schema at the database level AND at the TypeScript level. A field that doesn't match the entity declaration won't compile, and `status` as an enum means PostgreSQL rejects values outside `PENDING | UPLOADED | READY | FAILED` at the DB level.
+
+**Memory hook:** Entity = government form template. Schema + TypeScript type in one class. AbstractEntity = letterhead providing id + timestamps. Never `synchronize: true` in prod.
+
 ```typescript
 // apps/api/src/modules/media/media.entity.ts
 import { Column, Entity, Index, ManyToOne, JoinColumn } from "typeorm";
@@ -295,6 +303,10 @@ TypeOrmModule.forRootAsync({
 ## 4. S3Service
 
 The `S3Service` has two responsibilities: generate presigned upload URLs, and build CDN URLs for confirmed uploads. It knows nothing about tenants, users, or business rules — that is the `MediaService`'s job.
+
+> **Provider = appliance plugged into the power grid:** `S3Service` is decorated with `@Injectable()` and registered in `MediaModule`'s `providers` array. The DI container (the power grid) supplies it wherever it is declared as a constructor dependency — `MediaService` and `MediaProcessor` both receive the same singleton instance without ever calling `new S3Service()`.
+
+**Memory hook:** Provider = appliance with `@Injectable()`. The grid only powers appliances registered in a module's `providers` array.
 
 ```typescript
 // apps/api/src/modules/media/s3.service.ts
@@ -406,6 +418,14 @@ The `ContentLengthRange` note deserves elaboration. The AWS SDK v3 presigner doe
 ## 5. MediaService
 
 The service validates the upload request, generates the per-tenant fileKey, saves a `PENDING` entity, and handles the confirm step.
+
+> **Service = doctor:** `MediaService` examines the upload request (validates MIME type, checks size), diagnoses the problem if invalid (`BadRequestException`), and prescribes the treatment (generates the fileKey, saves the entity, enqueues the job). It never answers phones — that is the resolver's job. It never files paperwork in the DB directly without going through TypeORM — that is the repository's job.
+
+> **Repository = librarian:** `MediaService` asks `this.mediaRepo.findOne(...)` and `this.mediaRepo.save(...)`. It does not write raw SQL. The librarian (TypeORM repository) fetches from the stacks and hands back typed results. Mock the repository in tests, and the service is fully testable without a real database.
+
+> **From Meteor?** Meteor methods blurred the line — a `Meteor.methods({ confirmUpload })` body would contain routing, validation, database calls, and queue logic all in one place. In NestJS these are always separate files. "Where is the business logic for upload validation?" → `media.service.ts`. Every time.
+
+**Memory hook:** Service = doctor. All upload rules, MIME checks, and fileKey generation live here. Repository = librarian. Never write raw SQL in the service — ask the repo.
 
 ### Constants
 
@@ -692,6 +712,16 @@ yarn api:dev
 
 ## 6. MediaResolver + CQRS Wiring
 
+> **Resolver = receptionist at a clinic:** `MediaResolver` takes the client's request, decides which command to route it to (`RequestUploadCommand` or `ConfirmUploadCommand`), and hands back the answer. It does not validate MIME types. It does not generate S3 URLs. It routes and returns.
+
+> **CQRS = two separate restaurant kitchens:** `RequestUploadCommand` is the order kitchen — it mutates state by creating a `PENDING` entity. The CQRS handler is a strict one-liner bridge to the service. The resolver's `CommandBus` is the postal sorting facility — drop the command object in the slot, the bus routes it to the right handler; the resolver never imports the handler directly.
+
+> **Guard = bouncer at the club door:** `ACPermissionGuard` with the `upload-media` slug checks the wristband before the mutation body ever executes. If the user's role does not have `upload-media` in its permission set, the request is rejected at the door — `MediaService` never runs.
+
+> **From Meteor?** `Meteor.methods({ requestUpload })` was the entry point AND the logic AND sometimes the DB call, all mixed together. In NestJS the resolver routes only, the CQRS handler delegates only, and the service owns the logic. Three files, three jobs, each independently testable.
+
+**Memory hook:** Resolver = receptionist. Dispatches to `CommandBus`. Never contains an `if` statement with business meaning. Guard = bouncer — runs before the handler, not inside it.
+
 ### CQRS Commands and Queries
 
 ```typescript
@@ -872,6 +902,12 @@ Add the `upload-media` permission to your permissions seeder so it can be assign
 
 ### MediaModule
 
+> **Module = department in a company:** `MediaModule` owns its workers (`MediaService`, `S3Service`, `MediaProcessor`, the CQRS handlers) and borrows what it needs (`TypeOrmModule.forFeature([MediaEntity])` for the repository, `BullModule.registerQueue` for the queue). Nothing outside this module can access `S3Service` or `MediaProcessor` directly — they are not exported. `MediaService` is also not exported because no other module needs to call upload logic directly.
+
+> **From Meteor?** Meteor had no module system — all files loaded into one flat namespace. In NestJS, `S3Service` is only available inside `MediaModule`. If `UserModule` needs to reference media, it must import `MediaModule` and `MediaModule` must explicitly export the relevant provider.
+
+**Memory hook:** `@Module` = department. `imports` borrows · `providers` owns internal workers · `exports` lends. One feature = one module.
+
 ```typescript
 // apps/api/src/modules/media/media.module.ts
 import { Module } from "@nestjs/common";
@@ -942,6 +978,12 @@ curl http://localhost:3333/graphql -X POST \
 ## 7. MediaProcessor (Bull)
 
 The processor runs as a background Bull worker. It downloads only the first 4KB of the uploaded file, validates the magic bytes against the declared MIME type, generates a thumbnail for images, and updates the entity to `READY` or `FAILED`.
+
+> **Bull Queue = kitchen ticket rail:** When `MediaService.confirmUploadMedia` calls `this.mediaQueue.add('process-upload', { mediaId })`, it clips the ticket to the rail and immediately returns. The waiter (API process) goes back to serving the next table. The chef (`MediaProcessor`) picks up tickets at its own pace — magic byte check, `sharp` thumbnail, status update — without the waiter ever standing next to the stove watching the steak cook.
+
+> **From Meteor?** `Meteor.setTimeout` or calling a method then doing heavy work synchronously were common patterns. Bull gives you: retry with exponential backoff (`attempts: 3`), dead-letter inspection in Bull Board, job progress tracking, and Redis-backed durability — if the ECS task restarts mid-job, the job is not lost.
+
+**Memory hook:** Bull = kitchen ticket rail. API process enqueues and returns immediately. Worker processes async. Redis-backed = survives container restarts.
 
 ```typescript
 // apps/api/src/modules/media/media.processor.ts
@@ -1146,6 +1188,12 @@ yarn api:dev
 ---
 
 ## 8. Migration
+
+> **Migration = git commit for the database:** `CreateMediaTable` is an `up()` that creates the `media` table, the `media_status_enum` PostgreSQL type, and three indexes. `down()` reverts all of it. Migrations run in timestamp order and are tracked in a `migrations` table — your database has a full, reversible history just like your code. Never alter a past migration; add a new one.
+
+> **From Meteor?** MongoDB has no migrations — schema changes just happen (or don't). When you have 200,000 media rows and need to add a `thumbnailUrl` column, no-migration becomes a production incident. Every schema change in NestJS is visible, reviewable, and reversible.
+
+**Memory hook:** Migration = git commit for DB. `up()` applies, `down()` reverts. Never edit old migrations. Test both directions before merging.
 
 ### Generate the Migration
 
@@ -1732,6 +1780,24 @@ Expected:
 ```
 
 The file is stored in S3 (the presigned URL let it through), but the processed record is marked `FAILED` and no CDN URL is set. Add a scheduled cleanup to delete `FAILED` S3 objects older than 24 hours using an S3 lifecycle rule on keys matching `tenants/*/media/*` with `status` tag `FAILED`.
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Entity (`MediaEntity`) | Government form template | `new Mongo.Collection('media')` — schema-less | Schema enforced at DB + TypeScript level. Never `synchronize: true` in prod. |
+| AbstractEntity | Company letterhead | No equivalent — repeated manually or not at all | All entities extend it; id + timestamps pre-printed. |
+| Provider (`S3Service`) | Appliance plugged into the power grid | Globally imported file | Must be in `providers[]` to be DI-managed. |
+| Service (`MediaService`) | Doctor | Logic inside a Meteor method body | All upload rules, MIME checks, fileKey generation live here. |
+| Repository | Librarian | `TasksCollection.findOne()` — direct | Only layer allowed to touch the database. Mock it in tests. |
+| Resolver (`MediaResolver`) | Receptionist at a clinic | `Meteor.methods({ requestUpload })` entry | Routes and returns. Never contains business logic. |
+| Guard (`ACPermissionGuard`) | Bouncer at the club door | `.allow()` / `.deny()` — but those run at DB layer | Returns `true` or throws. Runs before handler, not inside it. |
+| CQRS handler | Postal sorting facility | Logic inside Meteor method — no separation | Handlers must be one-liners. Logic belongs in the service. |
+| Module (`MediaModule`) | Department in a company | Flat file namespace — no module system | `imports` borrows · `providers` owns · `exports` lends. |
+| Bull Queue (`MediaProcessor`) | Kitchen ticket rail | `Meteor.setTimeout` or synchronous method | Enqueue and return immediately. Worker processes async. Redis-backed. |
+| Migration (`CreateMediaTable`) | Git commit for the database | No migrations — MongoDB is schema-less | `up()` applies, `down()` reverts. Never edit old migrations. |
 
 ---
 

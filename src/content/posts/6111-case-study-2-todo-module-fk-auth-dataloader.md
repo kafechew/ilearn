@@ -31,7 +31,19 @@ description: By the end of this part, you will be building a module with a forei
 
 ---
 
-## Meteor Equivalent
+## Meteor Equivalents
+
+| Meteor | NestJS | What changed |
+|--------|--------|--------------|
+| `userId: String` on a collection document | `@ManyToOne(() => UserEntity)` + `@RelationId` | FK enforced at DB level with a real constraint |
+| `find({ userId: this.userId })` in a publication | `userId: { eq: currentUser.user.id }` filter in resolver | Ownership enforced at API layer, not publication layer |
+| Any client could pass `userId` in a method call | No `@Field()` on `userId` in `CreateTodoInput` | Server assigns `userId` from JWT — clients cannot supply it |
+| N+1 invisible (client-side Minimongo joins) | N+1 is a real DB problem — solved with DataLoader | Server-side GraphQL resolves each field separately |
+| No equivalent — Minimongo holds all data | DataLoader batches N user lookups into 1 SQL query | Critical for performance at scale |
+| No concept | `Scope.REQUEST` — fresh DataLoader instance per request | Prevents cross-user data leaks from cached results |
+| Automatic DDP reactive joins | `@ResolveField` + DataLoader | Explicit, typed, and batch-optimised |
+| `.allow()` / `.deny()` at the collection level | `@UseGuards(AuthJwtGuard)` at the resolver level | Guards run before your handler, not after |
+| DDP session token | RS256 JWT in `Authorization` header | Cryptographically verifiable, stateless |
 
 In Meteor with `autopublish` removed:
 
@@ -168,6 +180,10 @@ type Todo {
 
 ## 3. Entity (`todo.entity.ts`)
 
+> **Entity = government form template:** A TypeORM Entity is a TypeScript class where each property maps to a database column. Every filled-in form (database row) must match the template. When the government revises the form (migration), all future submissions follow the new version. `AbstractEntity` is the **company letterhead** — every entity is printed on paper that already has the logo (`id`), address (`createdAt`, `updatedAt`), and date field (`deletedAt`) pre-printed. Each entity just adds its unique content.
+
+> **From Meteor?** `new Mongo.Collection('todo')` is schema-less — any shape goes in. `@Entity()` enforces a schema at the database level AND at the TypeScript level. A field that doesn't match the entity declaration won't compile.
+
 ```typescript
 // apps/api/src/modules/todo/todo.entity.ts
 import { Column, Entity, Index, JoinColumn, ManyToOne, RelationId } from 'typeorm';
@@ -214,6 +230,8 @@ todo.user.fullname;  // → "Alice" (loaded via JOIN)
 
 You use `userId` for filtering and ownership checks (cheap). You use DataLoader to load `user` only when the client requests nested user fields.
 
+**Memory hook:** Entity = government form template. `@RelationId` gives you the FK integer cheaply (no JOIN). `@Index()` on every column used in `WHERE`. Never `synchronize: true` in production.
+
 ---
 
 ## 4. Constants (`todo.constant.ts`)
@@ -232,6 +250,10 @@ registerEnumType(TodoStatus, { name: 'TodoStatus' });
 ---
 
 ## 5. DTOs
+
+> **AbstractDto = standard response envelope:** If `AbstractEntity` is the company letterhead for DB rows, `AbstractDto` is the standard response envelope for API responses. The client always knows where to find `id`, `createdAt`, and `updatedAt` — they're on every envelope. `TodoDto extends AbstractDto` gets those fields as `@Field()` for free.
+
+> **From Meteor?** Meteor had no formal DTO layer — data returned from `Meteor.methods` or publications could be any shape. `@ObjectType` DTOs with `@Field()` define the exact API contract: only decorated fields are visible to GraphQL clients. Undeclared fields are invisible.
 
 ### Read DTO (`dto/todo.dto.ts`)
 
@@ -327,6 +349,8 @@ export class TodosQuery extends QueryArgsType(TodoDto, {
 export const TodoQueryConnection = TodosQuery.ConnectionType;
 ```
 
+**Memory hook:** AbstractDto = response envelope. `userId` never gets a `@Field()` on a create input — server-assigned only. Only `@FilterableField()` fields can be filtered by clients.
+
 ---
 
 ## 6. CQRS Inputs, Index, and Handlers
@@ -358,9 +382,19 @@ export class DeleteOneTodoCommand extends AbstractCqrsCommandInput<TodoEntity, {
 
 **`cqrs/index.ts`** and **`cqrs/todo.cqrs.handler.ts`** — same one-liner pattern as Tag. (See Part 10 for the template — substitute `Tag` → `Todo`.)
 
+> **CommandBus/QueryBus = postal sorting facility:** Drop a command or query object into the bus. The facility reads the class name, routes it to the registered handler. The resolver never imports the handler directly — it never knows which driver was used. The letter always arrives.
+
+> **From Meteor?** `Meteor.methods({ createTodo: function() { ... } })` is the method body — handler AND service AND repo call in one block. CQRS separates these into three distinct files: handler (route), service (logic), repository (data). Each independently testable.
+
+**Memory hook:** CommandBus/QueryBus = postal facility. Drop the object, bus routes it. Handlers are thin one-liners — all logic goes in the service.
+
 ---
 
 ## 7. Service (`todo.service.ts`)
+
+> **Service = doctor:** The service is where the actual work happens. Business rules, ownership validation, repository calls — all in `*.service.ts`. The doctor examines, diagnoses, and prescribes. She does not answer phones (resolver's job) or file paperwork. She never touches HTTP concepts like `@Req()` or `@Res()`.
+
+> **From Meteor?** Meteor methods mixed routing, validation, and DB calls in one block. "Where is the business logic?" in NestJS → `*.service.ts`. Always. Every time.
 
 The Todo service adds one important concern: **ownership validation** on update and delete.
 
@@ -458,6 +492,8 @@ export class TodoService extends TypeOrmQueryService<TodoEntity> {
 }
 ```
 
+**Memory hook:** Service = doctor. All `if` statements with business meaning live here. Ownership check (query filter with `userId: { eq: currentUser.user.id }`) is a service-level concern, not a resolver concern.
+
 ---
 
 ## 8. DataLoader (`todo-user.loader.ts`)
@@ -502,6 +538,8 @@ export class TodoUserLoader {
 
 DataLoader maps input `[1, 2, 3]` to output `[user1, user2, user3]` by index position. If you return `[user3, user1]` (sorted differently), DataLoader maps the wrong user to the wrong ID. Always use `.map((id) => users.find((u) => u.id === id))`.
 
+**Memory hook:** DataLoader = one warehouse trip for 100 orders. `Scope.REQUEST` is non-negotiable — singleton DataLoader = cross-user data leak. Result array must be in exact same order as input keys.
+
 Install dataloader:
 
 ```bash
@@ -511,6 +549,10 @@ yarn add dataloader
 ---
 
 ## 9. Resolver with `@ResolveField` (`todo.resolver.ts`)
+
+> **Resolver = receptionist + personal shopper:** The resolver is the entry point for every GraphQL operation. Like the receptionist at a clinic, it takes the request, routes it to the right handler, and returns the answer. It does not examine or prescribe. As a personal shopper, it lets the client ask for exactly the fields it needs — `user { fullname }` is only fetched when the client asks for it. If a resolver method has business logic, move it to the service.
+
+> **From Meteor?** `Meteor.methods({ createTodo })` handled both routing and logic in one body. `@Mutation() createTodo()` is routing only — `@UseGuards` for auth, `@CurrentUser()` to extract the user, then dispatch to `commandBus`. The separation is strict and visible.
 
 ```typescript
 // apps/api/src/modules/todo/todo.resolver.ts
@@ -655,9 +697,13 @@ When a client requests:
 
 Apollo calls `TodoResolver.getTodos()` to get the todo list, then for each todo that has `user { ... }` requested, calls `TodoResolver.user(todo)`. Without DataLoader, this is N separate DB queries. With DataLoader, all `userLoader.load(userId)` calls in the same event loop tick are batched into one query.
 
+**Memory hook:** Resolver = receptionist. `@ResolveField` is called once per parent object — DataLoader batches all those calls into one query. `@UseGuards` is explicit and mandatory on every mutation.
+
 ---
 
 ## 10. Module (`todo.module.ts`)
+
+> **Module = department in a company:** `TodoModule` owns its own workers (`providers`) — the resolver, service, DataLoader, and CQRS handlers. It borrows from other departments (`imports`) — `TypeOrmModule.forFeature` for the repositories. It lends `TodoService` to any module that needs it (`exports`). `UserEntity` must be in `imports` because `TodoUserLoader` needs the `UserEntity` repository — you cannot access another department's tools without formally requesting them.
 
 ```typescript
 // apps/api/src/modules/todo/todo.module.ts
@@ -691,6 +737,8 @@ import { UserEntity } from '../user/user.entity';
 })
 export class TodoModule {}
 ```
+
+**Memory hook:** Module = department. `imports` borrows · `providers` owns · `exports` lends. `TodoUserLoader` needs `UserEntity` in `imports` — always declare what your providers need.
 
 ---
 
@@ -765,6 +813,12 @@ query {
 
 ## 12. Ownership Enforcement: The Three Layers
 
+> **Guard = bouncer at the club door:** `AuthJwtGuard` is the first bouncer — it checks your wristband (JWT). No valid JWT = 401, execution stops here. It runs before your resolver method ever starts.
+
+> **RS256 JWT = king's wax seal:** The auth service signs tokens with a private key. Any service can verify the signature using the public key. Even if an attacker steals a downstream service's code, they cannot forge a token — the private key never leaves the auth service. HS256 would be a master key: anyone who has it can both lock and unlock.
+
+> **From Meteor?** `.allow({ remove: fn })` ran at the database layer — after your method body had already executed. Guards run at the API entry point, before any handler starts. `this.userId` inside a Meteor method is the rough equivalent of `@CurrentUser()` — but NestJS's version is JWT-verified and typed.
+
 Review the complete ownership chain for a `deleteTodo` call:
 
 ```
@@ -787,6 +841,8 @@ Layer 3: Query filter in resolver/service
 ```
 
 A malicious user who authenticates as user 5 and sends `id: 999` (another user's todo) will always get null — they cannot delete, update, or even read another user's records.
+
+**Memory hook:** Guard = bouncer (Layer 1 — JWT). `@CurrentUser()` = extract verified identity (Layer 2). Query filter with `userId` = row-level ownership (Layer 3). All three layers must be present.
 
 ---
 
@@ -879,6 +935,27 @@ describe('TodoService', () => {
   });
 });
 ```
+
+---
+
+## Quick Reference
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Entity | Government form template | `new Mongo.Collection('todo')` — schema-less | Extend `AbstractEntity`. Never `synchronize: true` in prod. |
+| AbstractEntity | Company letterhead | No equivalent | Provides `id` + timestamps. All entities extend it. |
+| AbstractDto | Standard response envelope | No equivalent | Pairs with AbstractEntity. All output DTOs extend it. |
+| `@RelationId` | FK value on the form | `userId: String` field (unvalidated) | Cheap integer — use for filtering. Load full relation only when needed. |
+| Service | Doctor | Logic mixed into `Meteor.methods` body | All business logic here. Never touches HTTP objects. |
+| Resolver | Receptionist + personal shopper | `Meteor.methods` entry — routing only | Routes and returns. Two lines max. No business logic. |
+| `@ResolveField` | Personal shopper fetching nested items | Automatic via DDP reactive joins | Called once per parent object — always pair with DataLoader. |
+| Module | Department in a company | Implicit file loading | `imports` borrows · `providers` owns · `exports` lends. |
+| CommandBus/QueryBus | Postal sorting facility | Single method body doing everything | Drop the object; bus routes to handler. Handlers are one-liners. |
+| DataLoader | One warehouse trip for 100 orders | No equivalent (client-side joins in Minimongo) | Must be `Scope.REQUEST`. Result order must match input key order. |
+| `Scope.REQUEST` | Fresh cup brewed per visitor | No concept | Cascades up the dependency tree — use deliberately. |
+| Guard (`AuthJwtGuard`) | Bouncer at the club door | `.allow()` / `.deny()` — but at DB layer | Returns `true` or throws. Runs before pipes and handler. |
+| RS256 JWT | King's wax seal | DDP session token | Private key signs, public key verifies. Use RS256, never HS256. |
+| Ownership filter | Unit number on every query | `find({ userId: this.userId })` in publish | `userId: { eq: currentUser.user.id }` on every query and mutation. |
 
 ---
 
