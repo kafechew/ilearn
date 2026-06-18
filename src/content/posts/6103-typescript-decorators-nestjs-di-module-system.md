@@ -37,6 +37,10 @@ description: By the end of this part, you will learn TypeScript decorators, Nest
 | Global `Meteor` object | Injectable services via DI | Dependencies are injected, not accessed globally |
 | `meteor add accounts-base` | `imports: [AuthModule]` in AppModule | Modules are composed, not installed as framework plugins |
 | Method/collection files auto-loaded | Only files registered in a module are active | Nothing "just works" — you wire everything |
+| No decorator system (`Template.helpers`, `Meteor.methods`) | `@Injectable`, `@Resolver`, `@Module` | NestJS reads labels at startup; no label = invisible to the framework |
+| `Meteor.methods({ createTask })` (entry + logic in one block) | `@Resolver` (entry only) → `CommandBus` → `Service` | Entry and logic are always separate files |
+| `.allow()` / `.deny()` on collections (runs at DB layer) | `@UseGuards(AuthJwtGuard)` (runs at request entry) | Guards run before your handler starts, not after |
+| `check(input, String)` (optional, per-method) | `ValidationPipe` + DTO class (global, automatic) | Every request validated automatically; unknown fields rejected |
 
 ---
 
@@ -103,6 +107,10 @@ In Meteor, you ran `meteor add accounts-password` and auth "just appeared". In N
 
 Nothing happens implicitly. The decorators are your wiring diagram.
 
+> **From Meteor?** Meteor had no decorator system — `Template.helpers({})`, `Meteor.methods({})`, and `ReactiveVar` wired the app implicitly, through Meteor's own magic. There were no `@` labels. NestJS replaces all that invisible glue with explicit labels that are readable, searchable, and enforced at startup.
+
+**Memory hook:** `@Something` = a sticky label. NestJS reads it at startup and acts on it. No label = invisible to the framework.
+
 ---
 
 ## 2. Dependency Injection
@@ -150,6 +158,8 @@ NestJS reads the constructor types, checks the module registry, finds registered
 > **The staffing agency:** DI works like a professional staffing agency. A chef (your class) tells the agency: "I need a sous chef, a pastry specialist, and a sommelier." On opening day, the agency sends the right people. The chef focuses entirely on cooking. In the test kitchen, the agency sends stand-ins (mocks). The chef cooks the same way regardless — never knowing whether the sommelier is real or a fake.
 
 > **Meteor analogy:** In Meteor you accessed globals: `Meteor.userId()`, `Accounts`, `TasksCollection`. In NestJS, there are no globals. Every dependency arrives through the constructor — explicit, typed, testable.
+
+**Memory hook:** DI = staffing agency. Constructor lists what it needs; the container delivers. In tests, swap the real service for a fake — the class never knows the difference.
 
 ### Singleton vs Request-Scoped
 
@@ -204,6 +214,8 @@ AppModule (root)
 
 > **Meteor analogy:** In Meteor, `TasksCollection` was global — any file anywhere could access it. In NestJS, `Repository<TodoEntity>` is only available inside `TodoModule` (and modules it exports to). This prevents accidental cross-module data access.
 
+**Memory hook:** `@Module` = department. `imports` borrows, `providers` owns internal workers, `exports` lends to others. One feature = one module. Never one giant `AppModule` doing everything.
+
 ---
 
 ## 4. The Request Lifecycle
@@ -244,6 +256,8 @@ Response (serialized GraphQL response)
 **Guards** (the bouncer) decide if the request is allowed — check credentials, return true or throw. Every patron shows a wristband before reaching the dance floor.
 **Pipes** (the water filter) validate and transform input — strip impurities and wrong types before your handler ever sees the data.
 **The handler** is where your business logic starts — guards and pipes have already run by the time your `@Query()` or `@Mutation()` method executes.
+
+> **From Meteor?** `.allow()` and `.deny()` on collections are the rough Guard equivalent — but they ran at the database layer, after your code had already executed. Guards run before your handler even starts. `check(input, String)` is the rough Pipe equivalent — but it was optional and per-method. NestJS `ValidationPipe` with `whitelist: true` is global, automatic, and rejects requests with fields you never declared.
 
 ---
 
@@ -479,6 +493,8 @@ export class TodoResolver {
 > - `@CurrentUser()` → `this.userId` inside a Meteor method
 > - `this.commandBus.execute(...)` → `TasksCollection.insertAsync(...)` — but with explicit routing
 
+**Memory hook:** Resolver = receptionist + personal shopper. Dispatches to `CommandBus` or `QueryBus`. If a resolver method has an `if` statement or touches the database, it belongs in the Service.
+
 ---
 
 ## 8. Services
@@ -486,6 +502,10 @@ export class TodoResolver {
 The service is where business logic lives.
 
 > **The doctor:** The Resolver (the receptionist from Section 7) hands work off to the Service — the **doctor** who actually examines, diagnoses, and prescribes. The doctor does not answer phones or handle paperwork. She does medicine. If a service method references HTTP objects (`@Req`, `@Res`, `Request`) or routes requests to other services, something is in the wrong layer.
+
+> **From Meteor?** Meteor methods often mixed routing, validation, and database calls in one block. In NestJS these are always separate files. "Where is the business logic?" → `*.service.ts`. Every time.
+
+**Memory hook:** Service = doctor. All `if` statements with business meaning live here. All repository calls live here. Never touches HTTP objects.
 
 Nothing else goes in here except:
 - Repository calls (read/write to the database)
@@ -595,6 +615,23 @@ apps/api/src/modules/todo/
 ```
 
 Each file has exactly one job. When you need to change validation rules, you look in `dto/`. When you need to change database queries, you look in `*.service.ts`. When you need to add a new GraphQL endpoint, you look in `*.resolver.ts`.
+
+---
+
+## Quick Reference
+
+Scan this when you forget where something belongs. One row per concept.
+
+| Concept | Analogy | Meteor equivalent | The one rule |
+|---------|---------|-------------------|--------------|
+| Decorator | Sticky label on a file folder | `Template.helpers({})`, `Meteor.methods({})` — implicit | No `@` label = invisible to NestJS |
+| `@Module` | Department in a company | `meteor add` — but you wire it manually | `imports` borrows · `providers` owns · `exports` lends |
+| `@Injectable` / Provider | Appliance with a plug | Globally imported file | Must be in `providers[]` to be DI-managed |
+| DI | Staffing agency | `Meteor.userId()`, `Accounts` globals | Constructor declares needs; container delivers |
+| Guard | Bouncer | `.allow()` / `.deny()` — but those run at DB layer | Returns `true` or throws. Runs before Pipe. |
+| Pipe | Water filter | `check(input, String)` — but optional | Validates/transforms. Returns 400 on failure. |
+| Resolver | Receptionist + personal shopper | `Meteor.methods` entry — but only the routing part | Routes only. Dispatches to bus. Two lines max. |
+| Service | Doctor | `Meteor.methods` logic body | All business logic lives here. Every `if` statement. |
 
 ---
 
