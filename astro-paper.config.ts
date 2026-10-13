@@ -2,7 +2,7 @@ import { defineAstroPaperConfig } from "./src/types/config";
 
 export default defineAstroPaperConfig({
   site: {
-    url: "https://blog.kheai.com",
+    url: "https://www.kheai.com",
     title: "KheAi",
     description: "An engineering blueprint to reclaim your time, attention, and biology in a high-entropy world. Learn the system architecture of the Minimal Path to Freedom (MPF).",
     author: "Kai",
